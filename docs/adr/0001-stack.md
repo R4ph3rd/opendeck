@@ -1,6 +1,6 @@
 # ADR 0001: Technology stack
 
-- Status: proposed (frozen on approval)
+- Status: accepted (2026-10-29)
 - Date: 2026-10-29
 - Deciders: project owner, architect
 
@@ -87,6 +87,10 @@ Versions below are the latest stable on crates.io / npm on the ADR date. Exact v
 6. **Windows installer cannot be built in the agent environment** (Linux container). The checker gate runs `pnpm tauri build` on Linux (AppImage/.deb) locally; the Windows NSIS/MSI build is proven by the `ci.yml` Windows job and `release.yml`. A `windows-latest` job running `cargo test` and `tauri build --no-bundle` is added to `ci.yml` because Windows is the primary target.
 7. **macOS x64.** GitHub retired Intel macOS runners, so macOS ships one universal dmg (`universal-apple-darwin`) built on `macos-latest`.
 8. **No `gh` CLI auth in the agent environment.** The checker watches workflow runs through the GitHub API tools instead of `gh run watch`.
+
+## Project licence
+
+PolyForm Noncommercial 1.0.0 with an extra permission for commercial use of unmodified copies (see `LICENSE`). Every dependency must be permissive (MIT, Apache-2.0, BSD, Zlib, ISC, CC0) or file-level copyleft used unmodified (MPL-2.0). GPL, LGPL and AGPL code is not linked. `cargo deny` enforces the allow-list in CI.
 
 ## Consequences
 
