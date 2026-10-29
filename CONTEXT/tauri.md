@@ -18,7 +18,7 @@ Thin Tauri 2 shell: window, typed commands and events over `opendeck_app_core`, 
 ## How things work
 - Commands: `#[tauri::command] #[specta::specta]`, registered in `specta_builder()`. Fallible ones return `Result<T, CommandError>`.
 - Events: derive `tauri_specta::Event` with `#[tauri_specta(event_name = "...")]`.
-- Regenerate bindings: `cargo run -p opendeck-desktop --bin export-bindings`. Test `bindings_are_up_to_date` fails on drift; `contract_dtos_export` checks every planned DTO exports.
+- Regenerate bindings: `cargo run -p opendeck-desktop --example export-bindings`. Test `bindings_are_up_to_date` fails on drift; `contract_dtos_export` checks every planned DTO exports.
 - Raw byte commands (peaks, artwork) return `tauri::ipc::Response` through a dispatcher next to the specta handler; TS wrappers in `ui/src/ipc/raw.ts` (ADR 0004).
 - Build: `pnpm -C ui tauri build` (wrapper sets `TAURI_APP_PATH`); `beforeBuildCommand` runs `pnpm build` in `ui/`. Bundles: nsis, msi, appimage, deb, dmg.
 - Plain `cargo build`/`clippy`/`test` work without `ui/dist` (debug builds use `devUrl`).

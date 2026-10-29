@@ -18,9 +18,10 @@ name = "opendeck"
 path = "src/main.rs"
 
 # Writes ui/src/ipc/bindings.ts without starting the app (CI: regenerate and diff).
-[[bin]]
+# An example, not a bin: the Tauri bundler ships every bin target as an app binary.
+[[example]]
 name = "export-bindings"
-path = "src/bin/export_bindings.rs"
+path = "examples/export_bindings.rs"
 
 [build-dependencies]
 tauri-build = { workspace = true, features = [] }
