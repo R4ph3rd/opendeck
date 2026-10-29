@@ -15,6 +15,7 @@
 
 mod audio;
 mod deck;
+pub mod device;
 mod handle;
 mod meter;
 mod offline;
