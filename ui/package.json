@@ -7,18 +7,22 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "typecheck": "tsc --noEmit",
-    "lint": "eslint .",
-    "test": "vitest run",
-    "tauri": "node scripts/tauri.mjs"
+    "typecheck": "tsc --noEmit && pnpm --filter @opendeck/design-system typecheck",
+    "lint": "eslint . && stylelint \"**/*.css\"",
+    "test": "vitest run && pnpm --filter @opendeck/design-system test",
+    "tauri": "node scripts/tauri.mjs",
+    "storybook": "pnpm --filter @opendeck/design-system storybook",
+    "build-storybook": "pnpm --filter @opendeck/design-system build-storybook"
   },
   "dependencies": {
+    "@opendeck/design-system": "workspace:*",
     "@tauri-apps/api": "2.12.4",
     "react": "19.3.1",
     "react-dom": "19.3.1"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@tailwindcss/vite": "4.3.3",
     "@tauri-apps/cli": "2.12.4",
     "@testing-library/react": "16.3.3",
     "@types/node": "22.20.5",
@@ -29,6 +33,9 @@
     "eslint-plugin-react-hooks": "7.1.1",
     "globals": "17.13.0",
     "jsdom": "29.1.1",
+    "stylelint": "17.16.0",
+    "stylelint-declaration-strict-value": "1.12.1",
+    "tailwindcss": "4.3.3",
     "typescript": "6.0.3",
     "typescript-eslint": "8.72.1",
     "vite": "8.3.5",
