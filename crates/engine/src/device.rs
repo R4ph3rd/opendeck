@@ -6,7 +6,7 @@
 //! renders the core and copies the master bus to its channel pair. Errors
 //! reported by the backend (device unplugged, xruns) arrive on a backend
 //! thread and are published through atomics; [`AudioOutput::poll_event`]
-//! turns them into [`AudioEvent`]s for the control thread.
+//! turns them into device [`EngineEvent`]s for the control thread.
 //!
 //! The `asio` cargo feature forwards to `cpal/asio` (Windows only).
 
@@ -18,8 +18,8 @@ use cpal::{
     BufferSize, ErrorKind, FromSample, Host, HostId, Sample, SampleFormat, SizedSample,
     StreamConfig, SupportedBufferSize,
 };
-use opendeck_contracts::SampleRate;
 use opendeck_contracts::settings::{AudioHostKind, AudioSettings, ChannelPair};
+use opendeck_contracts::{EngineEvent, SampleRate};
 
 use crate::audio::EngineCore;
 use crate::handle::{EngineHandle, engine_with_xruns};
@@ -355,20 +355,6 @@ const STATUS_LOST: u32 = 1;
 const STATUS_ERROR: u32 = 2;
 const STATUS_REROUTED: u32 = 4;
 
-/// Backend notifications for the control thread.
-///
-/// `EngineEvent` in the contracts crate has no variant for these yet, so
-/// the device layer reports them itself.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AudioEvent {
-    /// The output device went away. The stream is dead; open a new one.
-    DeviceLost,
-    /// The host moved the stream to another device and keeps playing.
-    DeviceChanged,
-    /// The backend reported some other stream error.
-    StreamError,
-}
-
 #[derive(Default)]
 struct StreamStatus {
     flags: AtomicU32,
@@ -435,19 +421,27 @@ impl AudioOutput {
         self.xruns.load(Ordering::Relaxed)
     }
 
-    /// Next backend notification, if any. Poll from the control thread.
-    pub fn poll_event(&mut self) -> Option<AudioEvent> {
-        for (flag, event) in [
-            (STATUS_LOST, AudioEvent::DeviceLost),
-            (STATUS_REROUTED, AudioEvent::DeviceChanged),
-            (STATUS_ERROR, AudioEvent::StreamError),
-        ] {
-            if self.status.flags.fetch_and(!flag, Ordering::AcqRel) & flag != 0 {
-                return Some(event);
-            }
-        }
-        None
+    /// Next backend notification, if any: [`EngineEvent::DeviceLost`],
+    /// [`EngineEvent::DeviceChanged`] or [`EngineEvent::StreamError`]. Poll
+    /// from the control thread next to [`EngineHandle::poll_event`]; these
+    /// never travel on the audio thread's event ring.
+    pub fn poll_event(&mut self) -> Option<EngineEvent> {
+        poll_status(&self.status)
     }
+}
+
+/// Takes the most severe pending backend notification off `status`.
+fn poll_status(status: &StreamStatus) -> Option<EngineEvent> {
+    for (flag, event) in [
+        (STATUS_LOST, EngineEvent::DeviceLost),
+        (STATUS_REROUTED, EngineEvent::DeviceChanged),
+        (STATUS_ERROR, EngineEvent::StreamError),
+    ] {
+        if status.flags.fetch_and(!flag, Ordering::AcqRel) & flag != 0 {
+            return Some(event);
+        }
+    }
+    None
 }
 
 /// Opens the output stream described by `settings` and starts the engine.
@@ -719,6 +713,28 @@ mod tests {
         assert_eq!(xruns.load(Ordering::Relaxed), 1);
         status.record(ErrorKind::DeviceNotAvailable, &xruns);
         assert_eq!(status.flags.load(Ordering::Relaxed), STATUS_LOST);
+    }
+
+    #[test]
+    fn backend_errors_surface_as_engine_events() {
+        let status = Arc::new(StreamStatus::default());
+        let xruns = AtomicU32::new(0);
+        status.record(ErrorKind::DeviceChanged, &xruns);
+        status.record(ErrorKind::DeviceNotAvailable, &xruns);
+        status.record(ErrorKind::ResourceExhausted, &xruns);
+        let mut seen = [None; 4];
+        for slot in &mut seen {
+            *slot = poll_status(&status);
+        }
+        assert_eq!(
+            seen,
+            [
+                Some(EngineEvent::DeviceLost),
+                Some(EngineEvent::DeviceChanged),
+                Some(EngineEvent::StreamError),
+                None,
+            ]
+        );
     }
 
     #[test]
