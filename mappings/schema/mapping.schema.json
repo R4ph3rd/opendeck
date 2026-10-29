@@ -153,7 +153,8 @@
         "midi": { "$ref": "#/$defs/midiInput" },
         "when": {
           "type": "object",
-          "description": "Modifier states required for this control to fire, e.g. {\"shift_deck1\": true}.",
+          "description": "Modifier states required for this control to fire, e.g. {\"shift_deck1\": true}. Keys are modifier ids.",
+          "propertyNames": { "$ref": "#/$defs/ident" },
           "additionalProperties": { "type": "boolean" }
         },
         "action": { "$ref": "#/$defs/action" },
