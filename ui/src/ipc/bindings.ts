@@ -48,6 +48,76 @@ export const commands = {
 	pitchBend: (deck: DeckId, amount: number | null) => typedError<null, CommandError>(__TAURI_INVOKE("pitch_bend", { deck, amount })),
 	/**  Returns the active pad mode of a deck. */
 	getPadMode: (deck: DeckId) => typedError<PadMode, CommandError>(__TAURI_INVOKE("get_pad_mode", { deck })),
+	/**  Control state of a deck: tempo, sync, quantize, slip, leader, loop. */
+	getDeckState: (deck: DeckId) => typedError<DeckState, CommandError>(__TAURI_INVOKE("get_deck_state", { deck })),
+	/**  Sync mode of a deck. */
+	setSync: (deck: DeckId, mode: SyncMode) => typedError<null, CommandError>(__TAURI_INVOKE("set_sync", { deck, mode })),
+	/**  Sync leader; `None` lets the engine pick. */
+	setLeader: (deck: DeckId | null) => typedError<null, CommandError>(__TAURI_INVOKE("set_leader", { deck })),
+	/**  Quantize on or off. */
+	setQuantize: (deck: DeckId, on: boolean) => typedError<null, CommandError>(__TAURI_INVOKE("set_quantize", { deck, on })),
+	/**  Slip mode on or off. */
+	setSlip: (deck: DeckId, on: boolean) => typedError<null, CommandError>(__TAURI_INVOKE("set_slip", { deck, on })),
+	/**  Vinyl mode on or off. */
+	setVinylMode: (deck: DeckId, on: boolean) => typedError<null, CommandError>(__TAURI_INVOKE("set_vinyl_mode", { deck, on })),
+	/**  Platter touched or released. */
+	jogTouch: (deck: DeckId, touched: boolean) => typedError<null, CommandError>(__TAURI_INVOKE("jog_touch", { deck, touched })),
+	/**  Platter rotation since the last call, in revolutions (signed). */
+	jogTurn: (deck: DeckId, revolutions: number | null) => typedError<null, CommandError>(__TAURI_INVOKE("jog_turn", { deck, revolutions })),
+	/**  Fast search by `beats` (signed). */
+	jogSearch: (deck: DeckId, beats: Beats) => typedError<null, CommandError>(__TAURI_INVOKE("jog_search", { deck, beats })),
+	/**  Loop in at the playhead. */
+	loopIn: (deck: DeckId) => typedError<null, CommandError>(__TAURI_INVOKE("loop_in", { deck })),
+	/**  Loop out at the playhead and start looping. */
+	loopOut: (deck: DeckId) => typedError<null, CommandError>(__TAURI_INVOKE("loop_out", { deck })),
+	/**  Exit the active loop, or re-enter the last one. */
+	loopToggle: (deck: DeckId) => typedError<null, CommandError>(__TAURI_INVOKE("loop_toggle", { deck })),
+	/**  Auto loop of `length` beats from the playhead. */
+	autoLoop: (deck: DeckId, length: Beats) => typedError<null, CommandError>(__TAURI_INVOKE("auto_loop", { deck, length })),
+	/**  Loop roll: loops while `active`, then resumes where playback would be. */
+	loopRoll: (deck: DeckId, length: Beats, active: boolean) => typedError<null, CommandError>(__TAURI_INVOKE("loop_roll", { deck, length, active })),
+	/**  Multiplies the active loop length (`0.5` halves, `2.0` doubles). */
+	resizeLoop: (deck: DeckId, factor: number | null) => typedError<null, CommandError>(__TAURI_INVOKE("resize_loop", { deck, factor })),
+	/**  Jumps by `beats` (negative goes back). */
+	beatJump: (deck: DeckId, beats: Beats) => typedError<null, CommandError>(__TAURI_INVOKE("beat_jump", { deck, beats })),
+	/**  Stores the playhead in a hot cue slot and returns the cue. */
+	setHotCue: (deck: DeckId, index: HotCueIndex) => typedError<Cue, CommandError>(__TAURI_INVOKE("set_hot_cue", { deck, index })),
+	/**  Hot cue pad edge: jumps to a set cue, previews while held when paused. */
+	triggerHotCue: (deck: DeckId, index: HotCueIndex, pressed: boolean) => typedError<null, CommandError>(__TAURI_INVOKE("trigger_hot_cue", { deck, index, pressed })),
+	/**  Clears a hot cue slot. Replaces `delete_cue` until cues have ids (M3). */
+	deleteHotCue: (deck: DeckId, index: HotCueIndex) => typedError<null, CommandError>(__TAURI_INVOKE("delete_hot_cue", { deck, index })),
+	/**  The eight hot cue slots of a deck. */
+	getHotCues: (deck: DeckId) => typedError<HotCues, CommandError>(__TAURI_INVOKE("get_hot_cues", { deck })),
+	/**  Stores the playhead as a memory cue. */
+	addMemoryCue: (deck: DeckId) => typedError<Cue, CommandError>(__TAURI_INVOKE("add_memory_cue", { deck })),
+	/**  Jumps to the next (`direction >= 0`) or previous memory cue. */
+	callMemoryCue: (deck: DeckId, direction: number) => typedError<null, CommandError>(__TAURI_INVOKE("call_memory_cue", { deck, direction })),
+	/**  Mixer settings as last sent to the engine. */
+	getMixerState: () => typedError<MixerState, CommandError>(__TAURI_INVOKE("get_mixer_state")),
+	/**  Channel trim as linear gain. */
+	setTrim: (deck: DeckId, gain: Gain) => typedError<null, CommandError>(__TAURI_INVOKE("set_trim", { deck, gain })),
+	/**  Channel EQ band as linear gain (`0` kills the band). */
+	setEq: (deck: DeckId, band: EqBand, gain: Gain) => typedError<null, CommandError>(__TAURI_INVOKE("set_eq", { deck, band, gain })),
+	/**  Channel filter in `[-1, 1]`: negative low-pass, positive high-pass. */
+	setFilter: (deck: DeckId, amount: number | null) => typedError<null, CommandError>(__TAURI_INVOKE("set_filter", { deck, amount })),
+	/**  Channel fader in `[0, 1]`. */
+	setChannelFader: (deck: DeckId, position: number | null) => typedError<null, CommandError>(__TAURI_INVOKE("set_channel_fader", { deck, position })),
+	/**  Headphone cue (PFL) for a channel. */
+	setPfl: (deck: DeckId, on: boolean) => typedError<null, CommandError>(__TAURI_INVOKE("set_pfl", { deck, on })),
+	/**  Crossfader position in `[-1, 1]`, `-1` = full A. */
+	setCrossfader: (position: number | null) => typedError<null, CommandError>(__TAURI_INVOKE("set_crossfader", { position })),
+	/**  Crossfader curve. */
+	setCrossfaderCurve: (curve: CrossfaderCurve) => typedError<null, CommandError>(__TAURI_INVOKE("set_crossfader_curve", { curve })),
+	/**  Crossfader side of a channel. */
+	setCrossfaderAssign: (deck: DeckId, assign: CrossfaderAssign) => typedError<null, CommandError>(__TAURI_INVOKE("set_crossfader_assign", { deck, assign })),
+	/**  Master output level as linear gain. */
+	setMasterLevel: (gain: Gain) => typedError<null, CommandError>(__TAURI_INVOKE("set_master_level", { gain })),
+	/**  Headphone output level as linear gain. */
+	setHeadphoneLevel: (gain: Gain) => typedError<null, CommandError>(__TAURI_INVOKE("set_headphone_level", { gain })),
+	/**  Headphone cue/master mix in `[0, 1]`, `0` = cue only. */
+	setHeadphoneMix: (mix: number | null) => typedError<null, CommandError>(__TAURI_INVOKE("set_headphone_mix", { mix })),
+	/**  Split cue on or off. */
+	setSplitCue: (on: boolean) => typedError<null, CommandError>(__TAURI_INVOKE("set_split_cue", { on })),
 };
 
 /** Events */
@@ -55,6 +125,7 @@ export const events = {
 	audioDeviceChanged: makeEvent<AudioDeviceChangedEvent, AudioDeviceChangedEvent>("audio-device-changed"),
 	engineEvent: makeEvent<EngineEventEvent, EngineEventEvent>("engine-event"),
 	engineTelemetry: makeEvent<EngineTelemetryEvent, EngineTelemetryEvent>("engine-telemetry"),
+	hotCuesChanged: makeEvent<HotCuesChangedEvent, HotCuesChangedEvent>("hot-cues-changed"),
 	trackLoadFailed: makeEvent<TrackLoadFailedEvent, TrackLoadFailedEvent>("track-load-failed"),
 	trackLoaded: makeEvent<TrackLoadedEvent, TrackLoadedEvent>("track-loaded"),
 };
@@ -171,6 +242,35 @@ export type AudioStatus = {
 	error: string | null,
 };
 
+/**
+ *  A constant-tempo beat grid. RT-safe.
+ * 
+ *  Invariants (checked by [`BeatGrid::new`]): `bpm` is finite and `> 0`,
+ *  `anchor` is finite, `beats_per_bar >= 1`. `anchor` is the time of a
+ *  downbeat (beat 1 of a bar) in seconds from the first decoded frame; it may
+ *  be negative when the first downbeat precedes the audio. Beat `n` falls at
+ *  `anchor + n * 60 / bpm`.
+ */
+export type BeatGrid = BeatGridRaw;
+
+/**  Unvalidated wire form of [`BeatGrid`]; deserialization validates it. */
+export type BeatGridRaw = {
+	/**  Time of beat 0 (a downbeat), seconds. */
+	anchor: Seconds,
+	/**  Tempo at original speed. */
+	bpm: Bpm,
+	/**  Beats per bar. */
+	beats_per_bar: number,
+};
+
+/**
+ *  A musical length or position in beats (quarter notes in 4/4), `f64`.
+ * 
+ *  Signed: negative values mean backwards (beat jump) or before the grid
+ *  anchor. Loop and effect lengths are positive.
+ */
+export type Beats = number | null;
+
 /**  Tempo in beats per minute. Valid values are finite and `> 0`. */
 export type Bpm = number | null;
 
@@ -182,6 +282,27 @@ export type ChannelPair = {
 	right: number,
 };
 
+/**
+ *  Snapshot of one channel strip, for the UI and session restore. Not sent
+ *  to the audio thread as a whole: every field has its own `EngineCommand`.
+ */
+export type ChannelState = {
+	/**  Deck feeding this channel. */
+	deck: DeckId,
+	/**  Input trim, linear. */
+	trim: Gain,
+	/**  EQ gains indexed by [`EqBand::index`], linear, `0..=db_to_gain(EQ_MAX_GAIN_DB)`. */
+	eq: [Gain, Gain, Gain],
+	/**  Filter amount in `[-1, 1]`: negative = low-pass, positive = high-pass, 0 = off. */
+	filter: number | null,
+	/**  Channel fader position in `[0, 1]`; the engine applies the fader curve. */
+	fader: number | null,
+	/**  Headphone cue (PFL) on. */
+	pfl: boolean,
+	/**  Crossfader side. */
+	crossfader_assign: CrossfaderAssign,
+};
+
 /**  Error returned by commands. Serialized as a tagged union for the UI. */
 export type CommandError = 
 /**  Internal state could not be accessed (poisoned lock, settings file). */
@@ -189,7 +310,82 @@ export type CommandError =
 /**  The audio engine is stopped or a device call failed. */
 { kind: "audio"; message: string } | 
 /**  A file could not be read or decoded, or is too long. */
-{ kind: "media"; message: string };
+{ kind: "media"; message: string } | 
+/**  An argument is out of range, or the deck has no track for the action. */
+{ kind: "invalid"; message: string };
+
+/**  Which crossfader side a channel is assigned to. */
+export type CrossfaderAssign = 
+/**  Left side (A). */
+"a" | 
+/**  Bypasses the crossfader. */
+"thru" | 
+/**  Right side (B). */
+"b";
+
+/**  Crossfader curve. Gains are computed by [`CrossfaderCurve::gains`]. */
+export type CrossfaderCurve = 
+/**
+ *  Constant power: `a = cos(x * pi/2)`, `b = sin(x * pi/2)`. Both sides at
+ *  -3 dB in the centre, no perceived volume dip. Default for blending.
+ */
+"constant_power" | 
+/**  Linear: `a = 1 - x`, `b = x`. Both sides at -6 dB in the centre (dip). */
+"linear" | 
+/**
+ *  Scratch cut: each side stays at unity and cuts over the last
+ *  [`SHARP_CUT_WIDTH`] of travel at the opposite edge.
+ */
+"sharp";
+
+/**
+ *  A stored cue: hot cue, memory cue or saved loop.
+ * 
+ *  Invariants: `start` is finite and `>= 0`; when `end` is `Some`, `start <
+ *  end`; `kind == Loop` requires `end`. At most one hot cue per
+ *  `(track, index)`. Not RT: owns a `String`.
+ */
+export type Cue = {
+	/**  Row id, `None` before the cue is persisted. */
+	id: CueId | null,
+	/**  Hot, memory or loop. */
+	kind: CueKind,
+	/**  Cue point or loop in, seconds. */
+	start: Seconds,
+	/**  Loop out, seconds, if this cue is a loop. */
+	end: Seconds | null,
+	/**  Display colour, `None` for the theme default. */
+	color: CueColor | null,
+	/**  User label, may be empty. */
+	name: string,
+};
+
+/**
+ *  A display colour, 8-bit sRGB. Mapping to a controller's LED palette is the
+ *  MIDI layer's job.
+ */
+export type CueColor = {
+	/**  Red, 0..=255. */
+	r: number,
+	/**  Green, 0..=255. */
+	g: number,
+	/**  Blue, 0..=255. */
+	b: number,
+};
+
+/**  A hot cue, memory cue or saved loop (`cues.id`). */
+export type CueId = number;
+
+/**  What a stored cue is (`cues.kind` column). */
+export type CueKind = 
+/**  Hot cue on a pad. May be a hot loop when the cue has an `end`. */
+{ kind: "hot"; 
+/**  Pad slot. */
+index: HotCueIndex } | 
+/**  Memory cue, recalled with CUE/LOOP CALL. May be a loop when it has an `end`. */
+{ kind: "memory" } | 
+/**  Saved loop without a pad assignment. */
+{ kind: "loop" };
 
 /**
  *  A deck index, `0..MAX_DECKS`. Deck 1 in the UI is `DeckId(0)`.
@@ -200,6 +396,49 @@ export type CommandError =
  *  failing. RT-safe.
  */
 export type DeckId = number;
+
+/**
+ *  Snapshot of one deck's control state. Not RT (owns no heap today, but is
+ *  not part of the RT contract and may grow).
+ */
+export type DeckState = {
+	/**  Which deck. */
+	deck: DeckId,
+	/**  Loaded track, if any. */
+	track: TrackId | null,
+	/**  Transport state. */
+	play_state: PlayState,
+	/**  Main cue point. */
+	cue_point: Seconds | null,
+	/**  Track tempo at original speed, from analysis. */
+	track_bpm: Bpm | null,
+	/**  Track key, from analysis. */
+	track_key: MusicalKey | null,
+	/**  Beat grid, from analysis. */
+	beat_grid: BeatGrid | null,
+	/**  Tempo fader range. */
+	tempo_range: TempoRange,
+	/**  Tempo fader position in `[-1, 1]` (`+1` = fastest). */
+	tempo_fader: number | null,
+	/**  Key lock (master tempo): tempo changes keep pitch. */
+	key_lock: boolean,
+	/**  Key shift in semitones applied on top of the track key. */
+	key_shift: number,
+	/**  Sync mode. */
+	sync: SyncMode,
+	/**  True if this deck is the sync leader. */
+	is_leader: boolean,
+	/**  Slip mode on. */
+	slip: boolean,
+	/**  Quantize on (cue, loop, hot cue and beat jump snap to the grid). */
+	quantize: boolean,
+	/**  Jog in vinyl mode: platter touch scratches. Otherwise it bends pitch. */
+	vinyl_mode: boolean,
+	/**  Active loop, if looping. */
+	active_loop: LoopRegion | null,
+	/**  Pad mode shown by the pads and the middle UI panel. */
+	pad_mode: PadMode,
+};
 
 /**  Per-deck fast-moving state. RT-safe. */
 export type DeckTelemetry = {
@@ -293,6 +532,15 @@ export type EngineTelemetry = {
 /**  Engine snapshot pushed to the UI at ~60 Hz (ADR 0003, ADR 0004). */
 export type EngineTelemetryEvent = EngineTelemetry;
 
+/**  One band of the 3-band channel EQ. */
+export type EqBand = 
+/**  Low band. */
+"low" | 
+/**  Mid band. */
+"mid" | 
+/**  High band. */
+"high";
+
 /**
  *  An engine-side region in frames at the engine rate. RT-safe.
  * 
@@ -315,11 +563,70 @@ export type FrameRegion = {
 export type Frames = number;
 
 /**
+ *  A linear amplitude factor (`1.0` = unity, `0.0` = silence). Valid values
+ *  are finite and `>= 0`. RT-safe.
+ */
+export type Gain = number | null;
+
+/**
  *  Hot cue slot index, `0..HOT_CUES_PER_DECK` (pad 1 is index 0).
  * 
  *  Invariant enforced by [`HotCueIndex::new`] and deserialization. RT-safe.
  */
 export type HotCueIndex = number;
+
+/**  The eight hot cue slots of a deck. Held in memory until persistence lands (M3). */
+export type HotCues = {
+	/**  Deck the slots belong to. */
+	deck: DeckId,
+	/**  One entry per slot (`HOT_CUES_PER_DECK`), `None` when empty. */
+	slots: (Cue | null)[],
+};
+
+/**  A deck's hot cue slots changed (set, deleted, track loaded or ejected). */
+export type HotCuesChangedEvent = HotCues;
+
+/**  Major or minor mode. */
+export type KeyMode = 
+/**  Major (Camelot letter B). */
+"major" | 
+/**  Minor (Camelot letter A). */
+"minor";
+
+/**  A loop region in seconds. Invariant: `start < end`, both finite. */
+export type LoopRegion = {
+	/**  Loop in point. */
+	start: Seconds,
+	/**  Loop out point (exclusive). */
+	end: Seconds,
+};
+
+/**  Snapshot of the whole mixer, for the UI and session restore. */
+export type MixerState = {
+	/**  One strip per deck, indexed by [`DeckId::index`]. */
+	channels: [ChannelState, ChannelState, ChannelState, ChannelState],
+	/**  Crossfader position in `[-1, 1]`. */
+	crossfader: number | null,
+	/**  Crossfader curve. */
+	crossfader_curve: CrossfaderCurve,
+	/**  Master output level, linear. */
+	master_level: Gain,
+	/**  Headphone output level, linear. */
+	headphone_level: Gain,
+	/**  Headphone mix in `[0, 1]`: 0 = cue only, 1 = master only. */
+	headphone_mix: number | null,
+	/**  Split cue: cue bus summed to mono on the left ear, master mono on the right. */
+	split_cue: boolean,
+};
+
+/**
+ *  A musical key: tonic pitch class plus mode. RT-safe.
+ * 
+ *  Invariant: `tonic < 12`, where 0 = C, 1 = C#/Db, ..., 11 = B. Build with
+ *  [`MusicalKey::new`] or a parser. Serialized as the Camelot string (`"8A"`),
+ *  which is also the format stored in the library.
+ */
+export type MusicalKey = string;
 
 /**  One of the eight pad modes. RT-safe (plain enum). */
 export type PadMode = 
@@ -339,6 +646,19 @@ export type PadMode =
 "beat_loop" | 
 /**  Pads shift the key by semitones (SHIFT + 5-4). */
 "key_shift";
+
+/**  Transport state of a deck. */
+export type PlayState = 
+/**  No track loaded. */
+"empty" | 
+/**  Track is being decoded by the loader thread. */
+"loading" | 
+/**  Loaded and stopped. */
+"paused" | 
+/**  Playing. */
+"playing" | 
+/**  CUE held while paused: playing from the cue point until release. */
+"cue_preview";
 
 /**  A sample rate in Hz. Invariant: `> 0` wherever it is used as a divisor. */
 export type SampleRate = number;
@@ -367,6 +687,15 @@ export type StereoMeter = {
 	rms_r: number | null,
 };
 
+/**  How a deck follows the sync leader. */
+export type SyncMode = 
+/**  Free running. */
+"off" | 
+/**  Match the leader's tempo only. */
+"tempo" | 
+/**  Match tempo and beat phase. */
+"beat";
+
 /**  Tempo fader range: how far a full fader throw changes playback speed. */
 export type TempoRange = 
 /**  +/- 6 %. */
@@ -377,6 +706,9 @@ export type TempoRange =
 "percent16" | 
 /**  +/- 100 % (0x to 2x speed). */
 "wide";
+
+/**  A track row in the library (`tracks.id`). */
+export type TrackId = number;
 
 /**  What the UI shows about a loaded file. */
 export type TrackInfo = {

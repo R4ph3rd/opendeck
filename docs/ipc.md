@@ -1,6 +1,6 @@
 # IPC command and event plan
 
-Planned Tauri commands and events for milestones 1 to 8 (ADR 0004). Implemented entries are marked **done**. Types are Rust names; DTOs come from `crates/contracts` unless marked *shell*. Every fallible command returns `Result<T, CommandError>`. Adding or changing a row is a contract change: update this file, the Rust command and the regenerated `ui/src/ipc/bindings.ts` in the same commit.
+Planned Tauri commands and events for milestones 1 to 8 (ADR 0004). Implemented entries are marked **done**. Types are Rust names; DTOs come from `crates/contracts` unless marked *shell*. Every fallible command returns `Result<T, CommandError>` (`internal`, `audio`, `media`, `invalid`; `invalid` covers a non-finite or out-of-range argument and cue actions on an empty deck). Adding or changing a row is a contract change: update this file, the Rust command and the regenerated `ui/src/ipc/bindings.ts` in the same commit.
 
 The `M` column follows the milestone table in `docs/STATUS.md`: M1 engine with one deck and device selection, M2 two decks, mixer, cue routing, sync, loops and hot cues, M3 library, DB, import, analysis and collection view, M4 waveforms and deck UI, M5 FX, M6 MIDI, M7 pad modes and sampler, M8 hardening and settings.
 
@@ -26,7 +26,7 @@ The `M` column follows the milestone table in `docs/STATUS.md`: M1 engine with o
 
 | Command | Args | Returns | M |
 |---|---|---|---|
-| `get_deck_state` | `deck: DeckId` | `DeckState` | 1 |
+| `get_deck_state` **done** | `deck: DeckId` | `DeckState`; control state only (tempo, sync, quantize, slip, vinyl, leader, loop, pad mode). `track`, `cue_point`, `beat_grid`, `track_key` stay `None` until M3 | 2 |
 | `load_track` **done** (path form) | `deck: DeckId, path: String` | `TrackInfo` *shell* (tags, read synchronously); decode runs on the loader thread, then `track-loaded` or `track-load-failed`. Becomes `track: TrackId` when the library lands (M3, contract change) | 1 |
 | `eject_track` **done** | `deck: DeckId` | `()` | 1 |
 | `set_playing` **done** | `deck, playing: bool` | `()` | 1 |
@@ -37,28 +37,31 @@ The `M` column follows the milestone table in `docs/STATUS.md`: M1 engine with o
 | `set_tempo_range` **done** | `deck, range: TempoRange` | `()` | 1 |
 | `set_key_lock` **done** | `deck, on: bool` | `()` | 1 |
 | `pitch_bend` **done** | `deck, amount: f32` | `()`; `0` releases | 1 |
-| `set_vinyl_mode` | `deck, on: bool` | `()` | 1 |
-| `set_sync` | `deck, mode: SyncMode` | `()` | 2 |
-| `set_leader` | `deck: Option<DeckId>` | `()` | 2 |
-| `set_quantize` | `deck, on: bool` | `()` | 2 |
+| `set_vinyl_mode` **done** | `deck, on: bool` | `()` | 2 |
+| `jog_touch` **done** | `deck, touched: bool` | `()`; platter touched or released | 2 |
+| `jog_turn` **done** | `deck, revolutions: f32` | `()`; signed revolutions since the last call | 2 |
+| `jog_search` **done** | `deck, beats: Beats` | `()`; SHIFT + jog fast search | 2 |
+| `set_sync` **done** | `deck, mode: SyncMode` | `()` | 2 |
+| `set_leader` **done** | `deck: Option<DeckId>` | `()` | 2 |
+| `set_quantize` **done** | `deck, on: bool` | `()` | 2 |
 | `set_key_shift` | `deck, semitones: i8` | `()` | 7 |
 
 ### Mixer
 
 | Command | Args | Returns | M |
 |---|---|---|---|
-| `get_mixer_state` | | `MixerState` | 2 |
-| `set_trim` | `deck, gain: Gain` | `()` | 2 |
-| `set_eq` | `deck, band: EqBand, gain: Gain` | `()` | 2 |
-| `set_filter` | `deck, amount: f32` | `()` | 2 |
-| `set_channel_fader` | `deck, position: f32` | `()` | 2 |
-| `set_pfl` | `deck, on: bool` | `()` | 2 |
-| `set_crossfader` | `position: f32` | `()` | 2 |
-| `set_crossfader_curve` | `curve: CrossfaderCurve` | `()` | 2 |
-| `set_crossfader_assign` | `deck, assign: CrossfaderAssign` | `()` | 2 |
-| `set_master_level` / `set_headphone_level` | `gain: Gain` | `()` | 2 |
-| `set_headphone_mix` | `mix: f32` | `()` | 2 |
-| `set_split_cue` | `on: bool` | `()` | 2 |
+| `get_mixer_state` **done** | | `MixerState`; what app-core last sent to the engine, replayed after an engine restart | 2 |
+| `set_trim` **done** | `deck, gain: Gain` | `()` | 2 |
+| `set_eq` **done** | `deck, band: EqBand, gain: Gain` | `()` | 2 |
+| `set_filter` **done** | `deck, amount: f32` | `()` | 2 |
+| `set_channel_fader` **done** | `deck, position: f32` | `()` | 2 |
+| `set_pfl` **done** | `deck, on: bool` | `()` | 2 |
+| `set_crossfader` **done** | `position: f32` | `()` | 2 |
+| `set_crossfader_curve` **done** | `curve: CrossfaderCurve` | `()` | 2 |
+| `set_crossfader_assign` **done** | `deck, assign: CrossfaderAssign` | `()` | 2 |
+| `set_master_level` / `set_headphone_level` **done** | `gain: Gain` | `()` | 2 |
+| `set_headphone_mix` **done** | `mix: f32` | `()` | 2 |
+| `set_split_cue` **done** | `on: bool` | `()` | 2 |
 
 ### Library and import
 
@@ -97,20 +100,22 @@ The `M` column follows the milestone table in `docs/STATUS.md`: M1 engine with o
 
 | Command | Args | Returns | M |
 |---|---|---|---|
-| `list_cues` | `track: TrackId` | `Vec<Cue>` | 2 |
-| `set_hot_cue` | `deck, index: HotCueIndex` | `Cue` (at playhead) | 2 |
-| `trigger_hot_cue` | `deck, index, pressed: bool` | `()` | 2 |
-| `update_cue` | `cue: CueId, color: Option<CueColor>, name: String` | `()` | 2 |
-| `delete_cue` | `cue: CueId` | `()` | 2 |
-| `add_memory_cue` | `deck` | `Cue` | 2 |
-| `call_memory_cue` | `deck, direction: i8` | `()` | 2 |
-| `loop_in` / `loop_out` / `loop_toggle` | `deck` | `()` | 2 |
-| `auto_loop` | `deck, length: Beats` | `()` | 2 |
-| `loop_roll` | `deck, length: Beats, active: bool` | `()` | 2 |
-| `resize_loop` | `deck, factor: f32` | `()` | 2 |
+| `list_cues` | `track: TrackId` | `Vec<Cue>` | 3 |
+| `set_hot_cue` **done** | `deck, index: HotCueIndex` | `Cue` (at playhead); in memory until persistence (M3), fails with `invalid` when no track is loaded | 2 |
+| `trigger_hot_cue` **done** | `deck, index, pressed: bool` | `()` | 2 |
+| `get_hot_cues` **done** | `deck` | `HotCues` *shell* (deck, 8 slots); not in the original plan, hydrates the UI | 2 |
+| `delete_hot_cue` **done** | `deck, index: HotCueIndex` | `()`; replaces `delete_cue` until cues have ids (M3) | 2 |
+| `update_cue` | `cue: CueId, color: Option<CueColor>, name: String` | `()` | 4 |
+| `delete_cue` | `cue: CueId` | `()` | 3 |
+| `add_memory_cue` **done** | `deck` | `Cue` (at playhead, in memory) | 2 |
+| `call_memory_cue` **done** | `deck, direction: i8` | `()`; sets the cue point and seeks to the next (`>= 0`) or previous memory cue | 2 |
+| `loop_in` / `loop_out` / `loop_toggle` **done** | `deck` | `()` | 2 |
+| `auto_loop` **done** | `deck, length: Beats` | `()` | 2 |
+| `loop_roll` **done** | `deck, length: Beats, active: bool` | `()` | 2 |
+| `resize_loop` **done** | `deck, factor: f32` | `()` | 2 |
 | `save_loop` | `deck` | `Cue` | 2 |
-| `beat_jump` | `deck, beats: Beats` | `()` | 2 |
-| `set_slip` | `deck, on: bool` | `()` | 2 |
+| `beat_jump` **done** | `deck, beats: Beats` | `()`; `0` is refused | 2 |
+| `set_slip` **done** | `deck, on: bool` | `()` | 2 |
 | `get_pad_mode` **done** | `deck: DeckId` | `PadMode` | 0 |
 | `set_pad_mode` | `deck, mode: PadMode` | `()`; emits `pad-mode-changed` | 7 |
 | `press_pad` | `deck, index: u8, pressed: bool, shifted: bool` | `()` (interpreted in the active mode) | 7 |
@@ -172,12 +177,15 @@ The `M` column follows the milestone table in `docs/STATUS.md`: M1 engine with o
 | `job-progress` | `JobProgress` | <= 4 Hz per job | 3 |
 | `library-changed` | `LibraryChange` (tracks or playlists touched) | on change, coalesced | 3 |
 | `analysis-ready` | `TrackId` | per track | 3 |
-| `cues-changed` | `TrackId` | on change | 2 |
+| `hot-cues-changed` **done** | `HotCues` *shell* (deck, 8 slots) | on change | 2 |
+| `cues-changed` | `TrackId` | on change | 3 |
 | `pad-mode-changed` | `{ deck: DeckId, mode: PadMode }` | on change | 7 |
 | `fx-state-changed` | `FxState` | on change | 5 |
 | `midi-message` | `MidiMonitorEntry` (timestamp, bytes, decoded control id, action) | monitor on only, coalesced at 60 Hz | 6 |
 | `midi-learned` | `MidiLearnResult` (message, suggested binding) | once | 6 |
 | `midi-connection-changed` | `MidiStatus` | on change | 6 |
 | `sampler-state-changed` | `SamplerState` | on change | 7 |
+
+Mixer values cross IPC as linear `Gain` (trim, EQ band, master, headphone) or normalised positions (`filter` in `[-1, 1]`, channel fader and headphone mix in `[0, 1]`, crossfader in `[-1, 1]`). The UI owns the knob-to-gain curves (`ui/src/lib/mixer.ts`, constants mirror `contracts::mixer`); app-core validates ranges and the engine clamps.
 
 Types not yet in contracts (`TrackQuery`, `TrackRow`, `PlaylistNode`, `FxState`, `MidiPorts`, ...) are added to `crates/contracts` by the architect when their milestone starts.
