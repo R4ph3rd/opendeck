@@ -1,0 +1,16 @@
+[package]
+name = "opendeck-engine"
+description = "OpenDeck real-time audio engine: decks, mixer, routing, sync, loops."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license-file.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+opendeck-contracts.workspace = true
+opendeck-media.workspace = true
+
+[lints]
+workspace = true

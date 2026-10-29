@@ -1,0 +1,15 @@
+[package]
+name = "opendeck-midi"
+description = "OpenDeck MIDI: generic MIDI layer, JSON mappings, LED feedback, replay harness."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license-file.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+opendeck-contracts.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,15 @@
+[package]
+name = "opendeck-media"
+description = "OpenDeck media: decoding, resampling and tag reading."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license-file.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+opendeck-contracts.workspace = true
+
+[lints]
+workspace = true
