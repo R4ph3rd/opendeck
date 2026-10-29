@@ -66,7 +66,7 @@ pub enum ControlAction {
         /// Deck.
         deck: DeckId,
     },
-    /// Make this deck the sync leader. Button.
+    /// Make this deck the sync leader (see `EngineCommand::SetLeader`). Button.
     SyncLeader {
         /// Deck.
         deck: DeckId,

@@ -9,17 +9,25 @@ use std::time::{Duration, Instant};
 
 use crossbeam_channel::{Receiver, RecvTimeoutError, Sender, TrySendError};
 use opendeck_contracts::analysis::CancelFlag;
+use opendeck_contracts::beatgrid::BeatGrid;
+use opendeck_contracts::cue::{Cue, CueKind, FrameRegion, HotCueIndex, LoopRegion};
+use opendeck_contracts::deck::{DeckState, PlayState};
+use opendeck_contracts::mixer::{EqBand, MixerState};
 use opendeck_contracts::settings::AudioSettings;
-use opendeck_contracts::tempo::TempoRange;
+use opendeck_contracts::tempo::{SyncMode, TempoRange};
 use opendeck_contracts::{
-    DeckId, EngineCommand, EngineEvent, EngineTelemetry, MAX_DECKS, MVP_DECKS, SampleRate,
+    DeckId, EngineCommand, EngineEvent, EngineTelemetry, HOT_CUES_PER_DECK, MAX_DECKS, MVP_DECKS,
+    SampleRate, Seconds,
 };
 use opendeck_engine::device::{AudioOutput, open_output};
 use opendeck_engine::{EngineConfig, EngineHandle, OfflineRenderer, TrackBuffer};
 
 use crate::loader::{DecodeResult, LoadRequest};
 use crate::settings_store::{SettingsStore, StoredSettings};
-use crate::types::{AudioStatus, CoreError, CoreEvent, TrackInfo, TrackLoadFailed, TrackLoaded};
+use crate::types::{
+    AudioStatus, CoreError, CoreEvent, HotCues, OfflineAudio, TrackInfo, TrackLoadFailed,
+    TrackLoaded,
+};
 
 /// Control tick: telemetry is forwarded at this period (~60 Hz).
 pub const TICK: Duration = Duration::from_millis(16);
@@ -75,9 +83,45 @@ pub(crate) enum Msg {
         deck: DeckId,
         path: PathBuf,
         info: TrackInfo,
+        grid: Option<BeatGrid>,
         reply: Sender<Result<(), CoreError>>,
     },
     Eject(DeckId),
+    /// Replaces the beat grid of the loaded track.
+    SetBeatGrid {
+        deck: DeckId,
+        grid: Option<BeatGrid>,
+        reply: Sender<Result<(), CoreError>>,
+    },
+    /// Offline backend only: renders `frames` now and returns the audio.
+    RenderOffline {
+        frames: usize,
+        reply: Sender<Result<OfflineAudio, CoreError>>,
+    },
+    /// Stores the playhead as a hot cue and tells the engine.
+    SetHotCue {
+        deck: DeckId,
+        index: HotCueIndex,
+        reply: Sender<Result<Cue, CoreError>>,
+    },
+    /// Clears a hot cue slot.
+    DeleteHotCue {
+        deck: DeckId,
+        index: HotCueIndex,
+    },
+    /// Stores the playhead as a memory cue.
+    AddMemoryCue {
+        deck: DeckId,
+        reply: Sender<Result<Cue, CoreError>>,
+    },
+    /// Jumps to the next (`>= 0`) or previous (`< 0`) memory cue.
+    CallMemoryCue {
+        deck: DeckId,
+        direction: i8,
+    },
+    GetHotCues(DeckId, Sender<HotCues>),
+    GetMixer(Sender<MixerState>),
+    GetDeck(DeckId, Sender<DeckState>),
     Decoded(DecodeResult),
     SetSettings {
         settings: AudioSettings,
@@ -113,29 +157,44 @@ impl Engine {
     }
 }
 
-/// Tempo state replayed after an engine restart.
+/// Per-deck control state replayed after an engine restart and reported by
+/// `get_deck_state`.
 #[derive(Debug, Clone, Copy)]
 struct DeckControls {
     tempo_fader: f32,
     range: TempoRange,
     key_lock: bool,
+    key_shift: i8,
+    sync: SyncMode,
+    quantize: bool,
+    slip: bool,
+    vinyl: bool,
 }
 
 impl Default for DeckControls {
     fn default() -> Self {
+        let empty = DeckState::empty(DeckId::ALL[0]);
         Self {
             tempo_fader: 0.0,
             range: TempoRange::default(),
             key_lock: false,
+            key_shift: 0,
+            sync: SyncMode::Off,
+            quantize: empty.quantize,
+            slip: false,
+            vinyl: empty.vinyl_mode,
         }
     }
 }
+
+type HotCueSlots = [Option<Cue>; HOT_CUES_PER_DECK];
 
 /// A decoded track waiting for room on the hand-off ring.
 struct Pending {
     deck: DeckId,
     buffer: TrackBuffer,
     info: TrackInfo,
+    grid: Option<BeatGrid>,
 }
 
 struct Control {
@@ -149,7 +208,19 @@ struct Control {
     generation: [u64; MAX_DECKS],
     cancel: [Option<CancelFlag>; MAX_DECKS],
     loaded: [Option<TrackInfo>; MAX_DECKS],
+    /// Beat grid of the track in each deck (`None` until analysis, M3).
+    grids: [Option<BeatGrid>; MAX_DECKS],
+    /// Grid to send with the load in flight for each deck.
+    requested_grids: [Option<BeatGrid>; MAX_DECKS],
+    /// A grid change the hand-off ring had no room for; retried each tick.
+    grid_unsent: [bool; MAX_DECKS],
     controls: [DeckControls; MAX_DECKS],
+    mixer: MixerState,
+    leader: Option<DeckId>,
+    hot_cues: [HotCueSlots; MAX_DECKS],
+    memory_cues: [Vec<Seconds>; MAX_DECKS],
+    /// A reload after an engine restart: keep the cues instead of clearing them.
+    restoring: [bool; MAX_DECKS],
     pending: Vec<Pending>,
     latest: Option<EngineTelemetry>,
     last_sequence: Option<u64>,
@@ -169,7 +240,15 @@ pub(crate) fn run(opts: LaunchOptions, inbox: Receiver<Msg>, loader: Sender<Load
         generation: [0; MAX_DECKS],
         cancel: std::array::from_fn(|_| None),
         loaded: std::array::from_fn(|_| None),
+        grids: [None; MAX_DECKS],
+        requested_grids: [None; MAX_DECKS],
+        grid_unsent: [false; MAX_DECKS],
         controls: [DeckControls::default(); MAX_DECKS],
+        mixer: MixerState::default(),
+        leader: None,
+        hot_cues: std::array::from_fn(|_| std::array::from_fn(|_| None)),
+        memory_cues: std::array::from_fn(|_| Vec::new()),
+        restoring: [false; MAX_DECKS],
         pending: Vec::new(),
         latest: None,
         last_sequence: None,
@@ -245,15 +324,43 @@ impl Control {
                 deck,
                 path,
                 info,
+                grid,
                 reply,
             } => {
-                let _ = reply.send(self.request_load(deck, path, info));
+                self.restoring[deck.index()] = false;
+                let _ = reply.send(self.request_load(deck, path, info, grid));
             }
             Msg::Eject(deck) => {
                 self.invalidate(deck);
                 self.loaded[deck.index()] = None;
+                self.grids[deck.index()] = None;
+                self.grid_unsent[deck.index()] = false;
                 self.pending.retain(|p| p.deck != deck);
                 self.command(EngineCommand::Eject { deck });
+                self.clear_cues(deck);
+            }
+            Msg::SetBeatGrid { deck, grid, reply } => {
+                let _ = reply.send(self.set_beat_grid(deck, grid));
+            }
+            Msg::RenderOffline { frames, reply } => {
+                let _ = reply.send(self.render_now(frames));
+            }
+            Msg::SetHotCue { deck, index, reply } => {
+                let _ = reply.send(self.set_hot_cue(deck, index));
+            }
+            Msg::DeleteHotCue { deck, index } => self.delete_hot_cue(deck, index),
+            Msg::AddMemoryCue { deck, reply } => {
+                let _ = reply.send(self.add_memory_cue(deck));
+            }
+            Msg::CallMemoryCue { deck, direction } => self.call_memory_cue(deck, direction),
+            Msg::GetHotCues(deck, reply) => {
+                let _ = reply.send(self.hot_cue_snapshot(deck));
+            }
+            Msg::GetMixer(reply) => {
+                let _ = reply.send(self.mixer);
+            }
+            Msg::GetDeck(deck, reply) => {
+                let _ = reply.send(self.deck_state(deck));
             }
             Msg::Decoded(result) => self.decoded(result),
             Msg::SetSettings { settings, reply } => {
@@ -283,13 +390,233 @@ impl Control {
             EngineCommand::SetKeyLock { deck, on } => {
                 self.controls[deck.index()].key_lock = on;
             }
-            _ => {}
+            EngineCommand::SetKeyShift { deck, semitones } => {
+                self.controls[deck.index()].key_shift = semitones.clamp(-12, 12);
+            }
+            EngineCommand::SetSync { deck, mode } => self.controls[deck.index()].sync = mode,
+            EngineCommand::SetLeader { deck } => self.leader = deck,
+            EngineCommand::SetQuantize { deck, on } => self.controls[deck.index()].quantize = on,
+            EngineCommand::SetSlip { deck, on } => self.controls[deck.index()].slip = on,
+            EngineCommand::SetVinylMode { deck, on } => self.controls[deck.index()].vinyl = on,
+            other => self.track_mixer(other),
         }
         if let Some(engine) = self.engine.as_mut()
             && engine.handle().send(command).is_err()
         {
             tracing::warn!(?command, "engine command ring full, command dropped");
         }
+    }
+
+    /// Mirrors mixer commands into [`MixerState`] (clamped like the engine does).
+    fn track_mixer(&mut self, command: EngineCommand) {
+        let m = &mut self.mixer;
+        match command {
+            EngineCommand::SetTrim { deck, gain } => m.channels[deck.index()].trim = gain,
+            EngineCommand::SetEq { deck, band, gain } => {
+                m.channels[deck.index()].eq[band.index()] = gain;
+            }
+            EngineCommand::SetFilter { deck, amount } => {
+                m.channels[deck.index()].filter = amount.clamp(-1.0, 1.0);
+            }
+            EngineCommand::SetChannelFader { deck, position } => {
+                m.channels[deck.index()].fader = position.clamp(0.0, 1.0);
+            }
+            EngineCommand::SetPfl { deck, on } => m.channels[deck.index()].pfl = on,
+            EngineCommand::SetCrossfaderAssign { deck, assign } => {
+                m.channels[deck.index()].crossfader_assign = assign;
+            }
+            EngineCommand::SetCrossfader { position } => m.crossfader = position.clamp(-1.0, 1.0),
+            EngineCommand::SetCrossfaderCurve { curve } => m.crossfader_curve = curve,
+            EngineCommand::SetMasterLevel { gain } => m.master_level = gain,
+            EngineCommand::SetHeadphoneLevel { gain } => m.headphone_level = gain,
+            EngineCommand::SetHeadphoneMix { mix } => m.headphone_mix = mix.clamp(0.0, 1.0),
+            EngineCommand::SetSplitCue { on } => m.split_cue = on,
+            _ => {}
+        }
+    }
+
+    /// Engine sample rate, from the newest snapshot or the open engine.
+    fn rate(&mut self) -> Option<SampleRate> {
+        if let Some(t) = &self.latest {
+            return Some(t.sample_rate);
+        }
+        self.engine.as_mut().map(|e| e.handle().sample_rate())
+    }
+
+    /// Playhead of `deck` in seconds on the newest telemetry.
+    fn playhead(&mut self, deck: DeckId) -> Result<Seconds, CoreError> {
+        let rate = self
+            .rate()
+            .ok_or_else(|| CoreError::NoEngine("stopped".to_owned()))?;
+        match &self.latest {
+            Some(t) if t.decks[deck.index()].loaded => {
+                Ok(t.decks[deck.index()].position.to_seconds(rate))
+            }
+            _ => Err(CoreError::Invalid("no track is loaded".to_owned())),
+        }
+    }
+
+    // ----- cues (in memory until persistence lands in M3) -----
+
+    fn hot_cue_snapshot(&self, deck: DeckId) -> HotCues {
+        HotCues {
+            deck,
+            slots: self.hot_cues[deck.index()].to_vec(),
+        }
+    }
+
+    fn publish_hot_cues(&mut self, deck: DeckId) {
+        let snapshot = self.hot_cue_snapshot(deck);
+        self.publish(CoreEvent::HotCues(snapshot));
+    }
+
+    fn engine_hot_cue(&mut self, deck: DeckId, index: HotCueIndex, cue: Option<&Cue>) {
+        let region = match (cue, self.rate()) {
+            (Some(cue), Some(rate)) => Some(FrameRegion {
+                start: cue.start.to_frames(rate),
+                end: cue.end.map(|e| e.to_frames(rate)),
+            }),
+            (Some(_), None) => return,
+            (None, _) => None,
+        };
+        self.command(EngineCommand::SetHotCue {
+            deck,
+            index,
+            cue: region,
+        });
+    }
+
+    fn set_hot_cue(&mut self, deck: DeckId, index: HotCueIndex) -> Result<Cue, CoreError> {
+        let start = self.playhead(deck)?;
+        let cue = Cue {
+            id: None,
+            kind: CueKind::Hot { index },
+            start,
+            end: None,
+            color: None,
+            name: String::new(),
+        };
+        self.hot_cues[deck.index()][index.index()] = Some(cue.clone());
+        self.engine_hot_cue(deck, index, Some(&cue));
+        self.publish_hot_cues(deck);
+        Ok(cue)
+    }
+
+    fn delete_hot_cue(&mut self, deck: DeckId, index: HotCueIndex) {
+        if self.hot_cues[deck.index()][index.index()].take().is_some() {
+            self.engine_hot_cue(deck, index, None);
+            self.publish_hot_cues(deck);
+        }
+    }
+
+    /// Records a hot cue the engine set itself (pad press on an empty slot).
+    fn engine_set_hot_cue(&mut self, deck: DeckId, index: HotCueIndex, region: FrameRegion) {
+        let Some(rate) = self.rate() else {
+            return;
+        };
+        let cue = Cue {
+            id: None,
+            kind: CueKind::Hot { index },
+            start: region.start.to_seconds(rate),
+            end: region.end.map(|e| e.to_seconds(rate)),
+            color: None,
+            name: String::new(),
+        };
+        self.hot_cues[deck.index()][index.index()] = Some(cue);
+        self.publish_hot_cues(deck);
+    }
+
+    fn add_memory_cue(&mut self, deck: DeckId) -> Result<Cue, CoreError> {
+        let start = self.playhead(deck)?;
+        let cues = &mut self.memory_cues[deck.index()];
+        if !cues.contains(&start) {
+            cues.push(start);
+            cues.sort_by(|a, b| a.0.total_cmp(&b.0));
+        }
+        Ok(Cue {
+            id: None,
+            kind: CueKind::Memory,
+            start,
+            end: None,
+            color: None,
+            name: String::new(),
+        })
+    }
+
+    fn call_memory_cue(&mut self, deck: DeckId, direction: i8) {
+        let Ok(now) = self.playhead(deck) else {
+            return;
+        };
+        let Some(rate) = self.rate() else {
+            return;
+        };
+        let cues = &self.memory_cues[deck.index()];
+        // One frame of slack so a cue under the playhead is not "next".
+        let slack = 1.0 / f64::from(rate.0);
+        let target = if direction >= 0 {
+            cues.iter().find(|c| c.0 > now.0 + slack)
+        } else {
+            cues.iter().rev().find(|c| c.0 < now.0 - slack)
+        };
+        if let Some(target) = target.copied() {
+            let position = target.to_frames(rate);
+            self.command(EngineCommand::SetCuePoint { deck, position });
+            self.command(EngineCommand::Seek { deck, position });
+        }
+    }
+
+    /// Forgets the cues of `deck` (new track or eject).
+    fn clear_cues(&mut self, deck: DeckId) {
+        self.memory_cues[deck.index()].clear();
+        let had = self.hot_cues[deck.index()].iter().any(Option::is_some);
+        self.hot_cues[deck.index()] = std::array::from_fn(|_| None);
+        if had {
+            self.publish_hot_cues(deck);
+        }
+    }
+
+    /// Sends the stored hot cues to a freshly loaded deck.
+    fn resend_hot_cues(&mut self, deck: DeckId) {
+        for i in 0..HOT_CUES_PER_DECK {
+            let Some(index) = u8::try_from(i).ok().and_then(HotCueIndex::new) else {
+                continue;
+            };
+            if let Some(cue) = self.hot_cues[deck.index()][i].clone() {
+                self.engine_hot_cue(deck, index, Some(&cue));
+            }
+        }
+    }
+
+    fn deck_state(&self, deck: DeckId) -> DeckState {
+        let c = &self.controls[deck.index()];
+        let mut state = DeckState::empty(deck);
+        state.tempo_range = c.range;
+        state.tempo_fader = c.tempo_fader;
+        state.key_lock = c.key_lock;
+        state.key_shift = c.key_shift;
+        state.sync = c.sync;
+        state.quantize = c.quantize;
+        state.slip = c.slip;
+        state.vinyl_mode = c.vinyl;
+        state.is_leader = self.leader == Some(deck);
+        state.beat_grid = self.grids[deck.index()];
+        state.track_bpm = state.beat_grid.map(|g| g.bpm());
+        if let Some(t) = &self.latest {
+            let d = &t.decks[deck.index()];
+            state.play_state = match (d.loaded, d.playing) {
+                (false, _) => PlayState::Empty,
+                (true, true) => PlayState::Playing,
+                (true, false) => PlayState::Paused,
+            };
+            state.is_leader = t.leader == Some(deck);
+            state.active_loop = d.loop_region.filter(|_| d.loop_active).and_then(|r| {
+                Some(LoopRegion {
+                    start: r.start.to_seconds(t.sample_rate),
+                    end: r.end?.to_seconds(t.sample_rate),
+                })
+            });
+        }
+        state
     }
 
     // ----- loading -----
@@ -309,6 +636,7 @@ impl Control {
         deck: DeckId,
         path: PathBuf,
         info: TrackInfo,
+        grid: Option<BeatGrid>,
     ) -> Result<(), CoreError> {
         let Some(engine) = self.engine.as_mut() else {
             return Err(CoreError::NoEngine(
@@ -321,6 +649,7 @@ impl Control {
         let rate = engine.handle().sample_rate();
         self.pending.retain(|p| p.deck != deck);
         let generation = self.invalidate(deck);
+        self.requested_grids[deck.index()] = grid;
         let cancel = CancelFlag::new();
         self.cancel[deck.index()] = Some(cancel.clone());
         self.loader
@@ -353,7 +682,13 @@ impl Control {
         };
         match TrackBuffer::from_vec(samples) {
             Ok(buffer) => {
-                self.pending.push(Pending { deck, buffer, info });
+                let grid = self.requested_grids[deck.index()];
+                self.pending.push(Pending {
+                    deck,
+                    buffer,
+                    info,
+                    grid,
+                });
                 self.flush_pending();
             }
             Err(err) => self.load_failed(deck, &info, err.to_string()),
@@ -376,18 +711,41 @@ impl Control {
         };
         let mut queue = std::mem::take(&mut self.pending).into_iter();
         let mut delivered = Vec::new();
-        while let Some(Pending { deck, buffer, info }) = queue.next() {
+        while let Some(Pending {
+            deck,
+            buffer,
+            info,
+            grid,
+        }) = queue.next()
+        {
             let frames = buffer.duration();
-            match engine.handle().load_track(deck, buffer, None) {
-                Ok(()) => delivered.push((deck, info, frames)),
+            match engine
+                .handle()
+                .load_track_with_grid(deck, buffer, None, grid)
+            {
+                Ok(()) => delivered.push((deck, info, frames, grid)),
                 Err(buffer) => {
-                    self.pending.push(Pending { deck, buffer, info });
+                    self.pending.push(Pending {
+                        deck,
+                        buffer,
+                        info,
+                        grid,
+                    });
                     self.pending.extend(queue);
                     break;
                 }
             }
         }
-        for (deck, info, frames) in delivered {
+        for (deck, info, frames, grid) in delivered {
+            // A new track starts without cues (they come from the library
+            // in M3); an engine restart keeps them.
+            if !std::mem::take(&mut self.restoring[deck.index()]) {
+                self.clear_cues(deck);
+            }
+            // The engine clears hot cues on every load.
+            self.resend_hot_cues(deck);
+            self.grids[deck.index()] = grid;
+            self.grid_unsent[deck.index()] = false;
             self.loaded[deck.index()] = Some(info.clone());
             self.publish(CoreEvent::TrackLoaded(TrackLoaded {
                 deck,
@@ -397,11 +755,36 @@ impl Control {
         }
     }
 
+    /// Sends a new grid for the loaded track; a full hand-off ring retries
+    /// on the next tick.
+    fn set_beat_grid(&mut self, deck: DeckId, grid: Option<BeatGrid>) -> Result<(), CoreError> {
+        if self.loaded[deck.index()].is_none() {
+            return Err(CoreError::Invalid("no track is loaded".to_owned()));
+        }
+        self.grids[deck.index()] = grid;
+        self.grid_unsent[deck.index()] = true;
+        self.flush_grids();
+        Ok(())
+    }
+
+    fn flush_grids(&mut self) {
+        let Some(engine) = self.engine.as_mut() else {
+            return;
+        };
+        for deck in DeckId::ALL {
+            let i = deck.index();
+            if self.grid_unsent[i] && engine.handle().set_beat_grid(deck, self.grids[i]) {
+                self.grid_unsent[i] = false;
+            }
+        }
+    }
+
     // ----- tick -----
 
     fn tick(&mut self) {
         self.render_offline();
         self.flush_pending();
+        self.flush_grids();
         let mut lost = false;
         let mut events: Vec<EngineEvent> = Vec::new();
         let mut telemetry = None;
@@ -427,6 +810,9 @@ impl Control {
         }
         for event in events {
             lost |= event == EngineEvent::DeviceLost;
+            if let EngineEvent::HotCueSet { deck, index, cue } = event {
+                self.engine_set_hot_cue(deck, index, cue);
+            }
             self.publish(CoreEvent::Engine(event));
         }
         if lost {
@@ -454,6 +840,31 @@ impl Control {
         let frames = ((elapsed.as_secs_f64() * rate as f64) as usize).min(rate as usize / 2);
         scratch.resize(frames * 2, 0.0);
         renderer.render_into(scratch);
+    }
+
+    /// Renders `frames` of master and headphones at once, ahead of the wall
+    /// clock, so tests can inspect the audio. Offline backend only.
+    fn render_now(&mut self, frames: usize) -> Result<OfflineAudio, CoreError> {
+        self.flush_pending();
+        self.flush_grids();
+        let Some(Engine::Offline {
+            renderer,
+            last_render,
+            ..
+        }) = self.engine.as_mut()
+        else {
+            return Err(CoreError::Invalid(
+                "rendering on demand needs the offline backend".to_owned(),
+            ));
+        };
+        let mut audio = OfflineAudio {
+            master: vec![0.0; frames * 2],
+            headphones: vec![0.0; frames * 2],
+        };
+        renderer.render_both(&mut audio.master, &mut audio.headphones);
+        // The wall clock resumes from here; what was just rendered is not repeated.
+        *last_render = Instant::now();
+        Ok(audio)
     }
 
     // ----- engine lifecycle -----
@@ -521,6 +932,7 @@ impl Control {
         self.latest = None;
         self.last_sequence = None;
         self.pending.clear();
+        self.replay_mixer();
         self.replay_state();
         Ok(())
     }
@@ -542,13 +954,84 @@ impl Control {
                 deck: *deck,
                 on: controls.key_lock,
             });
+            self.command(EngineCommand::SetKeyShift {
+                deck: *deck,
+                semitones: controls.key_shift,
+            });
+            self.command(EngineCommand::SetSync {
+                deck: *deck,
+                mode: controls.sync,
+            });
+            self.command(EngineCommand::SetQuantize {
+                deck: *deck,
+                on: controls.quantize,
+            });
+            self.command(EngineCommand::SetSlip {
+                deck: *deck,
+                on: controls.slip,
+            });
+            self.command(EngineCommand::SetVinylMode {
+                deck: *deck,
+                on: controls.vinyl,
+            });
             if let Some(info) = self.loaded[deck.index()].clone() {
+                self.restoring[deck.index()] = true;
                 let path = PathBuf::from(&info.path);
-                if let Err(err) = self.request_load(*deck, path, info.clone()) {
+                let grid = self.grids[deck.index()];
+                if let Err(err) = self.request_load(*deck, path, info.clone(), grid) {
                     tracing::warn!(%err, "could not reload track after restart");
                 }
             }
         }
+    }
+
+    /// Re-sends the whole mixer after an engine restart.
+    fn replay_mixer(&mut self) {
+        let m = self.mixer;
+        for ch in m.channels.iter().take(MVP_DECKS) {
+            let deck = ch.deck;
+            self.command(EngineCommand::SetTrim {
+                deck,
+                gain: ch.trim,
+            });
+            for band in [EqBand::Low, EqBand::Mid, EqBand::High] {
+                self.command(EngineCommand::SetEq {
+                    deck,
+                    band,
+                    gain: ch.eq[band.index()],
+                });
+            }
+            self.command(EngineCommand::SetFilter {
+                deck,
+                amount: ch.filter,
+            });
+            self.command(EngineCommand::SetChannelFader {
+                deck,
+                position: ch.fader,
+            });
+            self.command(EngineCommand::SetPfl { deck, on: ch.pfl });
+            self.command(EngineCommand::SetCrossfaderAssign {
+                deck,
+                assign: ch.crossfader_assign,
+            });
+        }
+        self.command(EngineCommand::SetCrossfader {
+            position: m.crossfader,
+        });
+        self.command(EngineCommand::SetCrossfaderCurve {
+            curve: m.crossfader_curve,
+        });
+        self.command(EngineCommand::SetMasterLevel {
+            gain: m.master_level,
+        });
+        self.command(EngineCommand::SetHeadphoneLevel {
+            gain: m.headphone_level,
+        });
+        self.command(EngineCommand::SetHeadphoneMix {
+            mix: m.headphone_mix,
+        });
+        self.command(EngineCommand::SetSplitCue { on: m.split_cue });
+        self.command(EngineCommand::SetLeader { deck: self.leader });
     }
 
     fn set_settings(&mut self, settings: AudioSettings) -> Result<AudioStatus, CoreError> {

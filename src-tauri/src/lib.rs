@@ -10,13 +10,18 @@ use std::path::Path;
 use std::sync::Mutex;
 
 use opendeck_app_core::{
-    AppCore, AudioController, AudioDeviceInfo, AudioStatus, Backend, CoreError, CoreEvent,
+    AppCore, AudioController, AudioDeviceInfo, AudioStatus, Backend, CoreError, CoreEvent, HotCues,
     LaunchOptions, SettingsStore, TrackInfo, TrackLoadFailed, TrackLoaded,
 };
+use opendeck_contracts::cue::{Cue, HotCueIndex};
+use opendeck_contracts::deck::DeckState;
+use opendeck_contracts::mixer::{CrossfaderAssign, CrossfaderCurve, EqBand, MixerState};
 use opendeck_contracts::pad::PadMode;
 use opendeck_contracts::settings::{AudioHostInfo, AudioHostKind, AudioSettings};
-use opendeck_contracts::tempo::TempoRange;
-use opendeck_contracts::{DeckId, EngineEvent, EngineTelemetry, MAX_DECKS, MVP_DECKS, Seconds};
+use opendeck_contracts::tempo::{SyncMode, TempoRange};
+use opendeck_contracts::{
+    Beats, DeckId, EngineEvent, EngineTelemetry, Gain, MAX_DECKS, MVP_DECKS, Seconds,
+};
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use specta_typescript::Typescript;
@@ -62,6 +67,8 @@ pub enum CommandError {
     Audio(String),
     /// A file could not be read or decoded, or is too long.
     Media(String),
+    /// An argument is out of range, or the deck has no track for the action.
+    Invalid(String),
 }
 
 impl From<CoreError> for CommandError {
@@ -75,6 +82,7 @@ impl From<CoreError> for CommandError {
                 CommandError::Media(message)
             }
             CoreError::Settings(_) => CommandError::Internal(message),
+            CoreError::Invalid(_) => CommandError::Invalid(message),
         }
     }
 }
@@ -306,6 +314,352 @@ fn get_pad_mode(state: tauri::State<'_, AppState>, deck: DeckId) -> Result<PadMo
     with_core(&state, |core| core.pad_mode(deck))
 }
 
+// ----- decks: sync, slip, jog (milestone 2) -----
+
+/// Control state of a deck: tempo, sync, quantize, slip, leader, loop.
+#[tauri::command]
+#[specta::specta]
+fn get_deck_state(
+    state: tauri::State<'_, AppState>,
+    deck: DeckId,
+) -> Result<DeckState, CommandError> {
+    Ok(state.snapshot()?.deck_state(deck)?)
+}
+
+/// Sync mode of a deck.
+#[tauri::command]
+#[specta::specta]
+fn set_sync(
+    state: tauri::State<'_, AppState>,
+    deck: DeckId,
+    mode: SyncMode,
+) -> Result<(), CommandError> {
+    Ok(state.audio()?.set_sync(deck, mode)?)
+}
+
+/// Sync leader; `None` lets the engine pick.
+#[tauri::command]
+#[specta::specta]
+fn set_leader(state: tauri::State<'_, AppState>, deck: Option<DeckId>) -> Result<(), CommandError> {
+    Ok(state.audio()?.set_leader(deck)?)
+}
+
+/// Quantize on or off.
+#[tauri::command]
+#[specta::specta]
+fn set_quantize(
+    state: tauri::State<'_, AppState>,
+    deck: DeckId,
+    on: bool,
+) -> Result<(), CommandError> {
+    Ok(state.audio()?.set_quantize(deck, on)?)
+}
+
+/// Slip mode on or off.
+#[tauri::command]
+#[specta::specta]
+fn set_slip(state: tauri::State<'_, AppState>, deck: DeckId, on: bool) -> Result<(), CommandError> {
+    Ok(state.audio()?.set_slip(deck, on)?)
+}
+
+/// Vinyl mode on or off.
+#[tauri::command]
+#[specta::specta]
+fn set_vinyl_mode(
+    state: tauri::State<'_, AppState>,
+    deck: DeckId,
+    on: bool,
+) -> Result<(), CommandError> {
+    Ok(state.audio()?.set_vinyl_mode(deck, on)?)
+}
+
+/// Platter touched or released.
+#[tauri::command]
+#[specta::specta]
+fn jog_touch(
+    state: tauri::State<'_, AppState>,
+    deck: DeckId,
+    touched: bool,
+) -> Result<(), CommandError> {
+    Ok(state.audio()?.jog_touch(deck, touched)?)
+}
+
+/// Platter rotation since the last call, in revolutions (signed).
+#[tauri::command]
+#[specta::specta]
+fn jog_turn(
+    state: tauri::State<'_, AppState>,
+    deck: DeckId,
+    revolutions: f32,
+) -> Result<(), CommandError> {
+    Ok(state.audio()?.jog_turn(deck, revolutions)?)
+}
+
+/// Fast search by `beats` (signed).
+#[tauri::command]
+#[specta::specta]
+fn jog_search(
+    state: tauri::State<'_, AppState>,
+    deck: DeckId,
+    beats: Beats,
+) -> Result<(), CommandError> {
+    Ok(state.audio()?.jog_search(deck, beats)?)
+}
+
+// ----- loops, jumps, cues (milestone 2) -----
+
+/// Loop in at the playhead.
+#[tauri::command]
+#[specta::specta]
+fn loop_in(state: tauri::State<'_, AppState>, deck: DeckId) -> Result<(), CommandError> {
+    Ok(state.audio()?.loop_in(deck)?)
+}
+
+/// Loop out at the playhead and start looping.
+#[tauri::command]
+#[specta::specta]
+fn loop_out(state: tauri::State<'_, AppState>, deck: DeckId) -> Result<(), CommandError> {
+    Ok(state.audio()?.loop_out(deck)?)
+}
+
+/// Exit the active loop, or re-enter the last one.
+#[tauri::command]
+#[specta::specta]
+fn loop_toggle(state: tauri::State<'_, AppState>, deck: DeckId) -> Result<(), CommandError> {
+    Ok(state.audio()?.loop_toggle(deck)?)
+}
+
+/// Auto loop of `length` beats from the playhead.
+#[tauri::command]
+#[specta::specta]
+fn auto_loop(
+    state: tauri::State<'_, AppState>,
+    deck: DeckId,
+    length: Beats,
+) -> Result<(), CommandError> {
+    Ok(state.audio()?.auto_loop(deck, length)?)
+}
+
+/// Loop roll: loops while `active`, then resumes where playback would be.
+#[tauri::command]
+#[specta::specta]
+fn loop_roll(
+    state: tauri::State<'_, AppState>,
+    deck: DeckId,
+    length: Beats,
+    active: bool,
+) -> Result<(), CommandError> {
+    Ok(state.audio()?.loop_roll(deck, length, active)?)
+}
+
+/// Multiplies the active loop length (`0.5` halves, `2.0` doubles).
+#[tauri::command]
+#[specta::specta]
+fn resize_loop(
+    state: tauri::State<'_, AppState>,
+    deck: DeckId,
+    factor: f32,
+) -> Result<(), CommandError> {
+    Ok(state.audio()?.resize_loop(deck, factor)?)
+}
+
+/// Jumps by `beats` (negative goes back).
+#[tauri::command]
+#[specta::specta]
+fn beat_jump(
+    state: tauri::State<'_, AppState>,
+    deck: DeckId,
+    beats: Beats,
+) -> Result<(), CommandError> {
+    Ok(state.audio()?.beat_jump(deck, beats)?)
+}
+
+/// Stores the playhead in a hot cue slot and returns the cue.
+#[tauri::command]
+#[specta::specta]
+async fn set_hot_cue(
+    state: tauri::State<'_, AppState>,
+    deck: DeckId,
+    index: HotCueIndex,
+) -> Result<Cue, CommandError> {
+    let audio = state.audio()?;
+    blocking(move || audio.set_hot_cue(deck, index)).await
+}
+
+/// Hot cue pad edge: jumps to a set cue, previews while held when paused.
+#[tauri::command]
+#[specta::specta]
+fn trigger_hot_cue(
+    state: tauri::State<'_, AppState>,
+    deck: DeckId,
+    index: HotCueIndex,
+    pressed: bool,
+) -> Result<(), CommandError> {
+    Ok(state.audio()?.trigger_hot_cue(deck, index, pressed)?)
+}
+
+/// Clears a hot cue slot. Replaces `delete_cue` until cues have ids (M3).
+#[tauri::command]
+#[specta::specta]
+fn delete_hot_cue(
+    state: tauri::State<'_, AppState>,
+    deck: DeckId,
+    index: HotCueIndex,
+) -> Result<(), CommandError> {
+    Ok(state.audio()?.delete_hot_cue(deck, index)?)
+}
+
+/// The eight hot cue slots of a deck.
+#[tauri::command]
+#[specta::specta]
+async fn get_hot_cues(
+    state: tauri::State<'_, AppState>,
+    deck: DeckId,
+) -> Result<HotCues, CommandError> {
+    let audio = state.audio()?;
+    blocking(move || audio.hot_cues(deck)).await
+}
+
+/// Stores the playhead as a memory cue.
+#[tauri::command]
+#[specta::specta]
+async fn add_memory_cue(
+    state: tauri::State<'_, AppState>,
+    deck: DeckId,
+) -> Result<Cue, CommandError> {
+    let audio = state.audio()?;
+    blocking(move || audio.add_memory_cue(deck)).await
+}
+
+/// Jumps to the next (`direction >= 0`) or previous memory cue.
+#[tauri::command]
+#[specta::specta]
+fn call_memory_cue(
+    state: tauri::State<'_, AppState>,
+    deck: DeckId,
+    direction: i8,
+) -> Result<(), CommandError> {
+    Ok(state.audio()?.call_memory_cue(deck, direction)?)
+}
+
+// ----- mixer (milestone 2) -----
+
+/// Mixer settings as last sent to the engine.
+#[tauri::command]
+#[specta::specta]
+async fn get_mixer_state(state: tauri::State<'_, AppState>) -> Result<MixerState, CommandError> {
+    let audio = state.audio()?;
+    blocking(move || audio.mixer_state()).await
+}
+
+/// Channel trim as linear gain.
+#[tauri::command]
+#[specta::specta]
+fn set_trim(
+    state: tauri::State<'_, AppState>,
+    deck: DeckId,
+    gain: Gain,
+) -> Result<(), CommandError> {
+    Ok(state.audio()?.set_trim(deck, gain)?)
+}
+
+/// Channel EQ band as linear gain (`0` kills the band).
+#[tauri::command]
+#[specta::specta]
+fn set_eq(
+    state: tauri::State<'_, AppState>,
+    deck: DeckId,
+    band: EqBand,
+    gain: Gain,
+) -> Result<(), CommandError> {
+    Ok(state.audio()?.set_eq(deck, band, gain)?)
+}
+
+/// Channel filter in `[-1, 1]`: negative low-pass, positive high-pass.
+#[tauri::command]
+#[specta::specta]
+fn set_filter(
+    state: tauri::State<'_, AppState>,
+    deck: DeckId,
+    amount: f32,
+) -> Result<(), CommandError> {
+    Ok(state.audio()?.set_filter(deck, amount)?)
+}
+
+/// Channel fader in `[0, 1]`.
+#[tauri::command]
+#[specta::specta]
+fn set_channel_fader(
+    state: tauri::State<'_, AppState>,
+    deck: DeckId,
+    position: f32,
+) -> Result<(), CommandError> {
+    Ok(state.audio()?.set_channel_fader(deck, position)?)
+}
+
+/// Headphone cue (PFL) for a channel.
+#[tauri::command]
+#[specta::specta]
+fn set_pfl(state: tauri::State<'_, AppState>, deck: DeckId, on: bool) -> Result<(), CommandError> {
+    Ok(state.audio()?.set_pfl(deck, on)?)
+}
+
+/// Crossfader position in `[-1, 1]`, `-1` = full A.
+#[tauri::command]
+#[specta::specta]
+fn set_crossfader(state: tauri::State<'_, AppState>, position: f32) -> Result<(), CommandError> {
+    Ok(state.audio()?.set_crossfader(position)?)
+}
+
+/// Crossfader curve.
+#[tauri::command]
+#[specta::specta]
+fn set_crossfader_curve(
+    state: tauri::State<'_, AppState>,
+    curve: CrossfaderCurve,
+) -> Result<(), CommandError> {
+    Ok(state.audio()?.set_crossfader_curve(curve)?)
+}
+
+/// Crossfader side of a channel.
+#[tauri::command]
+#[specta::specta]
+fn set_crossfader_assign(
+    state: tauri::State<'_, AppState>,
+    deck: DeckId,
+    assign: CrossfaderAssign,
+) -> Result<(), CommandError> {
+    Ok(state.audio()?.set_crossfader_assign(deck, assign)?)
+}
+
+/// Master output level as linear gain.
+#[tauri::command]
+#[specta::specta]
+fn set_master_level(state: tauri::State<'_, AppState>, gain: Gain) -> Result<(), CommandError> {
+    Ok(state.audio()?.set_master_level(gain)?)
+}
+
+/// Headphone output level as linear gain.
+#[tauri::command]
+#[specta::specta]
+fn set_headphone_level(state: tauri::State<'_, AppState>, gain: Gain) -> Result<(), CommandError> {
+    Ok(state.audio()?.set_headphone_level(gain)?)
+}
+
+/// Headphone cue/master mix in `[0, 1]`, `0` = cue only.
+#[tauri::command]
+#[specta::specta]
+fn set_headphone_mix(state: tauri::State<'_, AppState>, mix: f32) -> Result<(), CommandError> {
+    Ok(state.audio()?.set_headphone_mix(mix)?)
+}
+
+/// Split cue on or off.
+#[tauri::command]
+#[specta::specta]
+fn set_split_cue(state: tauri::State<'_, AppState>, on: bool) -> Result<(), CommandError> {
+    Ok(state.audio()?.set_split_cue(on)?)
+}
+
 /// Engine snapshot pushed to the UI at ~60 Hz (ADR 0003, ADR 0004).
 #[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
 #[tauri_specta(event_name = "engine-telemetry")]
@@ -325,6 +679,11 @@ pub struct TrackLoadedEvent(pub TrackLoaded);
 #[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
 #[tauri_specta(event_name = "track-load-failed")]
 pub struct TrackLoadFailedEvent(pub TrackLoadFailed);
+
+/// A deck's hot cue slots changed (set, deleted, track loaded or ejected).
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+#[tauri_specta(event_name = "hot-cues-changed")]
+pub struct HotCuesChangedEvent(pub HotCues);
 
 /// The audio stream was (re)started or stopped.
 #[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
@@ -354,12 +713,48 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             set_key_lock,
             pitch_bend,
             get_pad_mode,
+            get_deck_state,
+            set_sync,
+            set_leader,
+            set_quantize,
+            set_slip,
+            set_vinyl_mode,
+            jog_touch,
+            jog_turn,
+            jog_search,
+            loop_in,
+            loop_out,
+            loop_toggle,
+            auto_loop,
+            loop_roll,
+            resize_loop,
+            beat_jump,
+            set_hot_cue,
+            trigger_hot_cue,
+            delete_hot_cue,
+            get_hot_cues,
+            add_memory_cue,
+            call_memory_cue,
+            get_mixer_state,
+            set_trim,
+            set_eq,
+            set_filter,
+            set_channel_fader,
+            set_pfl,
+            set_crossfader,
+            set_crossfader_curve,
+            set_crossfader_assign,
+            set_master_level,
+            set_headphone_level,
+            set_headphone_mix,
+            set_split_cue,
         ])
         .events(collect_events![
             EngineTelemetryEvent,
             EngineEventEvent,
             TrackLoadedEvent,
             TrackLoadFailedEvent,
+            HotCuesChangedEvent,
             AudioDeviceChangedEvent
         ])
         // IDs (SQLite rowids) and frame counts are u64/i64 but stay far below
@@ -382,6 +777,7 @@ fn forward_events(app: tauri::AppHandle, events: crossbeam_channel::Receiver<Cor
             CoreEvent::Engine(e) => EngineEventEvent(e).emit(&app),
             CoreEvent::TrackLoaded(t) => TrackLoadedEvent(t).emit(&app),
             CoreEvent::TrackLoadFailed(f) => TrackLoadFailedEvent(f).emit(&app),
+            CoreEvent::HotCues(h) => HotCuesChangedEvent(h).emit(&app),
             CoreEvent::AudioStatus(s) => AudioDeviceChangedEvent(s).emit(&app),
         };
         if let Err(err) = result {
@@ -669,6 +1065,108 @@ mod tests {
         assert!(matches!(
             CommandError::from(CoreError::Settings("x".into())),
             CommandError::Internal(_)
+        ));
+    }
+
+    fn deck_b() -> DeckId {
+        DeckId::new(1).expect("deck B")
+    }
+
+    #[test]
+    fn deck_commands_succeed_on_both_decks() {
+        let app = offline_app();
+        for d in [deck_a(), deck_b()] {
+            assert!(set_sync(app.state(), d, SyncMode::Tempo).is_ok());
+            assert!(set_quantize(app.state(), d, false).is_ok());
+            assert!(set_slip(app.state(), d, true).is_ok());
+            assert!(set_vinyl_mode(app.state(), d, false).is_ok());
+            assert!(jog_touch(app.state(), d, true).is_ok());
+            assert!(jog_turn(app.state(), d, 0.02).is_ok());
+            assert!(jog_search(app.state(), d, Beats(8.0)).is_ok());
+            assert!(loop_in(app.state(), d).is_ok());
+            assert!(loop_out(app.state(), d).is_ok());
+            assert!(loop_toggle(app.state(), d).is_ok());
+            assert!(auto_loop(app.state(), d, Beats(4.0)).is_ok());
+            assert!(loop_roll(app.state(), d, Beats(0.5), true).is_ok());
+            assert!(loop_roll(app.state(), d, Beats(0.5), false).is_ok());
+            assert!(resize_loop(app.state(), d, 2.0).is_ok());
+            assert!(beat_jump(app.state(), d, Beats(-16.0)).is_ok());
+            let index = HotCueIndex::new(3).expect("index");
+            assert!(trigger_hot_cue(app.state(), d, index, true).is_ok());
+            assert!(trigger_hot_cue(app.state(), d, index, false).is_ok());
+            assert!(delete_hot_cue(app.state(), d, index).is_ok());
+            assert!(call_memory_cue(app.state(), d, 1).is_ok());
+        }
+        assert!(set_leader(app.state(), Some(deck_b())).is_ok());
+        let b = get_deck_state(app.state(), deck_b()).expect("deck state");
+        assert_eq!(b.sync, SyncMode::Tempo);
+        assert!(b.slip && !b.quantize && !b.vinyl_mode && b.is_leader);
+        assert_eq!(b.pad_mode, PadMode::HotCue);
+    }
+
+    #[test]
+    fn mixer_commands_update_the_mixer_state() {
+        let app = offline_app();
+        let d = deck_b();
+        assert!(set_trim(app.state(), d, Gain(1.2)).is_ok());
+        assert!(set_eq(app.state(), d, EqBand::High, Gain(0.0)).is_ok());
+        assert!(set_filter(app.state(), d, 0.5).is_ok());
+        assert!(set_channel_fader(app.state(), d, 0.4).is_ok());
+        assert!(set_pfl(app.state(), d, true).is_ok());
+        assert!(set_crossfader(app.state(), -0.5).is_ok());
+        assert!(set_crossfader_curve(app.state(), CrossfaderCurve::Linear).is_ok());
+        assert!(set_crossfader_assign(app.state(), d, CrossfaderAssign::A).is_ok());
+        assert!(set_master_level(app.state(), Gain(0.9)).is_ok());
+        assert!(set_headphone_level(app.state(), Gain(0.7)).is_ok());
+        assert!(set_headphone_mix(app.state(), 0.5).is_ok());
+        assert!(set_split_cue(app.state(), true).is_ok());
+        let m = tauri::async_runtime::block_on(get_mixer_state(app.state())).expect("mixer");
+        let ch = m.channels[1];
+        assert_eq!(ch.trim, Gain(1.2));
+        assert_eq!(ch.eq[EqBand::High.index()], Gain(0.0));
+        assert_eq!((ch.filter, ch.fader, ch.pfl), (0.5, 0.4, true));
+        assert_eq!(ch.crossfader_assign, CrossfaderAssign::A);
+        assert_eq!(m.crossfader, -0.5);
+        assert_eq!(m.crossfader_curve, CrossfaderCurve::Linear);
+        assert_eq!((m.master_level, m.headphone_level), (Gain(0.9), Gain(0.7)));
+        assert_eq!(m.headphone_mix, 0.5);
+        assert!(m.split_cue);
+    }
+
+    #[test]
+    fn bad_arguments_map_to_invalid_errors() {
+        let app = offline_app();
+        assert!(matches!(
+            set_trim(app.state(), deck_a(), Gain(f32::NAN)),
+            Err(CommandError::Invalid(_))
+        ));
+        assert!(matches!(
+            auto_loop(app.state(), deck_a(), Beats(-1.0)),
+            Err(CommandError::Invalid(_))
+        ));
+        let index = HotCueIndex::new(0).expect("index");
+        let no_track = tauri::async_runtime::block_on(set_hot_cue(app.state(), deck_a(), index));
+        assert!(matches!(no_track, Err(CommandError::Invalid(_))));
+        let cues =
+            tauri::async_runtime::block_on(get_hot_cues(app.state(), deck_a())).expect("cues");
+        assert_eq!(cues.slots.len(), 8);
+        assert!(cues.slots.iter().all(Option::is_none));
+    }
+
+    #[test]
+    fn m2_commands_fail_cleanly_without_a_core() {
+        let app = mock_app(AppCore::new());
+        assert!(matches!(
+            set_sync(app.state(), deck_b(), SyncMode::Beat),
+            Err(CommandError::Audio(_))
+        ));
+        assert!(matches!(
+            set_master_level(app.state(), Gain(1.0)),
+            Err(CommandError::Audio(_))
+        ));
+        assert!(matches!(
+            get_deck_state(app.state(), deck_a()),
+            Err(CommandError::Audio(_))
         ));
     }
 

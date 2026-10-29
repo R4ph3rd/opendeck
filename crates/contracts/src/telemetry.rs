@@ -15,6 +15,7 @@
 use crate::MAX_DECKS;
 use crate::cue::{FrameRegion, HotCueIndex};
 use crate::ids::DeckId;
+use crate::tempo::SyncMode;
 use crate::units::{Bpm, Frames, SampleRate};
 
 /// Peak and RMS levels for a stereo signal over the last block(s), linear
@@ -50,14 +51,23 @@ pub struct DeckTelemetry {
     pub slip_position: Option<Frames>,
     /// Current playback rate (tempo fader, sync, bend and scratch combined).
     pub rate: f64,
-    /// Effective tempo (track BPM times rate), if the track has a grid.
+    /// Effective tempo (grid BPM times rate, sync included), if the track
+    /// has a grid.
     pub bpm: Option<Bpm>,
     /// Position inside the current beat, `[0, 1)`; 0 when there is no grid.
     pub beat_phase: f32,
     /// Zero-based beat within the bar; 0 when there is no grid.
     pub beat_in_bar: u8,
-    /// Active loop, in engine frames.
-    pub active_loop: Option<FrameRegion>,
+    /// Sync mode the engine applies to this deck.
+    pub sync_mode: SyncMode,
+    /// This deck is the sync leader: `EngineTelemetry::leader` names it.
+    /// A leader can have sync off.
+    pub is_leader: bool,
+    /// Current loop in engine frames: the playing one, or the last one that
+    /// `LoopToggle` re-enters. Cleared on track load.
+    pub loop_region: Option<FrameRegion>,
+    /// The playhead is looping inside `loop_region` (loop, hot loop or roll).
+    pub loop_active: bool,
     /// Post-fader channel level.
     pub meter: StereoMeter,
 }
@@ -79,7 +89,7 @@ pub struct EngineTelemetry {
     pub master: StereoMeter,
     /// Headphone output level.
     pub headphones: StereoMeter,
-    /// Current sync leader.
+    /// Current sync leader. See `EngineCommand::SetLeader` for the election.
     pub leader: Option<DeckId>,
     /// Callback time divided by block duration, smoothed, `0..` (1.0 = overrun).
     pub dsp_load: f32,

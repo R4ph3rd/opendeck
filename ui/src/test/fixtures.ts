@@ -15,7 +15,10 @@ export function deckTelemetry(patch: Partial<DeckTelemetry> = {}): DeckTelemetry
     bpm: null,
     beat_phase: 0,
     beat_in_bar: 0,
-    active_loop: null,
+    sync_mode: "off",
+    is_leader: false,
+    loop_region: null,
+    loop_active: false,
     meter,
     ...patch,
   };
@@ -60,3 +63,21 @@ export const runningAudio: AudioStatus = {
   stereo_fallback: false,
   error: null,
 };
+
+/** Snapshot with `deck` patched and the others empty; `leader` is the reported sync leader. */
+export function telemetryFor(
+  sequence: number,
+  deck: number,
+  patch: Partial<DeckTelemetry> = {},
+  leader: number | null = null,
+): EngineTelemetry {
+  const base = telemetry(sequence);
+  return {
+    ...base,
+    leader,
+    decks: base.decks.map((d, i) => ({
+      ...(i === deck ? deckTelemetry(patch) : d),
+      is_leader: i === leader,
+    })) as EngineTelemetry["decks"],
+  };
+}

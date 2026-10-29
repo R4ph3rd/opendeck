@@ -24,16 +24,21 @@ use std::thread::JoinHandle;
 use std::time::Duration;
 
 use crossbeam_channel::Sender;
+use opendeck_contracts::beatgrid::BeatGrid;
+use opendeck_contracts::cue::{Cue, HotCueIndex};
+use opendeck_contracts::deck::DeckState;
+use opendeck_contracts::mixer::{CrossfaderAssign, CrossfaderCurve, EqBand, MixerState};
 use opendeck_contracts::settings::{AudioHostInfo, AudioHostKind, AudioSettings};
-use opendeck_contracts::tempo::TempoRange;
-use opendeck_contracts::{DeckId, EngineCommand, MAX_DECKS, Seconds, pad::PadMode};
+use opendeck_contracts::tempo::{SyncMode, TempoRange};
+use opendeck_contracts::{Beats, DeckId, EngineCommand, Gain, MAX_DECKS, Seconds, pad::PadMode};
 use opendeck_engine::device;
 
 use crate::control::Msg;
 pub use crate::control::{Backend, LaunchOptions, TICK};
 pub use crate::settings_store::{SETTINGS_FILE, SettingsStore, StoredSettings};
 pub use crate::types::{
-    AudioDeviceInfo, AudioStatus, CoreError, CoreEvent, TrackInfo, TrackLoadFailed, TrackLoaded,
+    AudioDeviceInfo, AudioStatus, CoreError, CoreEvent, HotCues, OfflineAudio, TrackInfo,
+    TrackLoadFailed, TrackLoaded,
 };
 
 /// How long a call waits for the control thread before giving up.
@@ -44,6 +49,34 @@ pub const PRODUCT_NAME: &str = "OpenDeck";
 
 /// Crate version, shared by every workspace member.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+fn finite(value: f32, what: &str) -> Result<(), CoreError> {
+    if value.is_finite() {
+        Ok(())
+    } else {
+        Err(CoreError::Invalid(format!("{what} is not a finite number")))
+    }
+}
+
+fn non_negative(value: f32, what: &str) -> Result<(), CoreError> {
+    if value.is_finite() && value >= 0.0 {
+        Ok(())
+    } else {
+        Err(CoreError::Invalid(format!(
+            "{what} must be a finite number, zero or more"
+        )))
+    }
+}
+
+fn positive(value: f64, what: &str) -> Result<(), CoreError> {
+    if value.is_finite() && value > 0.0 {
+        Ok(())
+    } else {
+        Err(CoreError::Invalid(format!(
+            "{what} must be a finite number above zero"
+        )))
+    }
+}
 
 /// Cloneable handle to the control thread. Dropping the last clone stops the
 /// control and loader threads.
@@ -167,6 +200,222 @@ impl AudioController {
         self.send(EngineCommand::PitchBend { deck, amount })
     }
 
+    // ----- sync, leader, quantize, slip, jog -----
+
+    /// Sync mode of a deck.
+    pub fn set_sync(&self, deck: DeckId, mode: SyncMode) -> Result<(), CoreError> {
+        self.send(EngineCommand::SetSync { deck, mode })
+    }
+
+    /// Sync leader; `None` lets the engine choose.
+    pub fn set_leader(&self, deck: Option<DeckId>) -> Result<(), CoreError> {
+        self.send(EngineCommand::SetLeader { deck })
+    }
+
+    /// Quantize on or off.
+    pub fn set_quantize(&self, deck: DeckId, on: bool) -> Result<(), CoreError> {
+        self.send(EngineCommand::SetQuantize { deck, on })
+    }
+
+    /// Slip mode on or off.
+    pub fn set_slip(&self, deck: DeckId, on: bool) -> Result<(), CoreError> {
+        self.send(EngineCommand::SetSlip { deck, on })
+    }
+
+    /// Vinyl mode on or off.
+    pub fn set_vinyl_mode(&self, deck: DeckId, on: bool) -> Result<(), CoreError> {
+        self.send(EngineCommand::SetVinylMode { deck, on })
+    }
+
+    /// Platter touched or released.
+    pub fn jog_touch(&self, deck: DeckId, touched: bool) -> Result<(), CoreError> {
+        self.send(EngineCommand::JogTouch { deck, touched })
+    }
+
+    /// Platter rotation since the last call, in revolutions (signed).
+    pub fn jog_turn(&self, deck: DeckId, revolutions: f32) -> Result<(), CoreError> {
+        finite(revolutions, "revolutions")?;
+        self.send(EngineCommand::JogTurn { deck, revolutions })
+    }
+
+    /// Fast search by `beats` (signed).
+    pub fn jog_search(&self, deck: DeckId, beats: Beats) -> Result<(), CoreError> {
+        finite(beats.0 as f32, "beats")?;
+        self.send(EngineCommand::JogSearch { deck, beats })
+    }
+
+    // ----- loops, jumps, cues -----
+
+    /// Loop in at the playhead.
+    pub fn loop_in(&self, deck: DeckId) -> Result<(), CoreError> {
+        self.send(EngineCommand::LoopIn { deck })
+    }
+
+    /// Loop out at the playhead and start looping.
+    pub fn loop_out(&self, deck: DeckId) -> Result<(), CoreError> {
+        self.send(EngineCommand::LoopOut { deck })
+    }
+
+    /// Exit the active loop or re-enter the last one.
+    pub fn loop_toggle(&self, deck: DeckId) -> Result<(), CoreError> {
+        self.send(EngineCommand::LoopToggle { deck })
+    }
+
+    /// Auto loop of `length` beats from the playhead.
+    pub fn auto_loop(&self, deck: DeckId, length: Beats) -> Result<(), CoreError> {
+        positive(length.0, "loop length")?;
+        self.send(EngineCommand::AutoLoop { deck, length })
+    }
+
+    /// Loop roll of `length` beats while `active`.
+    pub fn loop_roll(&self, deck: DeckId, length: Beats, active: bool) -> Result<(), CoreError> {
+        positive(length.0, "roll length")?;
+        self.send(EngineCommand::LoopRoll {
+            deck,
+            length,
+            active,
+        })
+    }
+
+    /// Multiplies the active loop length (`0.5` halves, `2.0` doubles).
+    pub fn resize_loop(&self, deck: DeckId, factor: f32) -> Result<(), CoreError> {
+        positive(f64::from(factor), "loop factor")?;
+        self.send(EngineCommand::LoopResize { deck, factor })
+    }
+
+    /// Jumps by `beats` (signed, not zero).
+    pub fn beat_jump(&self, deck: DeckId, beats: Beats) -> Result<(), CoreError> {
+        if !beats.0.is_finite() || beats.0 == 0.0 {
+            return Err(CoreError::Invalid(
+                "beat jump must be a finite, non-zero number of beats".to_owned(),
+            ));
+        }
+        self.send(EngineCommand::BeatJump { deck, beats })
+    }
+
+    /// Hot cue pad edge: jumps (or previews while held) on a set slot.
+    pub fn trigger_hot_cue(
+        &self,
+        deck: DeckId,
+        index: HotCueIndex,
+        pressed: bool,
+    ) -> Result<(), CoreError> {
+        self.send(EngineCommand::HotCue {
+            deck,
+            index,
+            pressed,
+        })
+    }
+
+    /// Stores the playhead in a hot cue slot (replacing any cue there).
+    pub fn set_hot_cue(&self, deck: DeckId, index: HotCueIndex) -> Result<Cue, CoreError> {
+        self.ask(|reply| Msg::SetHotCue { deck, index, reply })?
+    }
+
+    /// Clears a hot cue slot.
+    pub fn delete_hot_cue(&self, deck: DeckId, index: HotCueIndex) -> Result<(), CoreError> {
+        self.post(Msg::DeleteHotCue { deck, index })
+    }
+
+    /// The deck's hot cue slots.
+    pub fn hot_cues(&self, deck: DeckId) -> Result<HotCues, CoreError> {
+        self.ask(|reply| Msg::GetHotCues(deck, reply))
+    }
+
+    /// Stores the playhead as a memory cue.
+    pub fn add_memory_cue(&self, deck: DeckId) -> Result<Cue, CoreError> {
+        self.ask(|reply| Msg::AddMemoryCue { deck, reply })?
+    }
+
+    /// Jumps to the next (`direction >= 0`) or previous memory cue.
+    pub fn call_memory_cue(&self, deck: DeckId, direction: i8) -> Result<(), CoreError> {
+        self.post(Msg::CallMemoryCue { deck, direction })
+    }
+
+    // ----- mixer -----
+
+    /// Channel trim as linear gain.
+    pub fn set_trim(&self, deck: DeckId, gain: Gain) -> Result<(), CoreError> {
+        non_negative(gain.0, "trim")?;
+        self.send(EngineCommand::SetTrim { deck, gain })
+    }
+
+    /// Channel EQ band as linear gain (`0` kills the band).
+    pub fn set_eq(&self, deck: DeckId, band: EqBand, gain: Gain) -> Result<(), CoreError> {
+        non_negative(gain.0, "EQ gain")?;
+        self.send(EngineCommand::SetEq { deck, band, gain })
+    }
+
+    /// Channel filter in `[-1, 1]`.
+    pub fn set_filter(&self, deck: DeckId, amount: f32) -> Result<(), CoreError> {
+        finite(amount, "filter")?;
+        self.send(EngineCommand::SetFilter { deck, amount })
+    }
+
+    /// Channel fader in `[0, 1]`.
+    pub fn set_channel_fader(&self, deck: DeckId, position: f32) -> Result<(), CoreError> {
+        finite(position, "fader")?;
+        self.send(EngineCommand::SetChannelFader { deck, position })
+    }
+
+    /// Headphone cue for a channel.
+    pub fn set_pfl(&self, deck: DeckId, on: bool) -> Result<(), CoreError> {
+        self.send(EngineCommand::SetPfl { deck, on })
+    }
+
+    /// Crossfader position in `[-1, 1]`.
+    pub fn set_crossfader(&self, position: f32) -> Result<(), CoreError> {
+        finite(position, "crossfader")?;
+        self.send(EngineCommand::SetCrossfader { position })
+    }
+
+    /// Crossfader curve.
+    pub fn set_crossfader_curve(&self, curve: CrossfaderCurve) -> Result<(), CoreError> {
+        self.send(EngineCommand::SetCrossfaderCurve { curve })
+    }
+
+    /// Crossfader side of a channel.
+    pub fn set_crossfader_assign(
+        &self,
+        deck: DeckId,
+        assign: CrossfaderAssign,
+    ) -> Result<(), CoreError> {
+        self.send(EngineCommand::SetCrossfaderAssign { deck, assign })
+    }
+
+    /// Master output level as linear gain.
+    pub fn set_master_level(&self, gain: Gain) -> Result<(), CoreError> {
+        non_negative(gain.0, "master level")?;
+        self.send(EngineCommand::SetMasterLevel { gain })
+    }
+
+    /// Headphone output level as linear gain.
+    pub fn set_headphone_level(&self, gain: Gain) -> Result<(), CoreError> {
+        non_negative(gain.0, "headphone level")?;
+        self.send(EngineCommand::SetHeadphoneLevel { gain })
+    }
+
+    /// Headphone cue/master mix in `[0, 1]`.
+    pub fn set_headphone_mix(&self, mix: f32) -> Result<(), CoreError> {
+        finite(mix, "headphone mix")?;
+        self.send(EngineCommand::SetHeadphoneMix { mix })
+    }
+
+    /// Split cue on or off.
+    pub fn set_split_cue(&self, on: bool) -> Result<(), CoreError> {
+        self.send(EngineCommand::SetSplitCue { on })
+    }
+
+    /// Mixer settings as the control thread last sent them to the engine.
+    pub fn mixer_state(&self) -> Result<MixerState, CoreError> {
+        self.ask(Msg::GetMixer)
+    }
+
+    /// Control state of a deck (the control thread's view; no pad mode).
+    pub fn deck_state(&self, deck: DeckId) -> Result<DeckState, CoreError> {
+        self.ask(|reply| Msg::GetDeck(deck, reply))
+    }
+
     /// Unloads the deck and cancels a decode in flight.
     pub fn eject(&self, deck: DeckId) -> Result<(), CoreError> {
         self.post(Msg::Eject(deck))
@@ -176,8 +425,21 @@ impl AudioController {
     /// on the loader thread. Returns as soon as the tags are known; the deck
     /// is playable when [`CoreEvent::TrackLoaded`] arrives, and a decode
     /// failure arrives as [`CoreEvent::TrackLoadFailed`]. A newer load for the
-    /// same deck cancels this one.
+    /// same deck cancels this one. The track has no beat grid until analysis
+    /// (M3); see [`load_track_with_grid`](Self::load_track_with_grid).
     pub fn load_track(&self, deck: DeckId, path: &Path) -> Result<TrackInfo, CoreError> {
+        self.load_track_with_grid(deck, path, None)
+    }
+
+    /// Like [`load_track`](Self::load_track), with the track's beat grid
+    /// (seconds from the first frame). Sync, auto loop, roll and beat jump
+    /// need one. Hot cues held for the deck are re-sent after the load.
+    pub fn load_track_with_grid(
+        &self,
+        deck: DeckId,
+        path: &Path,
+        grid: Option<BeatGrid>,
+    ) -> Result<TrackInfo, CoreError> {
         if let Err(source) = std::fs::metadata(path) {
             return Err(CoreError::Media(format!(
                 "cannot read {}: {source}",
@@ -199,9 +461,23 @@ impl AudioController {
             deck,
             path: path.to_path_buf(),
             info: info.clone(),
+            grid,
             reply,
         })??;
         Ok(info)
+    }
+
+    /// Sets or clears the beat grid of the track loaded in `deck` (analysis
+    /// finished after the load, or a grid edit). Fails when no track is loaded.
+    pub fn set_beat_grid(&self, deck: DeckId, grid: Option<BeatGrid>) -> Result<(), CoreError> {
+        self.ask(|reply| Msg::SetBeatGrid { deck, grid, reply })?
+    }
+
+    /// Offline backend only: renders `frames` frames now, ahead of the wall
+    /// clock, and returns the master and headphone audio. For headless tests
+    /// and tools; queued commands apply at the first block.
+    pub fn render_offline(&self, frames: usize) -> Result<OfflineAudio, CoreError> {
+        self.ask(|reply| Msg::RenderOffline { frames, reply })?
     }
 
     /// Current audio settings.
@@ -272,6 +548,13 @@ impl AppCore {
         let changed = *slot != mode;
         *slot = mode;
         changed
+    }
+
+    /// Control state of `deck`, with the pad mode this core owns.
+    pub fn deck_state(&self, deck: DeckId) -> Result<DeckState, CoreError> {
+        let mut state = self.audio()?.deck_state(deck)?;
+        state.pad_mode = self.pad_mode(deck);
+        Ok(state)
     }
 
     /// Audio host APIs for the settings screen, from cpal. Hosts the settings
@@ -348,7 +631,10 @@ mod tests {
 
     #[test]
     fn version_matches_workspace() {
-        assert_eq!(VERSION, "0.0.0");
+        // Kept in sync with the workspace by scripts/check-version-sync.mjs.
+        let parts: Vec<&str> = VERSION.split('.').collect();
+        assert_eq!(parts.len(), 3, "VERSION must be semver: {VERSION}");
+        assert!(parts.iter().all(|p| p.parse::<u64>().is_ok()));
         assert_eq!(PRODUCT_NAME, "OpenDeck");
     }
 

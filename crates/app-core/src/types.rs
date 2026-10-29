@@ -2,6 +2,7 @@
 
 use std::path::Path;
 
+use opendeck_contracts::cue::Cue;
 use opendeck_contracts::settings::ChannelPair;
 use opendeck_contracts::{DeckId, EngineEvent, EngineTelemetry, Frames};
 use opendeck_media::TrackTags;
@@ -124,6 +125,26 @@ pub struct AudioStatus {
     pub error: Option<String>,
 }
 
+/// The eight hot cue slots of a deck. Held in memory until persistence lands (M3).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct HotCues {
+    /// Deck the slots belong to.
+    pub deck: DeckId,
+    /// One entry per slot (`HOT_CUES_PER_DECK`), `None` when empty.
+    pub slots: Vec<Option<Cue>>,
+}
+
+/// Audio rendered on demand by the offline backend
+/// ([`AudioController::render_offline`](crate::AudioController::render_offline)).
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct OfflineAudio {
+    /// Master bus, interleaved stereo.
+    pub master: Vec<f32>,
+    /// Headphone bus, interleaved stereo.
+    pub headphones: Vec<f32>,
+}
+
 /// Everything the control thread publishes to subscribers.
 #[derive(Debug, Clone, PartialEq)]
 pub enum CoreEvent {
@@ -135,6 +156,8 @@ pub enum CoreEvent {
     TrackLoaded(TrackLoaded),
     /// A load failed.
     TrackLoadFailed(TrackLoadFailed),
+    /// A deck's hot cue slots changed.
+    HotCues(HotCues),
     /// The stream was (re)started or stopped.
     AudioStatus(AudioStatus),
 }
@@ -168,4 +191,7 @@ pub enum CoreError {
     /// Reading or writing the settings file failed.
     #[error("settings: {0}")]
     Settings(String),
+    /// An argument is out of range or not a finite number.
+    #[error("invalid argument: {0}")]
+    Invalid(String),
 }
