@@ -1,6 +1,6 @@
 # Status
 
-Current milestone: **1 (next)**. Milestone 0 landed as v0.0.0 on 2026-10-29.
+Current milestone: **2 (next)**. Milestone 1 landed as v0.1.0 on 2026-10-29 (milestone 0 as v0.0.0).
 
 ## Milestones
 
