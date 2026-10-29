@@ -14,6 +14,7 @@ mod error;
 mod library;
 mod paths;
 mod playlists;
+pub mod rekordbox;
 mod sets;
 mod tracks;
 mod types;
