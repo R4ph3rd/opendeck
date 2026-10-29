@@ -2,8 +2,7 @@
 
 Planned Tauri commands and events for milestones 1 to 8 (ADR 0004). Implemented entries are marked **done**. Types are Rust names; DTOs come from `crates/contracts` unless marked *shell*. Every fallible command returns `Result<T, CommandError>`. Adding or changing a row is a contract change: update this file, the Rust command and the regenerated `ui/src/ipc/bindings.ts` in the same commit.
 
-Milestone plan assumed here (confirm with the project brief):
-M1 engine and decks, M2 library and waveforms, M3 analysis and sync, M4 cues, loops and pad modes, M5 effects, M6 MIDI, M7 sampler, saved sets and rekordbox import, M8 settings, layout and release.
+The `M` column follows the milestone table in `docs/STATUS.md`: M1 engine with one deck and device selection, M2 two decks, mixer, cue routing, sync, loops and hot cues, M3 library, DB, import, analysis and collection view, M4 waveforms and deck UI, M5 FX, M6 MIDI, M7 pad modes and sampler, M8 hardening and settings.
 
 ## Commands
 
@@ -36,52 +35,52 @@ M1 engine and decks, M2 library and waveforms, M3 analysis and sync, M4 cues, lo
 | `set_key_lock` | `deck, on: bool` | `()` | 1 |
 | `pitch_bend` | `deck, amount: f32` | `()` | 1 |
 | `set_vinyl_mode` | `deck, on: bool` | `()` | 1 |
-| `set_sync` | `deck, mode: SyncMode` | `()` | 3 |
-| `set_leader` | `deck: Option<DeckId>` | `()` | 3 |
-| `set_quantize` | `deck, on: bool` | `()` | 3 |
+| `set_sync` | `deck, mode: SyncMode` | `()` | 2 |
+| `set_leader` | `deck: Option<DeckId>` | `()` | 2 |
+| `set_quantize` | `deck, on: bool` | `()` | 2 |
 | `set_key_shift` | `deck, semitones: i8` | `()` | 7 |
 
 ### Mixer
 
 | Command | Args | Returns | M |
 |---|---|---|---|
-| `get_mixer_state` | | `MixerState` | 1 |
-| `set_trim` | `deck, gain: Gain` | `()` | 1 |
-| `set_eq` | `deck, band: EqBand, gain: Gain` | `()` | 1 |
-| `set_filter` | `deck, amount: f32` | `()` | 1 |
-| `set_channel_fader` | `deck, position: f32` | `()` | 1 |
-| `set_pfl` | `deck, on: bool` | `()` | 1 |
-| `set_crossfader` | `position: f32` | `()` | 1 |
-| `set_crossfader_curve` | `curve: CrossfaderCurve` | `()` | 1 |
-| `set_crossfader_assign` | `deck, assign: CrossfaderAssign` | `()` | 1 |
-| `set_master_level` / `set_headphone_level` | `gain: Gain` | `()` | 1 |
-| `set_headphone_mix` | `mix: f32` | `()` | 1 |
-| `set_split_cue` | `on: bool` | `()` | 1 |
+| `get_mixer_state` | | `MixerState` | 2 |
+| `set_trim` | `deck, gain: Gain` | `()` | 2 |
+| `set_eq` | `deck, band: EqBand, gain: Gain` | `()` | 2 |
+| `set_filter` | `deck, amount: f32` | `()` | 2 |
+| `set_channel_fader` | `deck, position: f32` | `()` | 2 |
+| `set_pfl` | `deck, on: bool` | `()` | 2 |
+| `set_crossfader` | `position: f32` | `()` | 2 |
+| `set_crossfader_curve` | `curve: CrossfaderCurve` | `()` | 2 |
+| `set_crossfader_assign` | `deck, assign: CrossfaderAssign` | `()` | 2 |
+| `set_master_level` / `set_headphone_level` | `gain: Gain` | `()` | 2 |
+| `set_headphone_mix` | `mix: f32` | `()` | 2 |
+| `set_split_cue` | `on: bool` | `()` | 2 |
 
 ### Library and import
 
 | Command | Args | Returns | M |
 |---|---|---|---|
-| `query_tracks` | `query: TrackQuery` (text, filters, sort, offset, limit) | `TrackPage` (rows, total) | 2 |
-| `get_track` | `track: TrackId` | `TrackDetail` | 2 |
-| `update_track` | `track, patch: TrackPatch` (rating, color, comment, tags) | `()` | 2 |
-| `remove_tracks` | `tracks: Vec<TrackId>` | `()` | 2 |
-| `get_artwork` | `track: TrackId` | raw bytes (`tauri::ipc::Response`) | 2 |
-| `get_track_peaks` | `track: TrackId, level: u8` | raw `contracts::peaks` blob (`Response`) | 2 |
-| `import_folder` | `path: String, playlist: Option<PlaylistId>` | `JobId` | 2 |
-| `import_files` | `paths: Vec<String>, playlist: Option<PlaylistId>` | `JobId` | 2 |
-| `import_playlist_file` | `path: String` | `JobId` | 2 |
-| `import_rekordbox_xml` | `path: String` | `JobId` | 7 |
-| `list_jobs` | | `Vec<JobProgress>` | 2 |
-| `pause_job` / `resume_job` / `cancel_job` | `job: JobId` | `()` | 2 |
+| `query_tracks` | `query: TrackQuery` (text, filters, sort, offset, limit) | `TrackPage` (rows, total) | 3 |
+| `get_track` | `track: TrackId` | `TrackDetail` | 3 |
+| `update_track` | `track, patch: TrackPatch` (rating, color, comment, tags) | `()` | 3 |
+| `remove_tracks` | `tracks: Vec<TrackId>` | `()` | 3 |
+| `get_artwork` | `track: TrackId` | raw bytes (`tauri::ipc::Response`) | 3 |
+| `get_track_peaks` | `track: TrackId, level: u8` | raw `contracts::peaks` blob (`Response`) | 4 |
+| `import_folder` | `path: String, playlist: Option<PlaylistId>` | `JobId` | 3 |
+| `import_files` | `paths: Vec<String>, playlist: Option<PlaylistId>` | `JobId` | 3 |
+| `import_playlist_file` | `path: String` | `JobId` | 3 |
+| `import_rekordbox_xml` | `path: String` | `JobId` | 3 |
+| `list_jobs` | | `Vec<JobProgress>` | 3 |
+| `pause_job` / `resume_job` / `cancel_job` | `job: JobId` | `()` | 3 |
 | `reanalyze_tracks` | `tracks: Vec<TrackId>, features: AnalysisFeatures` | `JobId` | 3 |
-| `list_playlists` | | `Vec<PlaylistNode>` (tree) | 2 |
-| `create_playlist` | `parent: Option<PlaylistId>, name: String, folder: bool` | `PlaylistId` | 2 |
-| `rename_playlist` / `delete_playlist` | `playlist, name?` | `()` | 2 |
-| `move_playlist` | `playlist, parent: Option<PlaylistId>, position: u32` | `()` | 2 |
-| `get_playlist_tracks` | `playlist: PlaylistId` | `Vec<TrackRow>` | 2 |
-| `add_to_playlist` | `playlist, tracks: Vec<TrackId>, position: Option<u32>` | `()` | 2 |
-| `remove_from_playlist` / `reorder_playlist` | `playlist, positions` | `()` | 2 |
+| `list_playlists` | | `Vec<PlaylistNode>` (tree) | 3 |
+| `create_playlist` | `parent: Option<PlaylistId>, name: String, folder: bool` | `PlaylistId` | 3 |
+| `rename_playlist` / `delete_playlist` | `playlist, name?` | `()` | 3 |
+| `move_playlist` | `playlist, parent: Option<PlaylistId>, position: u32` | `()` | 3 |
+| `get_playlist_tracks` | `playlist: PlaylistId` | `Vec<TrackRow>` | 3 |
+| `add_to_playlist` | `playlist, tracks: Vec<TrackId>, position: Option<u32>` | `()` | 3 |
+| `remove_from_playlist` / `reorder_playlist` | `playlist, positions` | `()` | 3 |
 
 ### Analysis and beat grid
 
@@ -95,23 +94,23 @@ M1 engine and decks, M2 library and waveforms, M3 analysis and sync, M4 cues, lo
 
 | Command | Args | Returns | M |
 |---|---|---|---|
-| `list_cues` | `track: TrackId` | `Vec<Cue>` | 4 |
-| `set_hot_cue` | `deck, index: HotCueIndex` | `Cue` (at playhead) | 4 |
-| `trigger_hot_cue` | `deck, index, pressed: bool` | `()` | 4 |
-| `update_cue` | `cue: CueId, color: Option<CueColor>, name: String` | `()` | 4 |
-| `delete_cue` | `cue: CueId` | `()` | 4 |
-| `add_memory_cue` | `deck` | `Cue` | 4 |
-| `call_memory_cue` | `deck, direction: i8` | `()` | 4 |
-| `loop_in` / `loop_out` / `loop_toggle` | `deck` | `()` | 4 |
-| `auto_loop` | `deck, length: Beats` | `()` | 4 |
-| `loop_roll` | `deck, length: Beats, active: bool` | `()` | 4 |
-| `resize_loop` | `deck, factor: f32` | `()` | 4 |
-| `save_loop` | `deck` | `Cue` | 4 |
-| `beat_jump` | `deck, beats: Beats` | `()` | 4 |
-| `set_slip` | `deck, on: bool` | `()` | 4 |
+| `list_cues` | `track: TrackId` | `Vec<Cue>` | 2 |
+| `set_hot_cue` | `deck, index: HotCueIndex` | `Cue` (at playhead) | 2 |
+| `trigger_hot_cue` | `deck, index, pressed: bool` | `()` | 2 |
+| `update_cue` | `cue: CueId, color: Option<CueColor>, name: String` | `()` | 2 |
+| `delete_cue` | `cue: CueId` | `()` | 2 |
+| `add_memory_cue` | `deck` | `Cue` | 2 |
+| `call_memory_cue` | `deck, direction: i8` | `()` | 2 |
+| `loop_in` / `loop_out` / `loop_toggle` | `deck` | `()` | 2 |
+| `auto_loop` | `deck, length: Beats` | `()` | 2 |
+| `loop_roll` | `deck, length: Beats, active: bool` | `()` | 2 |
+| `resize_loop` | `deck, factor: f32` | `()` | 2 |
+| `save_loop` | `deck` | `Cue` | 2 |
+| `beat_jump` | `deck, beats: Beats` | `()` | 2 |
+| `set_slip` | `deck, on: bool` | `()` | 2 |
 | `get_pad_mode` **done** | `deck: DeckId` | `PadMode` | 0 |
-| `set_pad_mode` | `deck, mode: PadMode` | `()`; emits `pad-mode-changed` | 4 |
-| `press_pad` | `deck, index: u8, pressed: bool, shifted: bool` | `()` (interpreted in the active mode) | 4 |
+| `set_pad_mode` | `deck, mode: PadMode` | `()`; emits `pad-mode-changed` | 7 |
+| `press_pad` | `deck, index: u8, pressed: bool, shifted: bool` | `()` (interpreted in the active mode) | 7 |
 
 ### Effects
 
@@ -151,10 +150,10 @@ M1 engine and decks, M2 library and waveforms, M3 analysis and sync, M4 cues, lo
 | `trigger_sampler` | `slot, pressed: bool` | `()` | 7 |
 | `stop_sampler` | `slot` | `()` | 7 |
 | `set_sampler_level` | `gain: Gain` | `()` | 7 |
-| `list_saved_sets` | | `Vec<SavedSetInfo>` | 7 |
-| `save_current_set` | `name: String` | `SavedSetId` | 7 |
-| `get_saved_set` | `set: SavedSetId` | `SavedSet` (tracks, snapshot) | 7 |
-| `delete_saved_set` | `set` | `()` | 7 |
+| `list_saved_sets` | | `Vec<SavedSetInfo>` | 3 |
+| `save_current_set` | `name: String` | `SavedSetId` | 3 |
+| `get_saved_set` | `set: SavedSetId` | `SavedSet` (tracks, snapshot) | 3 |
+| `delete_saved_set` | `set` | `()` | 3 |
 
 ## Events
 
@@ -163,13 +162,13 @@ M1 engine and decks, M2 library and waveforms, M3 analysis and sync, M4 cues, lo
 | `engine-telemetry` **declared** | `EngineTelemetry` | ~60 Hz | 1 |
 | `engine-event` | `EngineEvent` | on change | 1 |
 | `deck-state-changed` | `DeckState` | on change | 1 |
-| `mixer-state-changed` | `MixerState` | on change (MIDI-driven moves) | 1 |
+| `mixer-state-changed` | `MixerState` | on change (MIDI-driven moves) | 2 |
 | `audio-device-changed` | `AudioStatus` (running, device, rate, buffer, error) | on change | 1 |
-| `job-progress` | `JobProgress` | <= 4 Hz per job | 2 |
-| `library-changed` | `LibraryChange` (tracks or playlists touched) | on change, coalesced | 2 |
+| `job-progress` | `JobProgress` | <= 4 Hz per job | 3 |
+| `library-changed` | `LibraryChange` (tracks or playlists touched) | on change, coalesced | 3 |
 | `analysis-ready` | `TrackId` | per track | 3 |
-| `cues-changed` | `TrackId` | on change | 4 |
-| `pad-mode-changed` | `{ deck: DeckId, mode: PadMode }` | on change | 4 |
+| `cues-changed` | `TrackId` | on change | 2 |
+| `pad-mode-changed` | `{ deck: DeckId, mode: PadMode }` | on change | 7 |
 | `fx-state-changed` | `FxState` | on change | 5 |
 | `midi-message` | `MidiMonitorEntry` (timestamp, bytes, decoded control id, action) | monitor on only, coalesced at 60 Hz | 6 |
 | `midi-learned` | `MidiLearnResult` (message, suggested binding) | once | 6 |

@@ -44,5 +44,4 @@ Remaining: CI and release workflows, design tokens, Storybook, stylelint, docs.
 
 ## Doc follow-ups
 
-- `docs/ipc.md` assumes a different milestone plan (M2 library, M3 analysis and sync, M4 cues and pad modes, M7 sampler and rekordbox import). Cross-check its `M` column against the table above and fix it in the next docs pass.
 - Agent definitions in `.claude/agents` load only in new Claude Code sessions.
