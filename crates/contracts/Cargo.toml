@@ -1,0 +1,26 @@
+[package]
+name = "opendeck-contracts"
+description = "OpenDeck cross-crate types and traits: IDs, units, engine commands, telemetry, Effect, Analyzer, control actions."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license-file.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[features]
+default = []
+# serde derives for persisted, mapping-file and IPC types (library, midi, app-core).
+serde = ["dep:serde"]
+# specta::Type derives for IPC DTOs (src-tauri). Implies serde.
+specta = ["serde", "dep:specta"]
+
+[dependencies]
+serde = { workspace = true, optional = true }
+specta = { workspace = true, optional = true }
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true

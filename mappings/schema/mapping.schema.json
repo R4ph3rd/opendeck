@@ -1,0 +1,240 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/R4ph3rd/opendeck/mappings/schema/mapping.schema.json",
+  "title": "OpenDeck MIDI mapping",
+  "description": "Data-driven controller mapping (ADR 0007). Inputs map MIDI messages to contracts ControlAction values; feedback maps contracts FeedbackTarget values to MIDI output.",
+  "type": "object",
+  "required": ["format_version", "id", "version", "name", "source", "devices", "controls"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "format_version": { "const": 1, "description": "Version of this file format." },
+    "id": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$", "description": "Stable mapping id, e.g. pioneer-ddj-flx4. Overrides in the DB reference it." },
+    "version": { "type": "integer", "minimum": 1, "description": "Mapping revision; bump on any change." },
+    "name": { "type": "string" },
+    "source": { "type": "string", "description": "Document the MIDI bytes come from, e.g. 'Pioneer DJ, DDJ-FLX4 List of MIDI messages, E1'." },
+    "devices": {
+      "type": "object",
+      "required": ["input"],
+      "additionalProperties": false,
+      "properties": {
+        "input": { "type": "array", "minItems": 1, "items": { "type": "string" }, "description": "Case-insensitive substrings matched against MIDI input port names." },
+        "output": { "type": "array", "items": { "type": "string" }, "description": "Same for output ports (LED feedback)." }
+      }
+    },
+    "modifiers": {
+      "type": "array",
+      "description": "Held buttons that switch layers (e.g. SHIFT). A control with 'when' only fires while its modifiers are in the given state.",
+      "items": {
+        "type": "object",
+        "required": ["id", "midi"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "$ref": "#/$defs/ident" },
+          "midi": { "$ref": "#/$defs/midiButton" },
+          "verify": { "$ref": "#/$defs/verify" }
+        }
+      }
+    },
+    "controls": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/control" }
+    },
+    "feedback": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/feedback" }
+    },
+    "on_connect": {
+      "type": "array",
+      "description": "Raw messages sent when the output port opens, in order.",
+      "items": { "$ref": "#/$defs/rawMessage" }
+    }
+  },
+  "$defs": {
+    "ident": { "type": "string", "pattern": "^[a-z0-9_]+(\\.[a-z0-9_]+)*$" },
+    "verify": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Present when a value is not confirmed by the source document. The text says what to check. Mirrored in docs/midi-open-questions.md."
+    },
+    "channel": { "type": "integer", "minimum": 1, "maximum": 16, "description": "MIDI channel as printed in the message list (1-16), not the 0-based nibble." },
+    "byte7": { "type": "integer", "minimum": 0, "maximum": 127 },
+    "midiButton": {
+      "type": "object",
+      "required": ["type", "channel", "number"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "enum": ["note", "cc"] },
+        "channel": { "$ref": "#/$defs/channel" },
+        "number": { "$ref": "#/$defs/byte7" }
+      }
+    },
+    "midiInput": {
+      "oneOf": [
+        { "$ref": "#/$defs/midiButton" },
+        {
+          "type": "object",
+          "description": "14-bit control from an MSB and an LSB CC (value = msb * 128 + lsb).",
+          "required": ["type", "channel", "msb", "lsb"],
+          "additionalProperties": false,
+          "properties": {
+            "type": { "const": "cc14" },
+            "channel": { "$ref": "#/$defs/channel" },
+            "msb": { "$ref": "#/$defs/byte7" },
+            "lsb": { "$ref": "#/$defs/byte7" }
+          }
+        }
+      ]
+    },
+    "value": {
+      "oneOf": [
+        {
+          "type": "object",
+          "description": "Button: press when data2 > 0 (or >= threshold), release on 0 or note off.",
+          "required": ["kind"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "button" },
+            "threshold": { "$ref": "#/$defs/byte7" },
+            "edge": { "enum": ["both", "press", "release"], "default": "both" }
+          }
+        },
+        {
+          "type": "object",
+          "description": "Absolute: 7-bit (0..127) or 14-bit (0..16383) scaled to [0, 1].",
+          "required": ["kind"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "absolute" },
+            "invert": { "type": "boolean", "default": false }
+          }
+        },
+        {
+          "type": "object",
+          "description": "Relative encoder. offset64: delta = v - 64 (0x41 up, 0x3F down). twos_complement: delta = v < 64 ? v : v - 128 (0x01 up, 0x7F down). sign_magnitude: bit 6 is the sign. Output = delta * scale.",
+          "required": ["kind", "encoding"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "relative" },
+            "encoding": { "enum": ["offset64", "twos_complement", "sign_magnitude"] },
+            "scale": { "type": "number", "default": 1, "description": "Units per tick, e.g. revolutions per tick for jog wheels." }
+          }
+        }
+      ]
+    },
+    "action": {
+      "type": "object",
+      "description": "A contracts ControlAction in its serde form, e.g. {\"action\": \"play_pause\", \"deck\": 0}. Decks are 0-based.",
+      "required": ["action"],
+      "properties": {
+        "action": {
+          "enum": [
+            "play_pause", "cue", "return_to_start", "sync", "sync_leader", "load",
+            "tempo_fader", "tempo_range_next", "key_lock", "pitch_bend",
+            "jog_touch", "jog_top", "jog_side", "jog_search", "vinyl_mode",
+            "loop_in", "loop_out", "loop_toggle", "auto_loop", "loop_halve", "loop_double",
+            "beat_jump", "cue_loop_call_prev", "cue_loop_call_next", "memory_cue_add",
+            "slip", "quantize", "pad_mode_select", "pad", "hot_cue", "hot_cue_delete",
+            "trim", "eq", "filter", "channel_fader", "channel_fader_start", "pfl",
+            "crossfader", "master_level", "master_cue", "headphone_level", "headphone_mix",
+            "fx_toggle", "fx_level", "fx_select", "fx_beat", "fx_assign",
+            "sampler", "browse_scroll", "browse_press", "browse_back"
+          ]
+        }
+      }
+    },
+    "control": {
+      "type": "object",
+      "required": ["id", "midi", "action", "value"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/ident", "description": "Unique within the file, e.g. deck1.play. DB overrides reference it." },
+        "label": { "type": "string", "description": "UI name from the source document, e.g. 'PLAY/PAUSE'." },
+        "midi": { "$ref": "#/$defs/midiInput" },
+        "when": {
+          "type": "object",
+          "description": "Modifier states required for this control to fire, e.g. {\"shift_deck1\": true}. Keys are modifier ids.",
+          "propertyNames": { "$ref": "#/$defs/ident" },
+          "additionalProperties": { "type": "boolean" }
+        },
+        "action": { "$ref": "#/$defs/action" },
+        "value": { "$ref": "#/$defs/value" },
+        "verify": { "$ref": "#/$defs/verify" }
+      }
+    },
+    "feedback": {
+      "type": "object",
+      "required": ["target", "midi", "output"],
+      "additionalProperties": false,
+      "properties": {
+        "target": {
+          "type": "object",
+          "description": "A contracts FeedbackTarget in its serde form, e.g. {\"target\": \"playing\", \"deck\": 0}.",
+          "required": ["target"],
+          "properties": {
+            "target": {
+              "enum": [
+                "playing", "cue_indicator", "sync_on", "loop_active", "pfl_on",
+                "pad_mode_active", "pad", "fx_on", "channel_level", "track_loaded", "vinyl_mode"
+              ]
+            }
+          }
+        },
+        "midi": { "$ref": "#/$defs/midiButton" },
+        "output": {
+          "oneOf": [
+            {
+              "type": "object",
+              "description": "On/off light. Blink: 'device' sends blink_value (a hardware blink), 'timer' toggles on/off every period_ms.",
+              "required": ["kind", "on", "off"],
+              "additionalProperties": false,
+              "properties": {
+                "kind": { "const": "light" },
+                "on": { "$ref": "#/$defs/byte7" },
+                "off": { "$ref": "#/$defs/byte7" },
+                "blink": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "required": ["mode", "period_ms"],
+                      "additionalProperties": false,
+                      "properties": { "mode": { "const": "timer" }, "period_ms": { "type": "integer", "minimum": 50 } }
+                    },
+                    {
+                      "type": "object",
+                      "required": ["mode", "blink_value"],
+                      "additionalProperties": false,
+                      "properties": { "mode": { "const": "device" }, "blink_value": { "$ref": "#/$defs/byte7" } }
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "type": "object",
+              "description": "Level (meters): FeedbackValue::Level in [0, 1] mapped linearly to min..max.",
+              "required": ["kind", "min", "max"],
+              "additionalProperties": false,
+              "properties": {
+                "kind": { "const": "level" },
+                "min": { "$ref": "#/$defs/byte7" },
+                "max": { "$ref": "#/$defs/byte7" }
+              }
+            }
+          ]
+        },
+        "verify": { "$ref": "#/$defs/verify" }
+      }
+    },
+    "rawMessage": {
+      "type": "object",
+      "required": ["bytes"],
+      "additionalProperties": false,
+      "properties": {
+        "bytes": { "type": "array", "minItems": 1, "maxItems": 3, "items": { "type": "integer", "minimum": 0, "maximum": 255 } },
+        "comment": { "type": "string" },
+        "verify": { "$ref": "#/$defs/verify" }
+      }
+    }
+  }
+}

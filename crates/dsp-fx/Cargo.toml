@@ -1,0 +1,15 @@
+[package]
+name = "opendeck-dsp-fx"
+description = "OpenDeck built-in effects implementing the contracts Effect trait."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license-file.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+opendeck-contracts.workspace = true
+
+[lints]
+workspace = true

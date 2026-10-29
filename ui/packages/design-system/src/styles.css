@@ -1,0 +1,10 @@
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/jetbrains-mono";
+@import "tailwindcss";
+@import "./tokens/tokens.css";
+@import "./tokens/theme.css";
+@import "./tokens/base.css";
+
+/* Scan the components so their utilities are generated in any consumer. */
+@source "./components";
+@source "./lib";
