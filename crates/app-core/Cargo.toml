@@ -9,13 +9,24 @@ repository.workspace = true
 publish.workspace = true
 
 [dependencies]
-opendeck-contracts.workspace = true
+opendeck-contracts = { workspace = true, features = ["serde"] }
 opendeck-media.workspace = true
 opendeck-engine.workspace = true
 opendeck-dsp-fx.workspace = true
 opendeck-analysis.workspace = true
 opendeck-library.workspace = true
 opendeck-midi.workspace = true
+crossbeam-channel.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+specta = { workspace = true, optional = true }
+thiserror.workspace = true
+tracing.workspace = true
+
+[features]
+default = []
+# specta::Type derives for the DTOs defined here (src-tauri).
+specta = ["dep:specta", "opendeck-contracts/specta"]
 
 [lints]
 workspace = true
