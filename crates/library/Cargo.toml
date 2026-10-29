@@ -10,6 +10,9 @@ publish.workspace = true
 
 [dependencies]
 opendeck-contracts.workspace = true
+rusqlite.workspace = true
+rusqlite_migration.workspace = true
+thiserror.workspace = true
 
 [lints]
 workspace = true

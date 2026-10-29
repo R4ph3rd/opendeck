@@ -5,6 +5,8 @@
 //! append-only (ADR 0005). Nothing here runs on the audio thread or blocks the
 //! UI thread. See `CONTEXT/library.md`.
 
+pub mod db;
+
 /// File name of the library database inside the app data directory.
 pub const DATABASE_FILE_NAME: &str = "library.sqlite3";
 
