@@ -9,7 +9,11 @@ repository.workspace = true
 publish.workspace = true
 
 [dependencies]
-opendeck-contracts.workspace = true
+opendeck-contracts = { workspace = true, features = ["serde"] }
+
+[dev-dependencies]
+serde.workspace = true
+serde_json.workspace = true
 
 [lints]
 workspace = true

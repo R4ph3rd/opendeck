@@ -2209,6 +2209,8 @@ name = "opendeck-midi"
 version = "0.0.0"
 dependencies = [
  "opendeck-contracts",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
