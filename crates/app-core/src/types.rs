@@ -135,6 +135,16 @@ pub struct HotCues {
     pub slots: Vec<Option<Cue>>,
 }
 
+/// Audio rendered on demand by the offline backend
+/// ([`AudioController::render_offline`](crate::AudioController::render_offline)).
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct OfflineAudio {
+    /// Master bus, interleaved stereo.
+    pub master: Vec<f32>,
+    /// Headphone bus, interleaved stereo.
+    pub headphones: Vec<f32>,
+}
+
 /// Everything the control thread publishes to subscribers.
 #[derive(Debug, Clone, PartialEq)]
 pub enum CoreEvent {

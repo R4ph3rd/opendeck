@@ -9,6 +9,7 @@ use std::time::{Duration, Instant};
 
 use crossbeam_channel::{Receiver, RecvTimeoutError, Sender, TrySendError};
 use opendeck_contracts::analysis::CancelFlag;
+use opendeck_contracts::beatgrid::BeatGrid;
 use opendeck_contracts::cue::{Cue, CueKind, FrameRegion, HotCueIndex, LoopRegion};
 use opendeck_contracts::deck::{DeckState, PlayState};
 use opendeck_contracts::mixer::{EqBand, MixerState};
@@ -24,7 +25,8 @@ use opendeck_engine::{EngineConfig, EngineHandle, OfflineRenderer, TrackBuffer};
 use crate::loader::{DecodeResult, LoadRequest};
 use crate::settings_store::{SettingsStore, StoredSettings};
 use crate::types::{
-    AudioStatus, CoreError, CoreEvent, HotCues, TrackInfo, TrackLoadFailed, TrackLoaded,
+    AudioStatus, CoreError, CoreEvent, HotCues, OfflineAudio, TrackInfo, TrackLoadFailed,
+    TrackLoaded,
 };
 
 /// Control tick: telemetry is forwarded at this period (~60 Hz).
@@ -81,9 +83,21 @@ pub(crate) enum Msg {
         deck: DeckId,
         path: PathBuf,
         info: TrackInfo,
+        grid: Option<BeatGrid>,
         reply: Sender<Result<(), CoreError>>,
     },
     Eject(DeckId),
+    /// Replaces the beat grid of the loaded track.
+    SetBeatGrid {
+        deck: DeckId,
+        grid: Option<BeatGrid>,
+        reply: Sender<Result<(), CoreError>>,
+    },
+    /// Offline backend only: renders `frames` now and returns the audio.
+    RenderOffline {
+        frames: usize,
+        reply: Sender<Result<OfflineAudio, CoreError>>,
+    },
     /// Stores the playhead as a hot cue and tells the engine.
     SetHotCue {
         deck: DeckId,
@@ -180,6 +194,7 @@ struct Pending {
     deck: DeckId,
     buffer: TrackBuffer,
     info: TrackInfo,
+    grid: Option<BeatGrid>,
 }
 
 struct Control {
@@ -193,6 +208,12 @@ struct Control {
     generation: [u64; MAX_DECKS],
     cancel: [Option<CancelFlag>; MAX_DECKS],
     loaded: [Option<TrackInfo>; MAX_DECKS],
+    /// Beat grid of the track in each deck (`None` until analysis, M3).
+    grids: [Option<BeatGrid>; MAX_DECKS],
+    /// Grid to send with the load in flight for each deck.
+    requested_grids: [Option<BeatGrid>; MAX_DECKS],
+    /// A grid change the hand-off ring had no room for; retried each tick.
+    grid_unsent: [bool; MAX_DECKS],
     controls: [DeckControls; MAX_DECKS],
     mixer: MixerState,
     leader: Option<DeckId>,
@@ -219,6 +240,9 @@ pub(crate) fn run(opts: LaunchOptions, inbox: Receiver<Msg>, loader: Sender<Load
         generation: [0; MAX_DECKS],
         cancel: std::array::from_fn(|_| None),
         loaded: std::array::from_fn(|_| None),
+        grids: [None; MAX_DECKS],
+        requested_grids: [None; MAX_DECKS],
+        grid_unsent: [false; MAX_DECKS],
         controls: [DeckControls::default(); MAX_DECKS],
         mixer: MixerState::default(),
         leader: None,
@@ -300,17 +324,26 @@ impl Control {
                 deck,
                 path,
                 info,
+                grid,
                 reply,
             } => {
                 self.restoring[deck.index()] = false;
-                let _ = reply.send(self.request_load(deck, path, info));
+                let _ = reply.send(self.request_load(deck, path, info, grid));
             }
             Msg::Eject(deck) => {
                 self.invalidate(deck);
                 self.loaded[deck.index()] = None;
+                self.grids[deck.index()] = None;
+                self.grid_unsent[deck.index()] = false;
                 self.pending.retain(|p| p.deck != deck);
                 self.command(EngineCommand::Eject { deck });
                 self.clear_cues(deck);
+            }
+            Msg::SetBeatGrid { deck, grid, reply } => {
+                let _ = reply.send(self.set_beat_grid(deck, grid));
+            }
+            Msg::RenderOffline { frames, reply } => {
+                let _ = reply.send(self.render_now(frames));
             }
             Msg::SetHotCue { deck, index, reply } => {
                 let _ = reply.send(self.set_hot_cue(deck, index));
@@ -566,6 +599,8 @@ impl Control {
         state.slip = c.slip;
         state.vinyl_mode = c.vinyl;
         state.is_leader = self.leader == Some(deck);
+        state.beat_grid = self.grids[deck.index()];
+        state.track_bpm = state.beat_grid.map(|g| g.bpm());
         if let Some(t) = &self.latest {
             let d = &t.decks[deck.index()];
             state.play_state = match (d.loaded, d.playing) {
@@ -574,7 +609,6 @@ impl Control {
                 (true, false) => PlayState::Paused,
             };
             state.is_leader = t.leader == Some(deck);
-            state.track_bpm = d.bpm;
             state.active_loop = d.loop_region.filter(|_| d.loop_active).and_then(|r| {
                 Some(LoopRegion {
                     start: r.start.to_seconds(t.sample_rate),
@@ -602,6 +636,7 @@ impl Control {
         deck: DeckId,
         path: PathBuf,
         info: TrackInfo,
+        grid: Option<BeatGrid>,
     ) -> Result<(), CoreError> {
         let Some(engine) = self.engine.as_mut() else {
             return Err(CoreError::NoEngine(
@@ -614,6 +649,7 @@ impl Control {
         let rate = engine.handle().sample_rate();
         self.pending.retain(|p| p.deck != deck);
         let generation = self.invalidate(deck);
+        self.requested_grids[deck.index()] = grid;
         let cancel = CancelFlag::new();
         self.cancel[deck.index()] = Some(cancel.clone());
         self.loader
@@ -646,7 +682,13 @@ impl Control {
         };
         match TrackBuffer::from_vec(samples) {
             Ok(buffer) => {
-                self.pending.push(Pending { deck, buffer, info });
+                let grid = self.requested_grids[deck.index()];
+                self.pending.push(Pending {
+                    deck,
+                    buffer,
+                    info,
+                    grid,
+                });
                 self.flush_pending();
             }
             Err(err) => self.load_failed(deck, &info, err.to_string()),
@@ -669,23 +711,41 @@ impl Control {
         };
         let mut queue = std::mem::take(&mut self.pending).into_iter();
         let mut delivered = Vec::new();
-        while let Some(Pending { deck, buffer, info }) = queue.next() {
+        while let Some(Pending {
+            deck,
+            buffer,
+            info,
+            grid,
+        }) = queue.next()
+        {
             let frames = buffer.duration();
-            match engine.handle().load_track(deck, buffer, None) {
-                Ok(()) => delivered.push((deck, info, frames)),
+            match engine
+                .handle()
+                .load_track_with_grid(deck, buffer, None, grid)
+            {
+                Ok(()) => delivered.push((deck, info, frames, grid)),
                 Err(buffer) => {
-                    self.pending.push(Pending { deck, buffer, info });
+                    self.pending.push(Pending {
+                        deck,
+                        buffer,
+                        info,
+                        grid,
+                    });
                     self.pending.extend(queue);
                     break;
                 }
             }
         }
-        for (deck, info, frames) in delivered {
-            if std::mem::take(&mut self.restoring[deck.index()]) {
-                self.resend_hot_cues(deck);
-            } else {
+        for (deck, info, frames, grid) in delivered {
+            // A new track starts without cues (they come from the library
+            // in M3); an engine restart keeps them.
+            if !std::mem::take(&mut self.restoring[deck.index()]) {
                 self.clear_cues(deck);
             }
+            // The engine clears hot cues on every load.
+            self.resend_hot_cues(deck);
+            self.grids[deck.index()] = grid;
+            self.grid_unsent[deck.index()] = false;
             self.loaded[deck.index()] = Some(info.clone());
             self.publish(CoreEvent::TrackLoaded(TrackLoaded {
                 deck,
@@ -695,11 +755,36 @@ impl Control {
         }
     }
 
+    /// Sends a new grid for the loaded track; a full hand-off ring retries
+    /// on the next tick.
+    fn set_beat_grid(&mut self, deck: DeckId, grid: Option<BeatGrid>) -> Result<(), CoreError> {
+        if self.loaded[deck.index()].is_none() {
+            return Err(CoreError::Invalid("no track is loaded".to_owned()));
+        }
+        self.grids[deck.index()] = grid;
+        self.grid_unsent[deck.index()] = true;
+        self.flush_grids();
+        Ok(())
+    }
+
+    fn flush_grids(&mut self) {
+        let Some(engine) = self.engine.as_mut() else {
+            return;
+        };
+        for deck in DeckId::ALL {
+            let i = deck.index();
+            if self.grid_unsent[i] && engine.handle().set_beat_grid(deck, self.grids[i]) {
+                self.grid_unsent[i] = false;
+            }
+        }
+    }
+
     // ----- tick -----
 
     fn tick(&mut self) {
         self.render_offline();
         self.flush_pending();
+        self.flush_grids();
         let mut lost = false;
         let mut events: Vec<EngineEvent> = Vec::new();
         let mut telemetry = None;
@@ -755,6 +840,31 @@ impl Control {
         let frames = ((elapsed.as_secs_f64() * rate as f64) as usize).min(rate as usize / 2);
         scratch.resize(frames * 2, 0.0);
         renderer.render_into(scratch);
+    }
+
+    /// Renders `frames` of master and headphones at once, ahead of the wall
+    /// clock, so tests can inspect the audio. Offline backend only.
+    fn render_now(&mut self, frames: usize) -> Result<OfflineAudio, CoreError> {
+        self.flush_pending();
+        self.flush_grids();
+        let Some(Engine::Offline {
+            renderer,
+            last_render,
+            ..
+        }) = self.engine.as_mut()
+        else {
+            return Err(CoreError::Invalid(
+                "rendering on demand needs the offline backend".to_owned(),
+            ));
+        };
+        let mut audio = OfflineAudio {
+            master: vec![0.0; frames * 2],
+            headphones: vec![0.0; frames * 2],
+        };
+        renderer.render_both(&mut audio.master, &mut audio.headphones);
+        // The wall clock resumes from here; what was just rendered is not repeated.
+        *last_render = Instant::now();
+        Ok(audio)
     }
 
     // ----- engine lifecycle -----
@@ -867,7 +977,8 @@ impl Control {
             if let Some(info) = self.loaded[deck.index()].clone() {
                 self.restoring[deck.index()] = true;
                 let path = PathBuf::from(&info.path);
-                if let Err(err) = self.request_load(*deck, path, info.clone()) {
+                let grid = self.grids[deck.index()];
+                if let Err(err) = self.request_load(*deck, path, info.clone(), grid) {
                     tracing::warn!(%err, "could not reload track after restart");
                 }
             }

@@ -24,6 +24,7 @@ use std::thread::JoinHandle;
 use std::time::Duration;
 
 use crossbeam_channel::Sender;
+use opendeck_contracts::beatgrid::BeatGrid;
 use opendeck_contracts::cue::{Cue, HotCueIndex};
 use opendeck_contracts::deck::DeckState;
 use opendeck_contracts::mixer::{CrossfaderAssign, CrossfaderCurve, EqBand, MixerState};
@@ -36,8 +37,8 @@ use crate::control::Msg;
 pub use crate::control::{Backend, LaunchOptions, TICK};
 pub use crate::settings_store::{SETTINGS_FILE, SettingsStore, StoredSettings};
 pub use crate::types::{
-    AudioDeviceInfo, AudioStatus, CoreError, CoreEvent, HotCues, TrackInfo, TrackLoadFailed,
-    TrackLoaded,
+    AudioDeviceInfo, AudioStatus, CoreError, CoreEvent, HotCues, OfflineAudio, TrackInfo,
+    TrackLoadFailed, TrackLoaded,
 };
 
 /// How long a call waits for the control thread before giving up.
@@ -424,8 +425,21 @@ impl AudioController {
     /// on the loader thread. Returns as soon as the tags are known; the deck
     /// is playable when [`CoreEvent::TrackLoaded`] arrives, and a decode
     /// failure arrives as [`CoreEvent::TrackLoadFailed`]. A newer load for the
-    /// same deck cancels this one.
+    /// same deck cancels this one. The track has no beat grid until analysis
+    /// (M3); see [`load_track_with_grid`](Self::load_track_with_grid).
     pub fn load_track(&self, deck: DeckId, path: &Path) -> Result<TrackInfo, CoreError> {
+        self.load_track_with_grid(deck, path, None)
+    }
+
+    /// Like [`load_track`](Self::load_track), with the track's beat grid
+    /// (seconds from the first frame). Sync, auto loop, roll and beat jump
+    /// need one. Hot cues held for the deck are re-sent after the load.
+    pub fn load_track_with_grid(
+        &self,
+        deck: DeckId,
+        path: &Path,
+        grid: Option<BeatGrid>,
+    ) -> Result<TrackInfo, CoreError> {
         if let Err(source) = std::fs::metadata(path) {
             return Err(CoreError::Media(format!(
                 "cannot read {}: {source}",
@@ -447,9 +461,23 @@ impl AudioController {
             deck,
             path: path.to_path_buf(),
             info: info.clone(),
+            grid,
             reply,
         })??;
         Ok(info)
+    }
+
+    /// Sets or clears the beat grid of the track loaded in `deck` (analysis
+    /// finished after the load, or a grid edit). Fails when no track is loaded.
+    pub fn set_beat_grid(&self, deck: DeckId, grid: Option<BeatGrid>) -> Result<(), CoreError> {
+        self.ask(|reply| Msg::SetBeatGrid { deck, grid, reply })?
+    }
+
+    /// Offline backend only: renders `frames` frames now, ahead of the wall
+    /// clock, and returns the master and headphone audio. For headless tests
+    /// and tools; queued commands apply at the first block.
+    pub fn render_offline(&self, frames: usize) -> Result<OfflineAudio, CoreError> {
+        self.ask(|reply| Msg::RenderOffline { frames, reply })?
     }
 
     /// Current audio settings.
