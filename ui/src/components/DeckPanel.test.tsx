@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { Toaster, toast } from "@opendeck/design-system";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { createBindingsMock } from "../test/bindingsMock";
 import { RATE, runningAudio, telemetry, track } from "../test/fixtures";
@@ -41,6 +42,7 @@ beforeEach(() => {
 
 afterEach(() => {
   releaseAllCues();
+  toast.dismiss();
   cleanup();
 });
 
@@ -67,11 +69,13 @@ describe("DeckPanel", () => {
       status: "error",
       error: { kind: "media", message: "unsupported format" },
     } as never);
-    render(<DeckPanel deck={0} />);
-    fireEvent.click(screen.getByRole("button", { name: "Open file" }));
-    await waitFor(() =>
-      expect(useAppStore.getState().toasts.map((t) => t.message)).toContain("unsupported format"),
+    render(
+      <Toaster>
+        <DeckPanel deck={0} />
+      </Toaster>,
     );
+    fireEvent.click(screen.getByRole("button", { name: "Open file" }));
+    expect(await screen.findByText("unsupported format")).toBeTruthy();
     expect(useAppStore.getState().decks[0]?.loading).toBe(false);
   });
 

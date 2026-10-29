@@ -1,4 +1,5 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { toast } from "@opendeck/design-system";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { createBindingsMock } from "./test/bindingsMock";
 import { runningAudio, telemetry, track } from "./test/fixtures";
@@ -24,6 +25,7 @@ beforeEach(() => {
 
 afterEach(() => {
   releaseAllCues();
+  toast.dismiss();
   cleanup();
 });
 
@@ -35,14 +37,15 @@ async function mountApp() {
 }
 
 describe("App", () => {
-  it("lays out the top bar, two deck slots, the pads panel and the collection", async () => {
+  it("lays out the top bar, two decks, the mixer, the pads panel and the collection", async () => {
     await mountApp();
     expect(screen.getByRole("heading", { name: "OpenDeck" })).toBeTruthy();
     expect(screen.getByRole("region", { name: "Deck 1" })).toBeTruthy();
     expect(screen.getByRole("region", { name: "Deck 2" })).toBeTruthy();
     expect(screen.getByRole("region", { name: "Pads and effects" })).toBeTruthy();
     expect(screen.getByRole("region", { name: "Collection" })).toBeTruthy();
-    expect(screen.getByText("No track loaded")).toBeTruthy();
+    expect(screen.getAllByText("No track loaded")).toHaveLength(2);
+    expect(screen.getByRole("region", { name: "Mixer" })).toBeTruthy();
   });
 
   it("shows the output device in the top bar", async () => {
@@ -57,7 +60,10 @@ describe("App", () => {
       bindings.emit("engine-telemetry", telemetry(1, { loaded: true, duration: 200 * 48_000 }));
     });
     expect(screen.getByTestId("title-0").textContent).toBe("Night Drive");
-    expect(screen.getByRole("button", { name: "PLAY" })).toHaveProperty("disabled", false);
+    const deckOne = within(screen.getByRole("region", { name: "Deck 1" }));
+    expect(deckOne.getByRole("button", { name: "PLAY" })).toHaveProperty("disabled", false);
+    const deckTwo = within(screen.getByRole("region", { name: "Deck 2" }));
+    expect(deckTwo.getByRole("button", { name: "PLAY" })).toHaveProperty("disabled", true);
   });
 
   it("toasts a decode failure and keeps the deck usable", async () => {
@@ -69,8 +75,7 @@ describe("App", () => {
         message: "corrupt audio",
       }),
     );
-    const alert = screen.getByRole("alert");
-    expect(alert.textContent).toContain("Could not load bad.mp3: corrupt audio");
+    expect(await screen.findByText(/Could not load bad.mp3: corrupt audio/)).toBeTruthy();
     expect(useAppStore.getState().decks[0]?.loading).toBe(false);
   });
 
@@ -80,14 +85,15 @@ describe("App", () => {
       bindings.emit("engine-event", { type: "device_lost" });
       bindings.emit("audio-device-changed", { ...runningAudio, running: false, error: "Output device lost" });
     });
-    expect(screen.getByRole("alert").textContent).toContain("Audio device lost");
+    expect((await screen.findAllByText(/Audio device lost/)).length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: /Audio output: Audio off/ })).toBeTruthy();
   });
 
   it("ignores engine events that need no message", async () => {
     await mountApp();
     act(() => bindings.emit("engine-event", { type: "track_ended", deck: 0 }));
-    expect(screen.queryByRole("alert")).toBeNull();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(screen.queryByText(/audio/i, { selector: "[data-variant]" })).toBeNull();
   });
 
   it("Space toggles deck A and F1 holds CUE", async () => {
@@ -143,9 +149,7 @@ describe("Settings dialog", () => {
       master: { left: 0, right: 1 },
       headphones: { left: 2, right: 3 },
     });
-    await waitFor(() =>
-      expect(useAppStore.getState().toasts.map((t) => t.message)).toContain("Audio output restarted."),
-    );
+    expect(await screen.findByText("Audio output restarted.")).toBeTruthy();
   });
 
   it("shows the error when applying fails", async () => {
@@ -157,11 +161,133 @@ describe("Settings dialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
     await screen.findByRole("combobox", { name: "Host API" });
     fireEvent.click(screen.getByRole("button", { name: "Apply" }));
-    await waitFor(() =>
-      expect(useAppStore.getState().toasts.map((t) => t.message)).toContain(
-        "could not open the output stream",
-      ),
-    );
+    expect(await screen.findByText("could not open the output stream")).toBeTruthy();
     expect(screen.getByRole("combobox", { name: "Host API" })).toBeTruthy();
+  });
+});
+
+describe("Keyboard shortcuts for both decks", () => {
+  const key = (code: string, init: KeyboardEventInit = {}, target: Window | Element = window) => {
+    fireEvent.keyDown(target, { code, key: code, ...init });
+    fireEvent.keyUp(target, { code, key: code, ...init });
+  };
+
+  it("Enter plays deck B and F2 holds its CUE", async () => {
+    await mountApp();
+    key("Enter");
+    expect(commands.togglePlaying).toHaveBeenCalledWith(1);
+    fireEvent.keyDown(window, { code: "F2", key: "F2" });
+    fireEvent.keyDown(window, { code: "F2", key: "F2", repeat: true });
+    fireEvent.keyUp(window, { code: "F2", key: "F2" });
+    expect(commands.cue.mock.calls).toEqual([
+      [1, true],
+      [1, false],
+    ]);
+  });
+
+  it("toggles sync, quantize and slip on the deck whose key was pressed", async () => {
+    await mountApp();
+    key("KeyS");
+    expect(commands.setSync).toHaveBeenLastCalledWith(0, "beat");
+    key("KeyK");
+    expect(commands.setSync).toHaveBeenLastCalledWith(1, "beat");
+    key("KeyP");
+    expect(commands.setQuantize).toHaveBeenLastCalledWith(1, false);
+    key("KeyA");
+    expect(commands.setSlip).toHaveBeenLastCalledWith(0, true);
+  });
+
+  it("drives loops and beat jump", async () => {
+    await mountApp();
+    key("KeyZ");
+    key("KeyX");
+    key("KeyC");
+    expect(commands.loopIn).toHaveBeenCalledWith(0);
+    expect(commands.loopOut).toHaveBeenCalledWith(0);
+    expect(commands.loopToggle).toHaveBeenCalledWith(0);
+    key("KeyN");
+    key("KeyM");
+    key("Comma");
+    expect(commands.loopIn).toHaveBeenLastCalledWith(1);
+    expect(commands.loopOut).toHaveBeenLastCalledWith(1);
+    expect(commands.loopToggle).toHaveBeenLastCalledWith(1);
+    key("KeyD");
+    key("KeyF");
+    key("KeyH");
+    key("KeyJ");
+    expect(commands.beatJump.mock.calls).toEqual([
+      [0, -4],
+      [0, 4],
+      [1, -4],
+      [1, 4],
+    ]);
+  });
+
+  it("sets an empty hot cue and triggers a set one, holding it while the key is down", async () => {
+    await mountApp();
+    key("Digit2");
+    expect(commands.setHotCue).toHaveBeenCalledWith(0, 1);
+    act(() =>
+      bindings.emit("hot-cues-changed", {
+        deck: 1,
+        slots: [{ id: null, kind: { kind: "hot", index: 0 }, start: 3, end: null, color: null, name: "" }],
+      }),
+    );
+    fireEvent.keyDown(window, { code: "Numpad1", key: "1" });
+    fireEvent.keyUp(window, { code: "Numpad1", key: "1" });
+    expect(commands.triggerHotCue.mock.calls).toEqual([
+      [1, 0, true],
+      [1, 0, false],
+    ]);
+    // Shift deletes the set cue.
+    key("Numpad1", { shiftKey: true });
+    expect(commands.deleteHotCue).toHaveBeenCalledWith(1, 0);
+  });
+
+  it("ignores letter keys while typing but not while a button has focus", async () => {
+    await mountApp();
+    const input = document.createElement("input");
+    input.type = "text";
+    document.body.append(input);
+    key("KeyS", {}, input);
+    expect(commands.setSync).not.toHaveBeenCalled();
+    input.remove();
+    const settings = screen.getByRole("button", { name: /Audio output/ });
+    key("KeyS", {}, settings);
+    expect(commands.setSync).toHaveBeenCalledWith(0, "beat");
+  });
+
+  it("releases held hot cues and rolls when the window loses focus", async () => {
+    await mountApp();
+    act(() =>
+      bindings.emit("hot-cues-changed", {
+        deck: 0,
+        slots: [{ id: null, kind: { kind: "hot", index: 0 }, start: 3, end: null, color: null, name: "" }],
+      }),
+    );
+    fireEvent.keyDown(window, { code: "Digit1", key: "1" });
+    fireEvent.blur(window);
+    expect(commands.triggerHotCue.mock.calls).toEqual([
+      [0, 0, true],
+      [0, 0, false],
+    ]);
+  });
+});
+
+describe("Startup", () => {
+  it("reads the mixer and both decks from the backend", async () => {
+    await mountApp();
+    await waitFor(() => expect(commands.getMixerState).toHaveBeenCalled());
+    expect(commands.getDeckState.mock.calls).toEqual([[0], [1]]);
+  });
+
+  it("shows hot cues the backend reports and clears them with the next event", async () => {
+    await mountApp();
+    const slot = { id: null, kind: { kind: "hot", index: 4 }, start: 3, end: null, color: null, name: "" };
+    act(() => bindings.emit("hot-cues-changed", { deck: 1, slots: [null, null, null, null, slot, null, null, null] }));
+    expect(useAppStore.getState().decks[1]?.hotCues[4]).toEqual(slot);
+    expect(useAppStore.getState().decks[0]?.hotCues[4]).toBeNull();
+    act(() => bindings.emit("hot-cues-changed", { deck: 1, slots: Array(8).fill(null) }));
+    expect(useAppStore.getState().decks[1]?.hotCues[4]).toBeNull();
   });
 });

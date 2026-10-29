@@ -1,5 +1,6 @@
 import { useRef, type KeyboardEvent, type PointerEvent } from "react";
 import { useTelemetryFrame } from "../hooks/useTelemetryFrame";
+import { DECK_FILL } from "../lib/deck";
 import { formatRemaining, formatTime } from "../lib/format";
 import { seekBy, seekFraction } from "../state/actions";
 import { framesToSeconds } from "../state/telemetry";
@@ -77,7 +78,7 @@ export function ProgressBar({ deck, label }: ProgressBarProps) {
       >
         <div
           ref={fillRef}
-          className="absolute inset-0 origin-left bg-deck-a opacity-[var(--wave-played-opacity)]"
+          className={`absolute inset-0 origin-left ${DECK_FILL[deck] ?? "bg-accent"} opacity-[var(--wave-played-opacity)]`}
           style={{ transform: "scaleX(0)" }}
         />
       </div>

@@ -10,9 +10,15 @@ import { FolderOpen, Music, Pause, Play, Eject } from "lucide-react";
 import type { KeyboardEvent, PointerEvent } from "react";
 import { useStore } from "zustand";
 import { cuePress, cueRelease, ejectDeck, pickAndLoad, togglePlay } from "../state/actions";
+import { DECK_BORDER } from "../lib/deck";
 import { selectDeckUi, useAppStore } from "../state/app";
 import { telemetryStore } from "../state/telemetry";
+import { BeatJumpControls } from "./BeatJumpControls";
+import { BpmReadout } from "./BpmReadout";
+import { HotCuePads } from "./HotCuePads";
+import { LoopControls } from "./LoopControls";
 import { ProgressBar } from "./ProgressBar";
+import { SyncControls } from "./SyncControls";
 import { TempoControls } from "./TempoControls";
 
 interface DeckPanelProps {
@@ -49,7 +55,7 @@ export function DeckPanel({ deck }: DeckPanelProps) {
   };
 
   return (
-    <Panel aria-label={name} className="border-t-2 border-t-deck-a">
+    <Panel aria-label={name} className={`min-w-0 flex-1 border-t-2 ${DECK_BORDER[deck] ?? ""}`}>
       <PanelHeader
         title={name}
         actions={
@@ -75,13 +81,16 @@ export function DeckPanel({ deck }: DeckPanelProps) {
       <PanelBody className="flex gap-4">
         <div className="flex min-w-0 flex-1 flex-col gap-3">
           {hasTrack ? (
-            <div className="min-w-0">
-              <p className="truncate text-lg font-semibold text-fg" data-testid={`title-${deck}`}>
-                {track.title ?? track.file_name}
-              </p>
-              <p className="truncate text-sm text-fg-muted" data-testid={`artist-${deck}`}>
-                {track.artist ?? (ui.loading ? "Loading..." : "Unknown artist")}
-              </p>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate text-lg font-semibold text-fg" data-testid={`title-${deck}`}>
+                  {track.title ?? track.file_name}
+                </p>
+                <p className="truncate text-sm text-fg-muted" data-testid={`artist-${deck}`}>
+                  {track.artist ?? (ui.loading ? "Loading..." : "Unknown artist")}
+                </p>
+              </div>
+              <BpmReadout deck={deck} />
             </div>
           ) : (
             <EmptyState
@@ -135,6 +144,10 @@ export function DeckPanel({ deck }: DeckPanelProps) {
               CUE
             </Button>
           </div>
+          <SyncControls deck={deck} disabled={!ready} />
+          <LoopControls deck={deck} disabled={!ready} />
+          <BeatJumpControls deck={deck} disabled={!ready} />
+          <HotCuePads deck={deck} disabled={!ready} />
         </div>
         <TempoControls deck={deck} disabled={!ready} />
       </PanelBody>

@@ -34,6 +34,7 @@ import {
 import { bufferLatencyMs } from "../lib/format";
 import { errorMessage, report } from "../state/actions";
 import { useAppStore } from "../state/app";
+import { notifyError, notifySuccess } from "../state/notify";
 
 const DEFAULT = "default";
 const OFF = "off";
@@ -71,7 +72,6 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 
 function AudioPage({ onClose }: { onClose: () => void }) {
   const status = useAppStore((s) => s.audio);
-  const pushToast = useAppStore((s) => s.pushToast);
   const [hosts, setHosts] = useState<AudioHostInfo[]>([]);
   const [devices, setDevices] = useState<AudioDeviceInfo[]>([]);
   const [draft, setDraft] = useState<AudioSettings | null>(null);
@@ -124,11 +124,11 @@ function AudioPage({ onClose }: { onClose: () => void }) {
       const result = await report(commands.setAudioSettings(draft));
       if (result) {
         useAppStore.getState().setAudio(result);
-        pushToast("info", "Audio output restarted.");
+        notifySuccess("Audio output restarted.");
         onClose();
       }
     } catch (error) {
-      pushToast("error", errorMessage(error));
+      notifyError(errorMessage(error));
     } finally {
       setApplying(false);
     }

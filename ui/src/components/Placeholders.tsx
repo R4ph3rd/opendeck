@@ -1,22 +1,5 @@
 import { EmptyState, Panel, PanelBody, PanelHeader } from "@opendeck/design-system";
-import { Disc3, Library, SlidersHorizontal } from "lucide-react";
-
-/** Deck B slot: reserved until the second deck and mixer land (milestone 2). */
-export function DeckSlot({ deck }: { deck: number }) {
-  return (
-    <Panel aria-label={`Deck ${deck + 1}`} className="border-t-2 border-t-deck-b">
-      <PanelHeader title={`Deck ${deck + 1}`} />
-      <PanelBody className="flex">
-        <EmptyState
-          className="flex-1"
-          icon={<Disc3 aria-hidden />}
-          title="Deck unavailable"
-          description="The second deck and the mixer arrive in the next milestone."
-        />
-      </PanelBody>
-    </Panel>
-  );
-}
+import { Library, SlidersHorizontal } from "lucide-react";
 
 /** Middle panel: follows the active pad mode per deck from milestone 4. */
 export function MiddlePanel() {
@@ -38,7 +21,7 @@ export function MiddlePanel() {
 /** Collection: tracks and playlists arrive with the library (milestone 3). */
 export function CollectionPanel() {
   return (
-    <Panel aria-label="Collection" className="min-h-0 flex-1">
+    <Panel aria-label="Collection" className="min-h-40 flex-1">
       <PanelHeader title="Collection" />
       <PanelBody className="flex">
         <EmptyState

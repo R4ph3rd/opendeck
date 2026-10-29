@@ -41,8 +41,6 @@ Done: engine with one deck playing a `TrackBuffer` (play/pause, CDJ CUE, seek, t
 | M2 app-core | Freed track buffers are dropped on the control thread, not the loader thread as ADR 0003 says |
 | M2 app-core | Playhead is not restored after an engine restart |
 | M3 app-core | `load_track` takes a path until `TrackId` lands |
-| M4 design-system | Needs a Toast component (the UI has its own `ToastHost`) |
-| M4 design-system | Slider thumb has no `aria-label` |
 | M8 engine | Heap-count test (`tests_heap`) runs on Linux only |
 | M3 library | `playlist_tracks` reorder hits `UNIQUE(playlist_id, position)` on bulk shift |
 | M3 library | Folder-guard trigger only fires on INSERT |
