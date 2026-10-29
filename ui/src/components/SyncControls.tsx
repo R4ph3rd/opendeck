@@ -3,7 +3,7 @@ import { useStore } from "zustand";
 import type { SyncMode } from "../ipc/bindings";
 import { setSync, toggleLeader, toggleQuantize, toggleSlip, toggleSync } from "../state/actions";
 import { selectDeckUi, useAppStore } from "../state/app";
-import { selectLeader, telemetryStore } from "../state/telemetry";
+import { selectIsLeader, selectLeader, selectSyncMode, telemetryStore } from "../state/telemetry";
 
 interface SyncControlsProps {
   deck: number;
@@ -20,9 +20,12 @@ export function SyncControls({ deck, disabled }: SyncControlsProps) {
   const { sync, syncPref, quantize, slip } = useAppStore(selectDeckUi(deck));
   const requestedLeader = useAppStore((s) => s.leader);
   const reportedLeader = useStore(telemetryStore, selectLeader);
+  const reportedIsLeader = useStore(telemetryStore, (s) => selectIsLeader(s, deck));
+  const reportedSync = useStore(telemetryStore, (s) => selectSyncMode(s, deck));
   // The engine's report wins once it names a leader; until then show the request.
-  const isLeader = (reportedLeader ?? requestedLeader) === deck;
-  const syncOn = sync !== "off";
+  const isLeader = reportedLeader !== null ? reportedIsLeader : requestedLeader === deck;
+  // SYNC lights from the engine's report; before the first snapshot, from the request.
+  const syncOn = (reportedSync ?? sync) !== "off";
 
   return (
     <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Sync">

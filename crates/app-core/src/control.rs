@@ -575,7 +575,7 @@ impl Control {
             };
             state.is_leader = t.leader == Some(deck);
             state.track_bpm = d.bpm;
-            state.active_loop = d.active_loop.and_then(|r| {
+            state.active_loop = d.loop_region.filter(|_| d.loop_active).and_then(|r| {
                 Some(LoopRegion {
                     start: r.start.to_seconds(t.sample_rate),
                     end: r.end?.to_seconds(t.sample_rate),

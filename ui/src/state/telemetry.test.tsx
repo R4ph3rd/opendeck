@@ -8,8 +8,10 @@ import {
   meterFraction,
   selectBpm,
   selectDeck,
+  selectIsLeader,
   selectLeader,
   selectLoopActive,
+  selectSyncMode,
   telemetryStore,
 } from "./telemetry";
 
@@ -80,17 +82,29 @@ describe("meters, sync state and loop state", () => {
     expect(isClipping(null)).toBe(false);
   });
 
-  it("selects the loop, leader and bpm of each deck", () => {
+  it("selects the loop, sync, leader and bpm of each deck", () => {
     const state = () => telemetryStore.getState();
     expect(selectLoopActive(state(), 1)).toBe(false);
     expect(selectLeader(state())).toBeNull();
+    expect(selectIsLeader(state(), 1)).toBe(false);
+    expect(selectSyncMode(state(), 1)).toBeNull();
     expect(selectBpm(state(), 1)).toBeNull();
-    state().push(telemetryFor(1, 1, { bpm: 126, active_loop: { start: 0, end: 96_000 } }, 1));
+    const loop = { start: 0, end: 96_000 };
+    state().push(
+      telemetryFor(1, 1, { bpm: 126, sync_mode: "beat", loop_region: loop, loop_active: true }, 1),
+    );
     expect(selectLoopActive(state(), 1)).toBe(true);
     expect(selectLoopActive(state(), 0)).toBe(false);
     expect(selectLeader(state())).toBe(1);
+    expect(selectIsLeader(state(), 1)).toBe(true);
+    expect(selectIsLeader(state(), 0)).toBe(false);
+    expect(selectSyncMode(state(), 1)).toBe("beat");
+    expect(selectSyncMode(state(), 0)).toBe("off");
     expect(selectBpm(state(), 1)).toBe(126);
     expect(selectBpm(state(), 0)).toBeNull();
+    // A stored loop that is not playing does not light the loop.
+    state().push(telemetryFor(2, 1, { loop_region: loop, loop_active: false }));
+    expect(selectLoopActive(state(), 1)).toBe(false);
   });
 
   it("re-renders a loop selector only when the flag changes, not per tick", () => {
@@ -107,7 +121,7 @@ describe("meters, sync state and loop state", () => {
     }
     expect(renders).toBe(initial);
     act(() => {
-      telemetryStore.getState().push(telemetryFor(30, 1, { active_loop: { start: 0, end: 48_000 } }));
+      telemetryStore.getState().push(telemetryFor(30, 1, { loop_region: { start: 0, end: 48_000 }, loop_active: true }));
     });
     expect(renders).toBe(initial + 1);
   });

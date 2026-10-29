@@ -1,5 +1,5 @@
 import { createStore } from "zustand/vanilla";
-import type { DeckTelemetry, EngineTelemetry } from "../ipc/bindings";
+import type { DeckTelemetry, EngineTelemetry, SyncMode } from "../ipc/bindings";
 
 /**
  * Engine telemetry arrives at ~60 Hz. It lives in a vanilla store that React
@@ -55,7 +55,17 @@ export const isClipping = (peak: number | null): boolean => peak !== null && pea
 
 /** The deck is looping. Boolean, so a component using it re-renders only on change. */
 export function selectLoopActive(state: TelemetryState, deck: number): boolean {
-  return state.telemetry?.decks[deck]?.active_loop != null;
+  return state.telemetry?.decks[deck]?.loop_active ?? false;
+}
+
+/** Sync mode the engine applies to a deck, `null` before the first snapshot. */
+export function selectSyncMode(state: TelemetryState, deck: number): SyncMode | null {
+  return state.telemetry?.decks[deck]?.sync_mode ?? null;
+}
+
+/** The engine reports this deck as the sync leader. */
+export function selectIsLeader(state: TelemetryState, deck: number): boolean {
+  return state.telemetry?.decks[deck]?.is_leader ?? false;
 }
 
 /** Sync leader the engine reports, `null` before the first snapshot or with no leader. */

@@ -204,8 +204,10 @@ impl EngineCore {
             dropped_events: self.sink.dropped,
             ..EngineTelemetry::default()
         };
+        let leader = snapshot.leader.map(DeckId::index);
         for (index, (slot, deck)) in snapshot.decks.iter_mut().zip(&self.decks).enumerate() {
             *slot = deck.snapshot();
+            slot.is_leader = leader == Some(index);
             slot.meter = self.mixer.take_channel_meter(index);
         }
         // A full ring means the reader is behind; the next snapshot is complete anyway.

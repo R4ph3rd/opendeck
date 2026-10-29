@@ -454,14 +454,29 @@ export type DeckTelemetry = {
 	slip_position: Frames | null,
 	/**  Current playback rate (tempo fader, sync, bend and scratch combined). */
 	rate: number | null,
-	/**  Effective tempo (track BPM times rate), if the track has a grid. */
+	/**
+	 *  Effective tempo (grid BPM times rate, sync included), if the track
+	 *  has a grid.
+	 */
 	bpm: Bpm | null,
 	/**  Position inside the current beat, `[0, 1)`; 0 when there is no grid. */
 	beat_phase: number | null,
 	/**  Zero-based beat within the bar; 0 when there is no grid. */
 	beat_in_bar: number,
-	/**  Active loop, in engine frames. */
-	active_loop: FrameRegion | null,
+	/**  Sync mode the engine applies to this deck. */
+	sync_mode: SyncMode,
+	/**
+	 *  This deck is the sync leader: `EngineTelemetry::leader` names it.
+	 *  A leader can have sync off.
+	 */
+	is_leader: boolean,
+	/**
+	 *  Current loop in engine frames: the playing one, or the last one that
+	 *  `LoopToggle` re-enters. Cleared on track load.
+	 */
+	loop_region: FrameRegion | null,
+	/**  The playhead is looping inside `loop_region` (loop, hot loop or roll). */
+	loop_active: boolean,
 	/**  Post-fader channel level. */
 	meter: StereoMeter,
 };
@@ -519,7 +534,7 @@ export type EngineTelemetry = {
 	master: StereoMeter,
 	/**  Headphone output level. */
 	headphones: StereoMeter,
-	/**  Current sync leader. */
+	/**  Current sync leader. See `EngineCommand::SetLeader` for the election. */
 	leader: DeckId | null,
 	/**  Callback time divided by block duration, smoothed, `0..` (1.0 = overrun). */
 	dsp_load: number | null,

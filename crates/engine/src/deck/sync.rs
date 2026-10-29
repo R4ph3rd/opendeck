@@ -6,8 +6,8 @@ use opendeck_contracts::tempo::SyncMode;
 use super::{Deck, Transport};
 
 /// What sync is doing for a deck, as reported by [`DeckStatus`](super::DeckStatus).
-/// Telemetry has no field for this, so the engine exposes it here and a deck
-/// that cannot sync says so instead of pretending.
+/// Telemetry carries the mode and the leader; this finer state (no grid, no
+/// leader) is engine-local for now.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum SyncStatus {
     /// Sync is off.

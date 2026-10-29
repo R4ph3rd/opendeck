@@ -1158,18 +1158,13 @@ impl Deck {
             bpm,
             beat_phase,
             beat_in_bar,
-            active_loop: self.active_loop_frames(),
-            ..DeckTelemetry::default()
-        }
-    }
-
-    fn active_loop_frames(&self) -> Option<FrameRegion> {
-        match (self.loop_active, self.loop_stored) {
-            (true, Some(l)) => Some(FrameRegion {
+            sync_mode: self.sync_mode,
+            loop_region: self.loop_stored.map(|l| FrameRegion {
                 start: Frames(l.start as u64),
                 end: Some(Frames(l.end as u64)),
             }),
-            _ => None,
+            loop_active: self.loop_active && self.loop_stored.is_some(),
+            ..DeckTelemetry::default()
         }
     }
 

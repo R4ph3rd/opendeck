@@ -1373,3 +1373,43 @@ fn every_m2_command_is_allocation_free() {
         while rig.r.handle().poll_event().is_some() {}
     }
 }
+
+#[test]
+fn telemetry_reports_sync_leader_and_loop_state() {
+    let mut rig = Rig::new(2);
+    rig.load_click(0, 120.0, 30.0);
+    rig.load_click(1, 124.0, 30.0);
+    sync(&mut rig, 1, SyncMode::Beat);
+    rig.play(0, true);
+    rig.play(1, true);
+    rig.step(4 * BLOCK);
+
+    let t = rig.telemetry();
+    assert_eq!(t.leader, Some(deck(0)));
+    assert!(t.decks[0].is_leader && !t.decks[1].is_leader);
+    assert_eq!(t.decks[0].sync_mode, SyncMode::Off);
+    assert_eq!(t.decks[1].sync_mode, SyncMode::Beat);
+    let followed = t.decks[1].bpm.expect("grid").0;
+    assert!(
+        (followed - 120.0).abs() < 0.05,
+        "follower at {followed} BPM"
+    );
+    assert!(t.decks[0].loop_region.is_none() && !t.decks[0].loop_active);
+
+    rig.send(EngineCommand::AutoLoop {
+        deck: deck(0),
+        length: Beats(4.0),
+    });
+    rig.step(BLOCK);
+    let t = rig.telemetry();
+    let region = t.decks[0].loop_region.expect("loop set");
+    assert!(t.decks[0].loop_active);
+    assert_eq!(region.end.map(|e| e.0 - region.start.0), Some(4 * BEAT_120));
+
+    // Exiting keeps the region for re-loop and clears the flag.
+    rig.send(EngineCommand::LoopToggle { deck: deck(0) });
+    rig.step(BLOCK);
+    let t = rig.telemetry();
+    assert!(!t.decks[0].loop_active);
+    assert_eq!(t.decks[0].loop_region, Some(region));
+}

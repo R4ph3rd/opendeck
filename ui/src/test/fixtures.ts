@@ -15,7 +15,10 @@ export function deckTelemetry(patch: Partial<DeckTelemetry> = {}): DeckTelemetry
     bpm: null,
     beat_phase: 0,
     beat_in_bar: 0,
-    active_loop: null,
+    sync_mode: "off",
+    is_leader: false,
+    loop_region: null,
+    loop_active: false,
     meter,
     ...patch,
   };
@@ -72,6 +75,9 @@ export function telemetryFor(
   return {
     ...base,
     leader,
-    decks: base.decks.map((d, i) => (i === deck ? deckTelemetry(patch) : d)) as EngineTelemetry["decks"],
+    decks: base.decks.map((d, i) => ({
+      ...(i === deck ? deckTelemetry(patch) : d),
+      is_leader: i === leader,
+    })) as EngineTelemetry["decks"],
   };
 }

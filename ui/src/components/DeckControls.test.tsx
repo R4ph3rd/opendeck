@@ -88,6 +88,9 @@ describe("sync, master, quantize and slip", () => {
     fireEvent.click(sync);
     expect(commands.setSync).toHaveBeenLastCalledWith(1, "beat");
     expect(useAppStore.getState().decks[1]?.sync).toBe("beat");
+    // The light follows the engine's report, not the request.
+    expect(sync.getAttribute("aria-pressed")).toBe("false");
+    loadDeckB({ sync_mode: "beat" });
     expect(sync.getAttribute("aria-pressed")).toBe("true");
 
     fireEvent.click(screen.getByRole("radio", { name: "Sync Tempo" }));
@@ -135,7 +138,7 @@ describe("sync, master, quantize and slip", () => {
       data: { ...deckState(1), sync: "tempo", slip: true, quantize: false, is_leader: true },
     } as never);
     render(<DeckPanel deck={1} />);
-    loadDeckB();
+    loadDeckB({ sync_mode: "tempo" });
     await act(() => hydrateDeck(1));
     expect(screen.getByRole("button", { name: "Sync" }).getAttribute("aria-pressed")).toBe("true");
     expect(screen.getByRole("radio", { name: "Sync Tempo" }).getAttribute("aria-checked")).toBe("true");
@@ -157,11 +160,17 @@ describe("loops", () => {
     expect(commands.loopToggle).toHaveBeenCalledWith(1);
     expect(screen.queryByText("LOOP")).toBeNull();
 
-    loadDeckB({ active_loop: { start: 10 * RATE, end: 12 * RATE } });
+    const loop = { start: 10 * RATE, end: 12 * RATE };
     act(() =>
       telemetryStore
         .getState()
-        .push(telemetryFor(4, 1, { loaded: true, active_loop: { start: 10 * RATE, end: 12 * RATE } })),
+        .push(telemetryFor(4, 1, { loaded: true, loop_region: loop, loop_active: false })),
+    );
+    expect(screen.queryByText("LOOP")).toBeNull();
+    act(() =>
+      telemetryStore
+        .getState()
+        .push(telemetryFor(5, 1, { loaded: true, loop_region: loop, loop_active: true })),
     );
     expect(screen.getByRole("button", { name: "EXIT" })).toBeTruthy();
     expect(screen.getByText("LOOP")).toBeTruthy();
