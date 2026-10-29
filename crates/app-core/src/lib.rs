@@ -348,7 +348,10 @@ mod tests {
 
     #[test]
     fn version_matches_workspace() {
-        assert_eq!(VERSION, "0.0.0");
+        // Kept in sync with the workspace by scripts/check-version-sync.mjs.
+        let parts: Vec<&str> = VERSION.split('.').collect();
+        assert_eq!(parts.len(), 3, "VERSION must be semver: {VERSION}");
+        assert!(parts.iter().all(|p| p.parse::<u64>().is_ok()));
         assert_eq!(PRODUCT_NAME, "OpenDeck");
     }
 
