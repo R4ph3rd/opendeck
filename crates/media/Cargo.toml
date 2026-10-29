@@ -10,6 +10,11 @@ publish.workspace = true
 
 [dependencies]
 opendeck-contracts.workspace = true
+symphonia.workspace = true
+rubato.workspace = true
+lofty.workspace = true
+thiserror.workspace = true
+audioadapter-buffers.workspace = true
 
 [lints]
 workspace = true

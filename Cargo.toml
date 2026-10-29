@@ -33,8 +33,9 @@ specta-typescript = "=0.0.13"
 
 # Audio engine
 cpal = "0.18"
-symphonia = "0.6"
+symphonia = { version = "0.6", default-features = false, features = ["mp3", "aac", "isomp4", "alac", "flac", "wav", "pcm", "aiff", "ogg", "vorbis"] }
 rubato = "5"
+audioadapter-buffers = "5"
 signalsmith-stretch = "0.1"
 rtrb = "0.4"
 assert_no_alloc = "1"
