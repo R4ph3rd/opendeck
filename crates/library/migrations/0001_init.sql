@@ -71,6 +71,10 @@ CREATE TABLE analysis (
     true_peak_dbtp    REAL
 );
 
+-- Collection view sorts and filters on BPM and key (range and equality filters).
+CREATE INDEX analysis_bpm         ON analysis(bpm);
+CREATE INDEX analysis_key         ON analysis(musical_key);
+
 -- Waveform peaks per zoom level (level 0 = finest), contracts::peaks blob layout.
 CREATE TABLE analysis_peaks (
     track_id          INTEGER NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,

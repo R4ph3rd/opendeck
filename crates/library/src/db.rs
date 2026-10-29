@@ -108,6 +108,29 @@ mod tests {
         }
     }
 
+    #[test]
+    fn collection_sort_columns_are_indexed() {
+        let conn = open_in_memory().expect("open");
+        for (table, column) in [
+            ("tracks", "artist"),
+            ("tracks", "title"),
+            ("tracks", "date_added"),
+            ("analysis", "bpm"),
+            ("analysis", "musical_key"),
+        ] {
+            let n: i64 = conn
+                .query_row(
+                    "SELECT count(*) FROM pragma_index_list(?1) AS l \
+                     JOIN pragma_index_info(l.name) AS i \
+                     WHERE i.seqno = 0 AND i.name = ?2",
+                    [table, column],
+                    |r| r.get(0),
+                )
+                .expect("query");
+            assert!(n >= 1, "no index leads with {table}.{column}");
+        }
+    }
+
     fn insert_track(conn: &Connection, path: &str) -> i64 {
         conn.execute(
             "INSERT INTO tracks (path, file_size, file_mtime, date_added) VALUES (?1, 1, 0, 0)",
