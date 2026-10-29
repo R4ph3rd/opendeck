@@ -24,8 +24,18 @@ All on Windows 10/11 unless noted.
 
 ## M2 Decks and mixer
 
-- [ ] Cue (PFL) reaches headphones only (channels 3/4).
-- [ ] Sync, loops and hot cues behave on two decks.
+On a 4-channel device (FLX4 or similar) with headphones on 3/4.
+
+- [ ] Two-deck mix on headphones: PFL on deck B reaches headphones only, master keeps deck A. Sweep the cue/master blend end to end.
+- [ ] Split cue: cue mono on the left ear, master mono on the right; the blend has no effect.
+- [ ] EQ kill on each band: the band drops out with no click; returning to unity sounds identical to EQ untouched.
+- [ ] Filter sweep left (low pass) and right (high pass): smooth, no zipper noise, centre dead zone is transparent.
+- [ ] Crossfader curves: constant power has no dip in the centre, linear dips, sharp cuts in the last few percent at each edge.
+- [ ] Loop in/out, auto loops 1/4 to 32 beats, halve and double: wraps are click-free on vocals and pads.
+- [ ] Loop roll while held, slip on and off: playback resumes where it would have been.
+- [ ] Hot cues: set, jump while playing (lands on the next beat with quantize), preview while paused.
+- [ ] Sync on real tracks once M3 grids exist: tempo and beat sync hold over 5 minutes, half and double time pick the closer tempo. TODO(verify) after M3.
+- [ ] Jog scratch and nudge feel (sensitivity and pitch bend range are `TODO(verify)`).
 
 ## M3 Library
 
