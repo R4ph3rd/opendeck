@@ -1,13 +1,13 @@
 # Status
 
-Current milestone: **0 (in progress)**.
+Current milestone: **1 (next)**. Milestone 0 landed as v0.0.0 on 2026-10-29.
 
 ## Milestones
 
 | M | Scope | State |
 |---|---|---|
-| 0 | Architecture, contracts, skeleton, CI, design tokens | in progress |
-| 1 | Audio engine: one deck plays a file, device selection, offline render tests | planned |
+| 0 | Architecture, contracts, skeleton, CI, design tokens | done (v0.0.0) |
+| 1 | Audio engine: one deck plays a file, device selection, offline render tests | next |
 | 2 | Two decks, mixer, routing with cue, sync, loops, hot cues | planned |
 | 3 | Library, DB, import pipeline, analysis, collection view | planned |
 | 4 | Waveforms and deck UI, design system components in Storybook | planned |
@@ -19,9 +19,7 @@ Current milestone: **0 (in progress)**.
 
 ## Milestone 0
 
-Done: ADR 0001 to 0007, cargo workspace, contracts crate, DB schema v1, Tauri shell, typed IPC bindings.
-
-Remaining: CI and release workflows, design tokens, Storybook, stylelint, docs.
+Done: ADR 0001 to 0007, cargo workspace, contracts crate, DB schema v1, Tauri shell, typed IPC bindings, CI and release workflows, design tokens, Storybook, stylelint and ESLint token rules, docs. Released as v0.0.0.
 
 ## Branch model
 

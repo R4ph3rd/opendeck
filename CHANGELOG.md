@@ -4,7 +4,9 @@ All notable changes are recorded here. Format follows [Keep a Changelog](https:/
 
 ## [Unreleased]
 
-Milestone 0, in progress.
+## [0.0.0] - 2026-10-29
+
+Milestone 0: architecture, contracts, skeleton, CI and design tokens.
 
 ### Added
 
@@ -15,6 +17,7 @@ Milestone 0, in progress.
 - MIDI mapping JSON schema with a drift test against the contracts.
 - Tauri 2 shell with typed commands and generated TypeScript bindings.
 - Vite and React UI shell calling `app_info` through the bindings.
+- Design system package: tokens, Tailwind v4 theme, shadcn/Radix components, Storybook, and stylelint and ESLint rules that reject raw style values.
 - CI workflow (Rust, UI, Windows build, commitlint, version sync, cargo-deny) and a release workflow that builds draft releases for Windows, macOS and Linux.
 - `scripts/bump-version.mjs`, `scripts/check-version-sync.mjs` and `scripts/release-notes.mjs`.
 - Build, status, release, hardware test and MIDI open-question documents.
