@@ -100,6 +100,21 @@ impl OfflineRenderer {
         }
     }
 
+    /// Renders master and headphone buses together, block by block. Both
+    /// slices are interleaved stereo; the master length sets the frame count.
+    pub fn render_both(&mut self, master: &mut [f32], headphones: &mut [f32]) {
+        let step = self.block_frames * 2;
+        for (m, h) in master.chunks_mut(step).zip(headphones.chunks_mut(step)) {
+            let started = Instant::now();
+            self.core.render_with_headphones(m, h);
+            let elapsed = started.elapsed();
+            self.stats.blocks += 1;
+            self.stats.frames += (m.len() / 2) as u64;
+            self.stats.total += elapsed;
+            self.stats.worst_block = self.stats.worst_block.max(elapsed);
+        }
+    }
+
     /// Renders `frames` frames and returns them as interleaved stereo.
     pub fn render(&mut self, frames: usize) -> Vec<f32> {
         let mut out = vec![0.0; frames * 2];

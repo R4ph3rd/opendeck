@@ -5,13 +5,14 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Instant;
 
-use opendeck_contracts::telemetry::{EngineEvent, EngineTelemetry, StereoMeter};
+use opendeck_contracts::telemetry::{EngineEvent, EngineTelemetry};
 use opendeck_contracts::{DeckId, EngineCommand, MAX_DECKS};
 use rtrb::{Consumer, Producer};
 
 use crate::EngineConfig;
 use crate::deck::{Deck, DeckStatus, EventSink};
-use crate::meter::MeterAcc;
+use crate::mixer::Mixer;
+use crate::sync::SyncState;
 use crate::track::{Handoff, TrackBuffer};
 
 /// Telemetry snapshots per second.
@@ -26,65 +27,13 @@ const PENDING_RETURNS: usize = 2 * MAX_DECKS;
 /// Smoothing factor for the reported DSP load (per block).
 const LOAD_SMOOTHING: f32 = 0.9;
 
-/// Linear gain that moves to its target over one block.
-#[derive(Debug, Clone, Copy)]
-struct Ramp {
-    current: f32,
-    target: f32,
-}
-
-impl Ramp {
-    fn new(value: f32) -> Self {
-        Self {
-            current: value,
-            target: value,
-        }
-    }
-
-    fn set(&mut self, value: f32) {
-        if value.is_finite() {
-            self.target = value.max(0.0);
-        }
-    }
-
-    /// Returns `(start, step)` for an `n` frame block and settles on the target.
-    fn advance(&mut self, n: usize) -> (f32, f32) {
-        let start = self.current;
-        let step = (self.target - start) / n.max(1) as f32;
-        self.current = self.target;
-        (start, step)
-    }
-}
-
-/// Per-deck mixer state (M1: trim and channel fader only).
-#[derive(Debug, Clone, Copy)]
-struct Strip {
-    trim: f32,
-    fader: f32,
-    gain: Ramp,
-}
-
-impl Strip {
-    fn new() -> Self {
-        Self {
-            trim: 1.0,
-            fader: 1.0,
-            gain: Ramp::new(1.0),
-        }
-    }
-
-    fn update(&mut self) {
-        self.gain.set(self.trim * self.fader);
-    }
-}
-
 /// Audio-thread engine state. Built by [`engine`](crate::engine), then moved
 /// into the device callback or an [`OfflineRenderer`](crate::OfflineRenderer).
 pub struct EngineCore {
     config: EngineConfig,
     decks: Vec<Deck>,
-    strips: [Strip; MAX_DECKS],
-    master_gain: Ramp,
+    mixer: Mixer,
+    sync: SyncState,
 
     commands: Consumer<EngineCommand>,
     handoff: Consumer<Handoff>,
@@ -94,7 +43,8 @@ pub struct EngineCore {
     sink: EventSink,
 
     deck_buf: Vec<f32>,
-    master_meter: MeterAcc,
+    /// Headphone bus for callers that only want the master.
+    hp_scratch: Vec<f32>,
 
     sequence: u64,
     engine_time: u64,
@@ -124,8 +74,8 @@ impl EngineCore {
         Self {
             config,
             decks,
-            strips: [Strip::new(); MAX_DECKS],
-            master_gain: Ramp::new(1.0),
+            mixer: Mixer::new(config.sample_rate.as_f64(), max_block),
+            sync: SyncState::new(config.sample_rate.as_f64()),
             commands: rings.commands,
             handoff: rings.handoff,
             returns: rings.returns,
@@ -136,7 +86,7 @@ impl EngineCore {
                 dropped: 0,
             },
             deck_buf: vec![0.0; max_block * 2],
-            master_meter: MeterAcc::default(),
+            hp_scratch: vec![0.0; max_block * 2],
             sequence: 0,
             engine_time: 0,
             frames_since_publish: 0,
@@ -159,6 +109,8 @@ impl EngineCore {
     }
 
     /// Renders interleaved stereo master output into `out`, overwriting it.
+    /// The headphone bus is computed and dropped; see
+    /// [`render_with_headphones`](Self::render_with_headphones).
     ///
     /// `out.len()` must be even; a trailing odd sample is zeroed. Any length is
     /// accepted: the render is split into chunks of at most
@@ -166,52 +118,69 @@ impl EngineCore {
     /// chunk boundaries. Real-time safe; wrapped in `assert_no_alloc` when the
     /// `alloc-guard` feature is on and in tests.
     pub fn render(&mut self, out: &mut [f32]) {
-        crate::rt_guard(|| self.render_inner(out));
+        crate::rt_guard(|| self.render_inner(out, None));
     }
 
-    fn render_inner(&mut self, out: &mut [f32]) {
+    /// Like [`render`](Self::render), and also renders the headphone bus
+    /// (cue and master blend, or split cue) into `headphones`, interleaved
+    /// stereo of the same length. A shorter `headphones` is filled as far as
+    /// it goes.
+    pub fn render_with_headphones(&mut self, master: &mut [f32], headphones: &mut [f32]) {
+        crate::rt_guard(|| self.render_inner(master, Some(headphones)));
+    }
+
+    fn render_inner(&mut self, out: &mut [f32], mut headphones: Option<&mut [f32]>) {
         let max_block = (self.config.max_block_frames as usize).max(1);
         let (body, tail) = out.split_at_mut(out.len() & !1);
         tail.fill(0.0);
+        if let Some(hp) = headphones.as_deref_mut() {
+            let odd = hp.len() & 1;
+            if let Some(last) = hp.len().checked_sub(odd).and_then(|at| hp.get_mut(at..)) {
+                last.fill(0.0);
+            }
+        }
+        let mut scratch = std::mem::take(&mut self.hp_scratch);
+        let mut offset = 0;
         for chunk in body.chunks_mut(max_block * 2) {
             let started = Instant::now();
-            self.render_chunk(chunk);
-            let frames = chunk.len() / 2;
+            let len = chunk.len();
+            let wanted = headphones
+                .as_deref_mut()
+                .and_then(|hp| hp.get_mut(offset..offset + len));
+            match wanted {
+                Some(hp) => self.render_chunk(chunk, hp),
+                None => {
+                    if let Some(hp) = scratch.get_mut(..len) {
+                        self.render_chunk(chunk, hp);
+                    }
+                }
+            }
+            offset += len;
+            let frames = len / 2;
             let budget = frames as f32 / self.config.sample_rate.0.max(1) as f32;
             let load = started.elapsed().as_secs_f32() / budget.max(f32::EPSILON);
             self.dsp_load = self.dsp_load * LOAD_SMOOTHING + load * (1.0 - LOAD_SMOOTHING);
         }
+        self.hp_scratch = scratch;
     }
 
-    fn render_chunk(&mut self, out: &mut [f32]) {
+    fn render_chunk(&mut self, out: &mut [f32], headphones: &mut [f32]) {
         let frames = out.len() / 2;
         self.flush_pending_returns();
         self.drain_handoff();
         self.drain_commands();
+        self.sync.update(&mut self.decks);
 
         out.fill(0.0);
+        self.mixer.begin_block(frames);
         for (index, deck) in self.decks.iter_mut().enumerate() {
             let Some(buf) = self.deck_buf.get_mut(..frames * 2) else {
                 continue;
             };
             deck.render(buf, &mut self.sink);
-            let Some(strip) = self.strips.get_mut(index) else {
-                continue;
-            };
-            strip.update();
-            let (start, step) = strip.gain.advance(frames);
-            for (i, (o, s)) in out.iter_mut().zip(buf.iter()).enumerate() {
-                *o += *s * (start + step * ((i / 2 + 1) as f32));
-            }
+            self.mixer.process_deck(index, buf, out);
         }
-
-        let (start, step) = self.master_gain.advance(frames);
-        for (i, sample) in out.iter_mut().enumerate() {
-            let gain = start + step * ((i / 2 + 1) as f32);
-            let value = *sample * gain;
-            *sample = if value.is_finite() { value } else { 0.0 };
-        }
-        self.master_meter.add(out);
+        self.mixer.finish(out, headphones);
 
         self.engine_time = self.engine_time.saturating_add(frames as u64);
         self.frames_since_publish = self.frames_since_publish.saturating_add(frames as u32);
@@ -227,15 +196,17 @@ impl EngineCore {
             sequence: self.sequence,
             engine_time: opendeck_contracts::Frames(self.engine_time),
             sample_rate: self.config.sample_rate,
-            master: self.master_meter.take(),
-            headphones: StereoMeter::default(),
+            master: self.mixer.master_meter.take(),
+            headphones: self.mixer.headphone_meter.take(),
+            leader: self.sync.leader(),
             dsp_load: self.dsp_load,
             xruns: self.xruns.load(Ordering::Relaxed),
             dropped_events: self.sink.dropped,
             ..EngineTelemetry::default()
         };
-        for (slot, deck) in snapshot.decks.iter_mut().zip(self.decks.iter_mut()) {
+        for (index, (slot, deck)) in snapshot.decks.iter_mut().zip(&self.decks).enumerate() {
             *slot = deck.snapshot();
+            slot.meter = self.mixer.take_channel_meter(index);
         }
         // A full ring means the reader is behind; the next snapshot is complete anyway.
         if self.telemetry.push(snapshot).is_ok() {
@@ -283,21 +254,28 @@ impl EngineCore {
             if !self.can_return() || self.handoff.is_empty() {
                 return;
             }
-            let Ok(Handoff::Track {
-                deck,
-                track,
-                cue_point,
-            }) = self.handoff.pop()
-            else {
-                return;
-            };
-            let replaced = match self.decks.get_mut(deck.index()) {
-                Some(target) => target.load(track, cue_point),
-                // Deck not allocated: give the buffer straight back.
-                None => Some(track),
-            };
-            if let Some(old) = replaced {
-                self.return_buffer(old);
+            match self.handoff.pop() {
+                Ok(Handoff::Track {
+                    deck,
+                    track,
+                    cue_point,
+                    grid,
+                }) => {
+                    let replaced = match self.decks.get_mut(deck.index()) {
+                        Some(target) => target.load(track, cue_point, grid),
+                        // Deck not allocated: give the buffer straight back.
+                        None => Some(track),
+                    };
+                    if let Some(old) = replaced {
+                        self.return_buffer(old);
+                    }
+                }
+                Ok(Handoff::Grid { deck, grid }) => {
+                    if let Some(target) = self.decks.get_mut(deck.index()) {
+                        target.set_grid(grid);
+                    }
+                }
+                Err(_) => return,
             }
         }
     }
@@ -310,93 +288,93 @@ impl EngineCore {
 
     fn apply(&mut self, command: EngineCommand) {
         use EngineCommand as C;
-        match command {
-            C::SetPlaying { deck, playing } => {
-                if let Some(d) = self.decks.get_mut(deck.index()) {
-                    d.set_playing(playing);
-                }
+        if self.mixer.apply(command) {
+            return;
+        }
+        if let C::SetLeader { deck } = command {
+            self.sync.set_preferred(deck);
+            return;
+        }
+        if let C::Eject { deck } = command {
+            if !self.can_return() {
+                // Retrying later is the control side's job; count it as dropped.
+                self.sink.dropped = self.sink.dropped.saturating_add(1);
+                return;
             }
-            C::Cue { deck, pressed } => {
-                if let Some(d) = self.decks.get_mut(deck.index()) {
-                    d.cue(pressed, &mut self.sink);
-                }
+            let old = self.decks.get_mut(deck.index()).and_then(Deck::eject);
+            if let Some(old) = old {
+                self.return_buffer(old);
             }
-            C::SetCuePoint { deck, position } => {
-                if let Some(d) = self.decks.get_mut(deck.index()) {
-                    d.set_cue_point(position);
-                }
-            }
-            C::Seek { deck, position } => {
-                if let Some(d) = self.decks.get_mut(deck.index()) {
-                    d.seek(position);
-                }
-            }
-            C::Eject { deck } => {
-                if !self.can_return() {
-                    // Retrying later is the control side's job; count it as dropped.
-                    self.sink.dropped = self.sink.dropped.saturating_add(1);
-                    return;
-                }
-                let old = self.decks.get_mut(deck.index()).and_then(Deck::eject);
-                if let Some(old) = old {
-                    self.return_buffer(old);
-                }
-            }
-            C::SetTempoFader { deck, position } => {
-                if let Some(d) = self.decks.get_mut(deck.index()) {
-                    d.set_tempo_fader(position);
-                }
-            }
-            C::SetTempoRange { deck, range } => {
-                if let Some(d) = self.decks.get_mut(deck.index()) {
-                    d.set_tempo_range(range);
-                }
-            }
-            C::SetKeyLock { deck, on } => {
-                if let Some(d) = self.decks.get_mut(deck.index()) {
-                    d.set_key_lock(on);
-                }
-            }
-            C::PitchBend { deck, amount } => {
-                if let Some(d) = self.decks.get_mut(deck.index()) {
-                    d.set_pitch_bend(amount);
-                }
-            }
-            C::SetTrim { deck, gain } => {
-                if let Some(s) = self.strips.get_mut(deck.index())
-                    && gain.0.is_finite()
-                {
-                    s.trim = gain.0.max(0.0);
-                }
-            }
-            C::SetChannelFader { deck, position } => {
-                if let Some(s) = self.strips.get_mut(deck.index())
-                    && position.is_finite()
-                {
-                    s.fader = position.clamp(0.0, 1.0);
-                }
-            }
-            C::SetMasterLevel { gain } => self.master_gain.set(gain.0),
-            // TODO(M2): jog scratch and nudge, sync, loops, hot cues, beat jump,
-            // slip, quantize, EQ, filter, crossfader, PFL and headphone mix.
+            return;
+        }
+        let Some(index) = deck_of(&command) else {
             // TODO(M5): FX. TODO(M7): sampler, key shift.
+            return;
+        };
+        let Some(d) = self.decks.get_mut(index) else {
+            return;
+        };
+        let sink = &mut self.sink;
+        match command {
+            C::SetPlaying { playing, .. } => d.set_playing(playing),
+            C::Cue { pressed, .. } => d.cue(pressed, sink),
+            C::SetCuePoint { position, .. } => d.set_cue_point(position),
+            C::Seek { position, .. } => d.seek(position),
+            C::SetTempoFader { position, .. } => d.set_tempo_fader(position),
+            C::SetTempoRange { range, .. } => d.set_tempo_range(range),
+            C::SetKeyLock { on, .. } => d.set_key_lock(on),
+            C::PitchBend { amount, .. } => d.set_pitch_bend(amount),
+            C::SetSync { mode, .. } => d.set_sync_mode(mode),
+            C::JogTouch { touched, .. } => d.jog_touch(touched),
+            C::JogTurn { revolutions, .. } => d.jog_turn(revolutions),
+            C::JogSearch { beats, .. } => d.jog_search(beats),
+            C::SetVinylMode { on, .. } => d.set_vinyl(on),
+            C::LoopIn { .. } => d.loop_in(),
+            C::LoopOut { .. } => d.loop_out(sink),
+            C::LoopToggle { .. } => d.loop_toggle(),
+            C::AutoLoop { length, .. } => d.auto_loop(length, sink),
+            C::LoopRoll { length, active, .. } => d.loop_roll(length, active),
+            C::LoopResize { factor, .. } => d.loop_resize(factor, sink),
+            C::SetLoop { region, .. } => d.set_loop(region),
+            C::BeatJump { beats, .. } => d.beat_jump(beats),
+            C::SetHotCue { index, cue, .. } => d.set_hot_cue(index, cue),
+            C::HotCue { index, pressed, .. } => d.hot_cue(index, pressed, sink),
+            C::SetSlip { on, .. } => d.set_slip(on),
+            C::SetQuantize { on, .. } => d.set_quantize(on),
             _ => {}
         }
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn ramp_reaches_target_and_ignores_nan() {
-        let mut r = Ramp::new(1.0);
-        r.set(f32::NAN);
-        assert_eq!(r.advance(4), (1.0, 0.0));
-        r.set(0.0);
-        let (start, step) = r.advance(4);
-        assert_eq!(start, 1.0);
-        assert!((start + step * 4.0).abs() < 1e-6);
+/// Index of the deck a deck command addresses.
+fn deck_of(command: &EngineCommand) -> Option<usize> {
+    use EngineCommand as C;
+    match command {
+        C::SetPlaying { deck, .. }
+        | C::Cue { deck, .. }
+        | C::SetCuePoint { deck, .. }
+        | C::Seek { deck, .. }
+        | C::SetTempoFader { deck, .. }
+        | C::SetTempoRange { deck, .. }
+        | C::SetKeyLock { deck, .. }
+        | C::PitchBend { deck, .. }
+        | C::SetSync { deck, .. }
+        | C::JogTouch { deck, .. }
+        | C::JogTurn { deck, .. }
+        | C::JogSearch { deck, .. }
+        | C::SetVinylMode { deck, .. }
+        | C::LoopIn { deck }
+        | C::LoopOut { deck }
+        | C::LoopToggle { deck }
+        | C::AutoLoop { deck, .. }
+        | C::LoopRoll { deck, .. }
+        | C::LoopResize { deck, .. }
+        | C::SetLoop { deck, .. }
+        | C::BeatJump { deck, .. }
+        | C::SetHotCue { deck, .. }
+        | C::HotCue { deck, .. }
+        | C::SetSlip { deck, .. }
+        | C::SetQuantize { deck, .. } => Some(deck.index()),
+        _ => None,
     }
 }

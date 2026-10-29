@@ -4,6 +4,7 @@
 use std::sync::Arc;
 use std::sync::atomic::AtomicU32;
 
+use opendeck_contracts::beatgrid::BeatGrid;
 use opendeck_contracts::telemetry::{EngineEvent, EngineTelemetry};
 use opendeck_contracts::{DeckId, EngineCommand, Frames, SampleRate};
 use rtrb::{Consumer, Producer, RingBuffer};
@@ -96,25 +97,53 @@ impl EngineHandle {
         })
     }
 
-    /// Hands a decoded track to the audio thread for `deck`. The deck stops,
-    /// rewinds to the start and sets its cue point to `cue_point` (start of
-    /// the track when `None`). Any previous buffer comes back through
-    /// [`reclaim`](Self::reclaim).
-    ///
-    /// Returns the buffer when the hand-off ring is full so the caller can retry.
+    /// Hands a decoded track to the audio thread for `deck`, without a beat
+    /// grid. See [`load_track_with_grid`](Self::load_track_with_grid).
     pub fn load_track(
         &mut self,
         deck: DeckId,
         track: TrackBuffer,
         cue_point: Option<Frames>,
     ) -> Result<(), TrackBuffer> {
+        self.load_track_with_grid(deck, track, cue_point, None)
+    }
+
+    /// Hands a decoded track and its beat grid to the audio thread for `deck`.
+    /// The deck stops, rewinds to the start and sets its cue point to
+    /// `cue_point` (start of the track when `None`). Loops, hot cues and slip
+    /// of the previous track are cleared: send `SetHotCue` again after the
+    /// load. Sync, quantize, slip mode, vinyl mode, key lock and tempo
+    /// settings stay. Any previous buffer comes back through
+    /// [`reclaim`](Self::reclaim).
+    ///
+    /// `grid` is in seconds from the first frame of `track`. Without one the
+    /// deck cannot sync, auto loop, roll or beat jump.
+    ///
+    /// Returns the buffer when the hand-off ring is full so the caller can retry.
+    pub fn load_track_with_grid(
+        &mut self,
+        deck: DeckId,
+        track: TrackBuffer,
+        cue_point: Option<Frames>,
+        grid: Option<BeatGrid>,
+    ) -> Result<(), TrackBuffer> {
+        // Cloning shares the samples; it only keeps a handle to give back.
+        let backup = track.clone();
         self.handoff
             .push(Handoff::Track {
                 deck,
                 track,
                 cue_point,
+                grid,
             })
-            .map_err(|rtrb::PushError::Full(Handoff::Track { track, .. })| track)
+            .map_err(|_| backup)
+    }
+
+    /// Sets or clears the beat grid of the track loaded in `deck` (analysis
+    /// finished after the load, or the grid was edited). Returns `false` when
+    /// the hand-off ring is full; retry on the next tick.
+    pub fn set_beat_grid(&mut self, deck: DeckId, grid: Option<BeatGrid>) -> bool {
+        self.handoff.push(Handoff::Grid { deck, grid }).is_ok()
     }
 
     /// Drops every buffer the audio thread has returned and reports how many.
