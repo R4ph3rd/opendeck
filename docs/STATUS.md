@@ -38,7 +38,6 @@ Done: ADR 0001 to 0007, cargo workspace, contracts crate, DB schema v1, Tauri sh
 | M6 midi | `on_connect` raw messages are capped at 3 bytes, so no SysEx |
 | M6 midi | Feedback entries lack `when` for shift-layer LEDs |
 | M6 midi | Drift test only checks schema to contracts |
-| M1 engine | `EngineConfig.sample_rate` is `u32`, not the `SampleRate` newtype |
 
 ## Doc follow-ups
 
