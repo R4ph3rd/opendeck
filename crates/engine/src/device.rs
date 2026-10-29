@@ -284,21 +284,31 @@ pub(crate) fn negotiate(
 // ----- Routing -----
 
 /// Copies the engine's stereo master into the master channel pair of an
-/// interleaved device buffer and silences every other channel. The
-/// headphone pair stays silent until the cue bus exists (M2).
+/// interleaved device buffer and the headphone bus into the headphone pair,
+/// when the device has one. Every other channel is silent.
 pub(crate) struct Router {
     channels: usize,
     master: (usize, usize),
+    headphones: Option<(usize, usize)>,
     scratch: Vec<f32>,
+    headphone_scratch: Vec<f32>,
     max_block: usize,
 }
 
 impl Router {
-    pub(crate) fn new(channels: u16, master: ChannelPair, max_block_frames: usize) -> Self {
+    pub(crate) fn new(
+        channels: u16,
+        master: ChannelPair,
+        headphones: Option<ChannelPair>,
+        max_block_frames: usize,
+    ) -> Self {
+        let pair = |p: ChannelPair| (usize::from(p.left), usize::from(p.right));
         Self {
             channels: usize::from(channels).max(1),
-            master: (usize::from(master.left), usize::from(master.right)),
+            master: pair(master),
+            headphones: headphones.map(pair),
             scratch: vec![0.0; max_block_frames.max(1) * 2],
+            headphone_scratch: vec![0.0; max_block_frames.max(1) * 2],
             max_block: max_block_frames.max(1),
         }
     }
@@ -311,12 +321,18 @@ impl Router {
     ) {
         for block in out.chunks_mut(self.channels * self.max_block) {
             let frames = block.len() / self.channels;
-            let Some(stereo) = self.scratch.get_mut(..frames * 2) else {
+            let (Some(stereo), Some(phones)) = (
+                self.scratch.get_mut(..frames * 2),
+                self.headphone_scratch.get_mut(..frames * 2),
+            ) else {
                 block.fill(T::EQUILIBRIUM);
                 continue;
             };
-            core.render(stereo);
+            core.render_with_headphones(stereo, phones);
             route(stereo, block, self.channels, self.master);
+            if let Some(pair) = self.headphones {
+                route_pair(phones, block, self.channels, pair);
+            }
         }
     }
 }
@@ -330,22 +346,35 @@ pub(crate) fn route<T: Sample + FromSample<f32>>(
     channels: usize,
     master: (usize, usize),
 ) {
-    for (frame, stereo) in dst
-        .chunks_exact_mut(channels.max(1))
-        .zip(src.chunks_exact(2))
-    {
+    for frame in dst.chunks_exact_mut(channels.max(1)) {
         frame.fill(T::EQUILIBRIUM);
-        if let Some(slot) = frame.get_mut(master.0) {
-            *slot = T::from_sample(stereo[0]);
-        }
-        if let Some(slot) = frame.get_mut(master.1) {
-            *slot = T::from_sample(stereo[1]);
-        }
     }
+    route_pair(src, dst, channels, master);
     // A trailing partial frame (never produced by hosts) stays silent.
     let tail = dst.len() - dst.len() % channels.max(1);
     if let Some(rest) = dst.get_mut(tail..) {
         rest.fill(T::EQUILIBRIUM);
+    }
+}
+
+/// Writes interleaved stereo `src` into one channel pair of `dst`, leaving the
+/// other channels alone. A pair beyond `channels` is ignored.
+pub(crate) fn route_pair<T: Sample + FromSample<f32>>(
+    src: &[f32],
+    dst: &mut [T],
+    channels: usize,
+    pair: (usize, usize),
+) {
+    for (frame, stereo) in dst
+        .chunks_exact_mut(channels.max(1))
+        .zip(src.chunks_exact(2))
+    {
+        if let Some(slot) = frame.get_mut(pair.0) {
+            *slot = T::from_sample(stereo[0]);
+        }
+        if let Some(slot) = frame.get_mut(pair.1) {
+            *slot = T::from_sample(stereo[1]);
+        }
     }
 }
 
@@ -500,6 +529,7 @@ pub fn open_output(
         let router = Router::new(
             choice.channels,
             choice.master,
+            choice.headphones,
             config.max_block_frames as usize,
         );
         match build_stream(
@@ -699,10 +729,77 @@ mod tests {
     #[test]
     fn router_renders_the_core_into_a_four_channel_buffer() {
         let (mut core, _handle) = crate::engine(EngineConfig::default()).expect("engine");
-        let mut router = Router::new(4, ChannelPair { left: 0, right: 1 }, 64);
+        let mut router = Router::new(4, ChannelPair { left: 0, right: 1 }, None, 64);
         let mut out = vec![1.0_f32; 4 * 200];
         router.render(&mut core, &mut out);
         assert!(out.iter().all(|s| *s == 0.0), "an empty engine is silent");
+    }
+
+    #[test]
+    fn router_sends_the_cue_bus_to_the_headphone_pair() {
+        use opendeck_contracts::{DeckId, EngineCommand, Gain};
+        let (mut core, mut handle) = crate::engine(EngineConfig::default()).expect("engine");
+        let samples: Vec<f32> = (0..96_000).map(|_| 0.5).collect();
+        let track = crate::TrackBuffer::from_vec(samples).expect("track");
+        let deck = DeckId::new(0).expect("deck");
+        handle.load_track(deck, track, None).expect("room");
+        for command in [
+            EngineCommand::SetPfl { deck, on: true },
+            // Off air: the master stays silent, the cue does not.
+            EngineCommand::SetChannelFader {
+                deck,
+                position: 0.0,
+            },
+            EngineCommand::SetHeadphoneLevel { gain: Gain(0.5) },
+            EngineCommand::SetPlaying {
+                deck,
+                playing: true,
+            },
+        ] {
+            handle.send(command).expect("room");
+        }
+        let mut router = Router::new(
+            4,
+            ChannelPair { left: 0, right: 1 },
+            Some(ChannelPair { left: 2, right: 3 }),
+            64,
+        );
+        let mut out = vec![0.0_f32; 4 * 4_000];
+        router.render(&mut core, &mut out);
+        let tail = &out[4 * 3_000..];
+        for frame in tail.chunks_exact(4) {
+            assert!(
+                frame[0].abs() < 1e-6 && frame[1].abs() < 1e-6,
+                "master {frame:?}"
+            );
+            assert!(
+                (frame[2] - 0.25).abs() < 1e-3 && (frame[3] - 0.25).abs() < 1e-3,
+                "headphones {frame:?}"
+            );
+        }
+
+        // Without a headphone pair the cue goes nowhere.
+        let (mut core, mut handle) = crate::engine(EngineConfig::default()).expect("engine");
+        handle
+            .load_track(
+                deck,
+                crate::TrackBuffer::from_vec(vec![0.5; 96_000]).expect("track"),
+                None,
+            )
+            .expect("room");
+        handle
+            .send(EngineCommand::SetPfl { deck, on: true })
+            .expect("room");
+        handle
+            .send(EngineCommand::SetPlaying {
+                deck,
+                playing: true,
+            })
+            .expect("room");
+        let mut router = Router::new(2, ChannelPair { left: 0, right: 1 }, None, 64);
+        let mut out = vec![0.0_f32; 2 * 4_000];
+        router.render(&mut core, &mut out);
+        assert!(out[2 * 3_000..].iter().all(|s| (s - 0.5).abs() < 1e-3));
     }
 
     #[test]

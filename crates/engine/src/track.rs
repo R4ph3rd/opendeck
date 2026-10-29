@@ -8,6 +8,7 @@
 
 use std::sync::Arc;
 
+use opendeck_contracts::beatgrid::BeatGrid;
 use opendeck_contracts::{DeckId, Frames};
 
 /// Why a [`TrackBuffer`] could not be built.
@@ -72,6 +73,13 @@ pub(crate) enum Handoff {
         track: TrackBuffer,
         /// Initial cue point, `None` for the start of the track.
         cue_point: Option<Frames>,
+        /// Beat grid of the track, if analysed.
+        grid: Option<BeatGrid>,
+    },
+    /// Replace the beat grid of the track already loaded in `deck`.
+    Grid {
+        deck: DeckId,
+        grid: Option<BeatGrid>,
     },
 }
 
