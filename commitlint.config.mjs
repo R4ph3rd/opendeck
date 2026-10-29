@@ -5,7 +5,7 @@ export default {
     "scope-enum": [
       2,
       "always",
-      ["engine", "fx", "analysis", "library", "midi", "media", "contracts", "app-core", "ui", "design-system", "tauri", "ci", "adr", "docs", "repo", "release", "deps"],
+      ["engine", "fx", "analysis", "library", "midi", "media", "contracts", "app-core", "ui", "design", "design-system", "tauri", "ci", "adr", "docs", "repo", "release", "deps"],
     ],
     "body-max-line-length": [0],
   },
