@@ -97,7 +97,13 @@ pub enum EngineCommand {
         /// New mode.
         mode: SyncMode,
     },
-    /// Choose the sync leader; `None` lets the engine pick the first playing synced deck.
+    /// Choose the sync leader; `None` lets the engine pick.
+    ///
+    /// Only a playing deck with a beat grid can lead. A chosen deck leads
+    /// while it qualifies. Otherwise, and only while some deck with a grid
+    /// has sync on, the current leader stays while it qualifies, else the
+    /// engine elects the first playing deck with sync off, else the first
+    /// playing deck. With no synced deck and no choice there is no leader.
     SetLeader {
         /// New leader.
         deck: Option<DeckId>,
@@ -205,9 +211,12 @@ pub enum EngineCommand {
         /// Cue point or hot loop, `None` to clear.
         cue: Option<FrameRegion>,
     },
-    /// Hot cue pad edge. On an empty slot the engine stores the playhead and
-    /// reports `EngineEvent::HotCueSet`; otherwise it jumps (or previews
-    /// while held when paused).
+    /// Hot cue pad edge. On an empty slot the engine stores the playhead
+    /// (snapped to the nearest beat with quantize) and reports
+    /// `EngineEvent::HotCueSet`. Otherwise, while playing it jumps to the cue;
+    /// with quantize and a grid the jump waits for the next beat (up to one
+    /// beat) and then lands exactly on the cue. While paused it previews
+    /// while held and returns on release.
     HotCue {
         /// Target deck.
         deck: DeckId,
@@ -223,7 +232,10 @@ pub enum EngineCommand {
         /// `true` to enable.
         on: bool,
     },
-    /// Quantize on or off.
+    /// Quantize on or off. With a grid it snaps stored positions (cue, hot
+    /// cue, loop in and out, auto loop start) to the nearest beat and delays a
+    /// hot cue jump to the next beat. Seek and jog search are never quantized;
+    /// beat jump always keeps phase.
     SetQuantize {
         /// Target deck.
         deck: DeckId,

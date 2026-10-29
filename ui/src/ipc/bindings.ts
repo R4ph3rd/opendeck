@@ -426,11 +426,14 @@ export type DeckState = {
 	key_shift: number,
 	/**  Sync mode. */
 	sync: SyncMode,
-	/**  True if this deck is the sync leader. */
+	/**  True if this deck is the sync leader (election: `EngineCommand::SetLeader`). */
 	is_leader: boolean,
 	/**  Slip mode on. */
 	slip: boolean,
-	/**  Quantize on (cue, loop, hot cue and beat jump snap to the grid). */
+	/**
+	 *  Quantize on: cue, hot cue and loop points snap to the nearest beat, a
+	 *  hot cue jump waits for the next beat. See `EngineCommand::SetQuantize`.
+	 */
 	quantize: boolean,
 	/**  Jog in vinyl mode: platter touch scratches. Otherwise it bends pitch. */
 	vinyl_mode: boolean,

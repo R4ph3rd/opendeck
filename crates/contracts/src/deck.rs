@@ -61,11 +61,12 @@ pub struct DeckState {
     pub key_shift: i8,
     /// Sync mode.
     pub sync: SyncMode,
-    /// True if this deck is the sync leader.
+    /// True if this deck is the sync leader (election: `EngineCommand::SetLeader`).
     pub is_leader: bool,
     /// Slip mode on.
     pub slip: bool,
-    /// Quantize on (cue, loop, hot cue and beat jump snap to the grid).
+    /// Quantize on: cue, hot cue and loop points snap to the nearest beat, a
+    /// hot cue jump waits for the next beat. See `EngineCommand::SetQuantize`.
     pub quantize: bool,
     /// Jog in vinyl mode: platter touch scratches. Otherwise it bends pitch.
     pub vinyl_mode: bool,

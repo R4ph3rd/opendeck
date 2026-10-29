@@ -13,9 +13,10 @@
 //!   grid. Otherwise the previous leader stays while it is valid, else the
 //!   first playing deck with sync off (the deck being followed is the one
 //!   already playing, so pressing sync on the second deck follows the first),
-//!   else the first playing deck. Only decks with a grid qualify. When the leader stops or is ejected the next block
-//!   elects another, so followers never wait on a dead deck. With no sync deck
-//!   and no explicit choice there is no leader.
+//!   else the first playing deck. Only decks with a grid qualify. When the
+//!   leader stops or is ejected the next block elects another, so followers
+//!   never wait on a dead deck. With no sync deck and no explicit choice there
+//!   is no leader.
 //! - Tempo: a follower runs at `leader_bpm * leader_rate / own_bpm`, times 0.5
 //!   or 2 when that is closer to its own tempo (half and double time).
 //!   The leader's rate includes its pitch bend and nudge, so followers stay
