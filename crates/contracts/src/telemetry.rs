@@ -8,6 +8,9 @@
 //! [`EngineEvent`] is a rare, must-not-drop notification (a hot cue was set,
 //! a track ended) on its own SPSC ring. If that ring is full the audio thread
 //! drops the event and counts it in [`EngineTelemetry::dropped_events`].
+//! Device variants ([`EngineEvent::DeviceLost`] and friends) come from the
+//! engine's device layer on the control thread, since a dead stream has no
+//! audio thread left to report them.
 
 use crate::MAX_DECKS;
 use crate::cue::{FrameRegion, HotCueIndex};
@@ -120,6 +123,13 @@ pub enum EngineEvent {
         /// Deck.
         deck: DeckId,
     },
+    /// The output device went away. The stream is dead; the control thread
+    /// opens a new one. Reported by the device layer, not the render path.
+    DeviceLost,
+    /// The host moved the stream to another device and keeps playing.
+    DeviceChanged,
+    /// The backend reported some other stream error.
+    StreamError,
 }
 
 #[cfg(test)]

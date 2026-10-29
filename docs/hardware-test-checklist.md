@@ -9,9 +9,18 @@ Manual tests that need a real controller or audio device. Tick items with the da
 
 ## M1 Audio engine
 
+All on Windows 10/11 unless noted.
+
 - [ ] Device list shows WASAPI devices; selection survives restart.
+- [ ] Open an audio file on deck A; title, duration and progress bar appear.
+- [ ] Play/pause, CUE (CDJ behaviour) and seek work without clicks.
+- [ ] Tempo +8 % and -8 % with key lock off: pitch follows tempo.
+- [ ] Tempo +8 % and -8 % with key lock on: pitch holds. Listen for artifacts at start and after seeks (the first ~30 ms are varispeed by design).
+- [ ] Buffer sizes 64, 128, 256 and 512: note xruns over 10 minutes for each.
+- [ ] FLX4 audio interface selected as output device: master plays on channels 1/2. TODO(verify)
 - [ ] FLX4 audio output routing: 4-channel device, channels 1/2 master, 3/4 headphones. TODO(verify)
-- [ ] No dropouts at 128 and 256 sample buffers for 10 minutes.
+- [ ] Unplug the output device while playing: a toast reports the loss and the app keeps running.
+- [ ] ASIO device list and playback (only on a local build with the `asio` feature).
 
 ## M2 Decks and mixer
 

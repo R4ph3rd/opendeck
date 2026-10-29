@@ -4,6 +4,14 @@
 //! Shared by the engine loader thread and the analysis pipeline. Nothing in
 //! this crate runs on the audio thread. See `CONTEXT/media.md`.
 
+mod decode;
+mod error;
+mod tags;
+
+pub use decode::{AudioView, DecodedAudio, decode_file};
+pub use error::MediaError;
+pub use tags::{Artwork, TrackTags, read_tags};
+
 /// Lower-case file extensions the decoder is expected to accept (ADR 0001).
 ///
 /// `m4a` covers both AAC and ALAC. Discovery filters files with this list

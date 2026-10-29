@@ -3,7 +3,7 @@ resolver = "3"
 members = ["crates/*", "src-tauri"]
 
 [workspace.package]
-version = "0.0.0"
+version = "0.1.0"
 edition = "2024"
 rust-version = "1.97"
 license-file = "LICENSE"
@@ -26,6 +26,7 @@ opendeck-app-core = { path = "crates/app-core" }
 # Shell and IPC
 tauri = "2.12.5"
 tauri-build = "2.7.4"
+tauri-plugin-dialog = "2"
 # Release candidates: pinned exact, bumped deliberately (ADR 0001, ADR 0004).
 tauri-specta = { version = "=2.0.0-rc.26", features = ["derive", "typescript"] }
 specta = { version = "=2.0.0-rc.26", features = ["derive"] }
@@ -33,8 +34,9 @@ specta-typescript = "=0.0.13"
 
 # Audio engine
 cpal = "0.18"
-symphonia = "0.6"
+symphonia = { version = "0.6", default-features = false, features = ["mp3", "aac", "isomp4", "alac", "flac", "wav", "pcm", "aiff", "ogg", "vorbis"] }
 rubato = "5"
+audioadapter-buffers = "5"
 signalsmith-stretch = "0.1"
 rtrb = "0.4"
 assert_no_alloc = "1"

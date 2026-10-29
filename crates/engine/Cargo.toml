@@ -8,9 +8,25 @@ license-file.workspace = true
 repository.workspace = true
 publish.workspace = true
 
+[features]
+default = []
+# Steinberg ASIO host (Windows only, needs the ASIO SDK at build time).
+asio = ["cpal/asio"]
+# Wrap the audio callback in assert_no_alloc. The embedding binary must also
+# install `assert_no_alloc::AllocDisabler` as its global allocator (debug only).
+alloc-guard = ["dep:assert_no_alloc"]
+
 [dependencies]
 opendeck-contracts.workspace = true
 opendeck-media.workspace = true
+cpal.workspace = true
+rtrb.workspace = true
+signalsmith-stretch.workspace = true
+thiserror.workspace = true
+assert_no_alloc = { workspace = true, optional = true }
+
+[dev-dependencies]
+assert_no_alloc.workspace = true
 
 [lints]
 workspace = true

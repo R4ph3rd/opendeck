@@ -10,15 +10,53 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 export const commands = {
 	/**  Returns build and platform information. */
 	appInfo: () => __TAURI_INVOKE<AppInfo>("app_info"),
-	/**  Lists audio host APIs (stub until milestone 1, see `AppCore::audio_hosts`). */
+	/**  Lists the audio host APIs the platform reports. */
 	listAudioHosts: () => typedError<AudioHostInfo[], CommandError>(__TAURI_INVOKE("list_audio_hosts")),
+	/**  Lists output devices of a host (`None` for the platform default). */
+	listAudioDevices: (host: AudioHostKind | null) => typedError<AudioDeviceInfo[], CommandError>(__TAURI_INVOKE("list_audio_devices", { host })),
+	/**  Returns the stored audio settings. */
+	getAudioSettings: () => typedError<AudioSettings, CommandError>(__TAURI_INVOKE("get_audio_settings")),
+	/**  Applies audio settings: stops the stream, reopens it, stores the settings. */
+	setAudioSettings: (settings: AudioSettings) => typedError<AudioStatus, CommandError>(__TAURI_INVOKE("set_audio_settings", { settings })),
+	/**  Returns the state of the audio output. */
+	getAudioStatus: () => typedError<AudioStatus, CommandError>(__TAURI_INVOKE("get_audio_status")),
+	/**  File extensions the decoder accepts, lower case, without the dot. */
+	supportedAudioExtensions: () => __TAURI_INVOKE<string[]>("supported_audio_extensions"),
+	/**
+	 *  Reads the tags of an audio file and queues its decode into `deck`.
+	 *  Returns once the tags are known; `track-loaded` or `track-load-failed`
+	 *  follows when the decode ends.
+	 */
+	loadTrack: (deck: DeckId, path: string) => typedError<TrackInfo, CommandError>(__TAURI_INVOKE("load_track", { deck, path })),
+	/**  Unloads a deck. */
+	ejectTrack: (deck: DeckId) => typedError<null, CommandError>(__TAURI_INVOKE("eject_track", { deck })),
+	/**  Starts or stops playback. */
+	setPlaying: (deck: DeckId, playing: boolean) => typedError<null, CommandError>(__TAURI_INVOKE("set_playing", { deck, playing })),
+	/**  Play or pause, judged on the newest telemetry (space bar, PLAY button). */
+	togglePlaying: (deck: DeckId) => typedError<null, CommandError>(__TAURI_INVOKE("toggle_playing", { deck })),
+	/**  CUE button edge: `pressed` is true on press and false on release. */
+	cue: (deck: DeckId, pressed: boolean) => typedError<null, CommandError>(__TAURI_INVOKE("cue", { deck, pressed })),
+	/**  Moves the playhead to `position` seconds from the start. */
+	seek: (deck: DeckId, position: Seconds) => typedError<null, CommandError>(__TAURI_INVOKE("seek", { deck, position })),
+	/**  Tempo fader position in `[-1, 1]`, `+1` = fastest. */
+	setTempoFader: (deck: DeckId, position: number | null) => typedError<null, CommandError>(__TAURI_INVOKE("set_tempo_fader", { deck, position })),
+	/**  Tempo fader range. */
+	setTempoRange: (deck: DeckId, range: TempoRange) => typedError<null, CommandError>(__TAURI_INVOKE("set_tempo_range", { deck, range })),
+	/**  Key lock (master tempo) on or off. */
+	setKeyLock: (deck: DeckId, on: boolean) => typedError<null, CommandError>(__TAURI_INVOKE("set_key_lock", { deck, on })),
+	/**  Temporary speed offset in `[-1, 1]` while a bend button is held; `0` releases. */
+	pitchBend: (deck: DeckId, amount: number | null) => typedError<null, CommandError>(__TAURI_INVOKE("pitch_bend", { deck, amount })),
 	/**  Returns the active pad mode of a deck. */
 	getPadMode: (deck: DeckId) => typedError<PadMode, CommandError>(__TAURI_INVOKE("get_pad_mode", { deck })),
 };
 
 /** Events */
 export const events = {
+	audioDeviceChanged: makeEvent<AudioDeviceChangedEvent, AudioDeviceChangedEvent>("audio-device-changed"),
+	engineEvent: makeEvent<EngineEventEvent, EngineEventEvent>("engine-event"),
 	engineTelemetry: makeEvent<EngineTelemetryEvent, EngineTelemetryEvent>("engine-telemetry"),
+	trackLoadFailed: makeEvent<TrackLoadFailedEvent, TrackLoadFailedEvent>("track-load-failed"),
+	trackLoaded: makeEvent<TrackLoadedEvent, TrackLoadedEvent>("track-loaded"),
 };
 
 /* Types */
@@ -38,6 +76,25 @@ export type AppInfo = {
 	max_decks: number,
 	/**  Decks the MVP UI shows. */
 	visible_decks: number,
+};
+
+/**  The audio stream was (re)started or stopped. */
+export type AudioDeviceChangedEvent = AudioStatus;
+
+/**  An output device and what it supports, for the settings screen. */
+export type AudioDeviceInfo = {
+	/**  Name as the host reports it; used to select the device. */
+	name: string,
+	/**  The host's default output device. */
+	is_default: boolean,
+	/**  Most output channels any configuration offers. */
+	max_channels: number,
+	/**  Default sample rate in Hz. */
+	default_sample_rate: number | null,
+	/**  Supported sample rate ranges `[min, max]` in Hz. */
+	sample_rate_ranges: ([number, number])[],
+	/**  Supported buffer size range `[min, max]` in frames, when known. */
+	buffer_frames: [number, number] | null,
 };
 
 /**  One audio host as reported to the settings screen. */
@@ -65,13 +122,74 @@ export type AudioHostKind =
 /**  JACK (Linux/macOS, only in builds with the `jack` feature). */
 "jack";
 
+/**
+ *  Persisted audio output settings (`settings` table, key `audio`).
+ * 
+ *  Default routing is one multichannel device: master on channels 1/2 and
+ *  headphones on 3/4, as on the DDJ-FLX4 (ADR 0001, deviation 5).
+ */
+export type AudioSettings = {
+	/**  Host API, `None` for the platform default. */
+	host: AudioHostKind | null,
+	/**  Output device name as reported by the host, `None` for the default device. */
+	device: string | null,
+	/**  Requested sample rate in Hz, `None` for the device default. */
+	sample_rate: number | null,
+	/**  Requested buffer size in frames, `None` for the device default. */
+	buffer_frames: number | null,
+	/**  Master output channels. */
+	master: ChannelPair,
+	/**  Headphone output channels, `None` to disable headphone output. */
+	headphones: ChannelPair | null,
+};
+
+/**  State of the audio output, for the top bar and the settings screen. */
+export type AudioStatus = {
+	/**  A stream is open and the engine is rendering. */
+	running: boolean,
+	/**  `"device"` or `"offline"` (no device, used by tests). */
+	backend: string,
+	/**  Host API name. */
+	host: string | null,
+	/**  Device name. */
+	device: string | null,
+	/**  Engine sample rate in Hz. */
+	sample_rate: number | null,
+	/**  Device channel count. */
+	channels: number | null,
+	/**  Requested buffer size in frames; `None` is the device default. */
+	buffer_frames: number | null,
+	/**  Output buffer latency in milliseconds, known only for a fixed buffer. */
+	latency_ms: number | null,
+	/**  Master pair in use. */
+	master: ChannelPair | null,
+	/**  Headphone pair in use. */
+	headphones: ChannelPair | null,
+	/**  The device could not carry the requested routing; stereo is used. */
+	stereo_fallback: boolean,
+	/**  Why the engine is not running, if it is not. */
+	error: string | null,
+};
+
 /**  Tempo in beats per minute. Valid values are finite and `> 0`. */
 export type Bpm = number | null;
 
+/**  A pair of output channels (zero-based) on the output device. */
+export type ChannelPair = {
+	/**  Left channel index. */
+	left: number,
+	/**  Right channel index. */
+	right: number,
+};
+
 /**  Error returned by commands. Serialized as a tagged union for the UI. */
 export type CommandError = 
-/**  Internal state could not be accessed (poisoned lock). */
-{ kind: "internal"; message: string };
+/**  Internal state could not be accessed (poisoned lock, settings file). */
+{ kind: "internal"; message: string } | 
+/**  The audio engine is stopped or a device call failed. */
+{ kind: "audio"; message: string } | 
+/**  A file could not be read or decoded, or is too long. */
+{ kind: "media"; message: string };
 
 /**
  *  A deck index, `0..MAX_DECKS`. Deck 1 in the UI is `DeckId(0)`.
@@ -108,6 +226,45 @@ export type DeckTelemetry = {
 	/**  Post-fader channel level. */
 	meter: StereoMeter,
 };
+
+/**  A discrete notification from the audio thread. RT-safe. */
+export type EngineEvent = 
+/**  A hot cue was stored from the playhead; app-core persists it. */
+{ type: "hot_cue_set"; 
+/**  Deck. */
+deck: DeckId; 
+/**  Pad slot. */
+index: HotCueIndex; 
+/**  Stored region (a hot loop if `end` is set). */
+cue: FrameRegion } | 
+/**  The main cue point moved (CUE pressed while paused). */
+{ type: "cue_point_set"; 
+/**  Deck. */
+deck: DeckId; 
+/**  New cue point. */
+position: Frames } | 
+/**  A loop was set by loop in/out or auto loop; app-core may save it. */
+{ type: "loop_set"; 
+/**  Deck. */
+deck: DeckId; 
+/**  Loop region. */
+region: FrameRegion } | 
+/**  Playback reached the end of the track and stopped. */
+{ type: "track_ended"; 
+/**  Deck. */
+deck: DeckId } | 
+/**
+ *  The output device went away. The stream is dead; the control thread
+ *  opens a new one. Reported by the device layer, not the render path.
+ */
+{ type: "device_lost" } | 
+/**  The host moved the stream to another device and keeps playing. */
+{ type: "device_changed" } | 
+/**  The backend reported some other stream error. */
+{ type: "stream_error" };
+
+/**  A discrete engine or device notification (track ended, device lost). */
+export type EngineEventEvent = EngineEvent;
 
 /**  Full engine snapshot. RT-safe: `Copy`, fixed size, written without allocation. */
 export type EngineTelemetry = {
@@ -157,6 +314,13 @@ export type FrameRegion = {
  */
 export type Frames = number;
 
+/**
+ *  Hot cue slot index, `0..HOT_CUES_PER_DECK` (pad 1 is index 0).
+ * 
+ *  Invariant enforced by [`HotCueIndex::new`] and deserialization. RT-safe.
+ */
+export type HotCueIndex = number;
+
 /**  One of the eight pad modes. RT-safe (plain enum). */
 export type PadMode = 
 /**  Pads trigger or set hot cues 1-8 (button 5-1). */
@@ -180,6 +344,15 @@ export type PadMode =
 export type SampleRate = number;
 
 /**
+ *  A duration or position in seconds, `f64`.
+ * 
+ *  Persisted positions (cues, grids, loops) use seconds from the first
+ *  decoded frame so they survive a change of engine sample rate. May be
+ *  negative only where documented (beat grid anchors before the first frame).
+ */
+export type Seconds = number | null;
+
+/**
  *  Peak and RMS levels for a stereo signal over the last block(s), linear
  *  amplitude (`1.0` = full scale). RT-safe.
  */
@@ -193,6 +366,59 @@ export type StereoMeter = {
 	/**  Right RMS. */
 	rms_r: number | null,
 };
+
+/**  Tempo fader range: how far a full fader throw changes playback speed. */
+export type TempoRange = 
+/**  +/- 6 %. */
+"percent6" | 
+/**  +/- 10 % (default). */
+"percent10" | 
+/**  +/- 16 %. */
+"percent16" | 
+/**  +/- 100 % (0x to 2x speed). */
+"wide";
+
+/**  What the UI shows about a loaded file. */
+export type TrackInfo = {
+	/**  Absolute path of the audio file. */
+	path: string,
+	/**  File name without directories, shown when there is no title tag. */
+	file_name: string,
+	/**  Title tag. */
+	title: string | null,
+	/**  Artist tag. */
+	artist: string | null,
+	/**  Album tag. */
+	album: string | null,
+	/**  Length in seconds (from the decoded audio once loaded). */
+	duration_secs: number | null,
+};
+
+/**  A load failed (unreadable file, unsupported format, too long). */
+export type TrackLoadFailed = {
+	/**  Deck the load was for. */
+	deck: DeckId,
+	/**  File that failed. */
+	path: string,
+	/**  Human-readable reason. */
+	message: string,
+};
+
+/**  A decode failed. */
+export type TrackLoadFailedEvent = TrackLoadFailed;
+
+/**  A track reached the audio thread's hand-off ring and is playable. */
+export type TrackLoaded = {
+	/**  Deck the track went to. */
+	deck: DeckId,
+	/**  Track details. */
+	track: TrackInfo,
+	/**  Length in engine frames. */
+	frames: Frames,
+};
+
+/**  A track is decoded and handed to the engine. */
+export type TrackLoadedEvent = TrackLoaded;
 
 /* Tauri Specta runtime */
 async function typedError<T, E>(result: Promise<T>): Promise<{ status: "ok"; data: T } | { status: "error"; error: E }> {
