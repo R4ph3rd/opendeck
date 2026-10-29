@@ -1,0 +1,283 @@
+/*
+ * OpenDeck design tokens: the only file (with the Storybook preview) where raw
+ * colors, sizes and durations are allowed. Palette is derived from gittrunk
+ * (see docs/design/palette-source.md). Dark is the default theme.
+ */
+
+:root {
+  /* typography */
+  --font-sans: "Inter Variable", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono:
+    "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, "Cascadia Code", monospace;
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-base: 13px;
+  --text-lg: 15px;
+  --text-xl: 18px;
+  --text-2xl: 24px;
+
+  /* spacing (4px scale) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* control heights */
+  --control-sm: 24px;
+  --control-md: 28px;
+  --control-lg: 32px;
+
+  /* dense table row height (OpenDeck) */
+  --row-h: 24px;
+
+  /* z-index scale */
+  --z-base: 0;
+  --z-sticky: 10;
+  --z-dropdown: 50;
+  --z-overlay: 100;
+  --z-modal: 110;
+  --z-popover: 120;
+  --z-toast: 130;
+  --z-tooltip: 140;
+
+  /* radius */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+
+  /* motion */
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  /* backdrop blur radii */
+  --backdrop-blur-subtle: 24px;
+  --backdrop-blur-page: 40px;
+
+  /* waveform dimming for the played part of a track */
+  --wave-played-opacity: 0.45;
+  --wave-unplayed-opacity: 1;
+}
+
+/* dark (default) */
+:root,
+[data-theme="dark"] {
+  --bg: #0c0c0d;
+  --bg-subtle: #111113;
+  --surface: #161618;
+  --surface-raised: #1c1c1f;
+  --surface-hover: #232326;
+  --border: #2a2a2e;
+  --border-strong: #3a3a3f;
+  --fg: #ececef;
+  --fg-muted: #a3a3ab;
+  --fg-subtle: #8a8a92;
+  --accent: #ff4f7b;
+  --accent-hover: #ff6b90;
+  --accent-fg: #1a070d;
+  --accent-muted: rgb(255 79 123 / 0.14);
+  --focus-ring: rgb(255 79 123 / 0.8);
+  --danger: #ff6a4d;
+  --danger-fg: #1f0a05;
+  --success: #3ecf8e;
+  --warning: #f5b83d;
+  --overlay: rgb(0 0 0 / 0.6);
+  --selection: rgb(255 79 123 / 0.28);
+  --scrollbar-thumb: #2e2e33;
+  --scrollbar-thumb-hover: #45454c;
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-md: 0 4px 16px rgb(0 0 0 / 0.35), 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-lg: 0 12px 40px rgb(0 0 0 / 0.5);
+
+  /* shell */
+  --tabbar-bg: #09090a;
+  --toolbar-bg: #19191b;
+  --tab-hover-bg: #141416;
+
+  /* backdrop wave ends and peak alphas (chrome and empty states only) */
+  --backdrop-red: #e11d48;
+  --backdrop-blue: #1d4ed8;
+  --backdrop-alpha-subtle: 0.136;
+  --backdrop-alpha-page: 0.347;
+
+  /* gradients */
+  --gradient-chrome:
+    radial-gradient(60% 90% at 100% 0%, rgb(255 79 123 / 0.07) 0%, transparent 60%),
+    linear-gradient(180deg, #111113 0%, #0c0c0d 100%);
+
+  /* hot cue palette (8 hues, from the gittrunk lane palette) */
+  --cue-1: #ff4f7b;
+  --cue-2: #5cc8ff;
+  --cue-3: #f5b83d;
+  --cue-4: #a78bfa;
+  --cue-5: #3ecf8e;
+  --cue-6: #ff8a4c;
+  --cue-7: #2dd4bf;
+  --cue-8: #e879f9;
+  --cue-fg: #111113;
+
+  /* waveform */
+  --beat-grid: rgb(236 236 239 / 0.16);
+  --beat-grid-downbeat: rgb(236 236 239 / 0.45);
+  --loop-region: rgb(245 184 61 / 0.18);
+
+  /* level meters */
+  --meter-clip: var(--backdrop-red);
+  --meter-off: var(--surface-hover);
+
+  color-scheme: dark;
+}
+
+[data-theme="light"] {
+  --bg: #fafafa;
+  --bg-subtle: #f4f4f5;
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --surface-hover: #efeff1;
+  --border: #e4e4e7;
+  --border-strong: #d0d0d6;
+  --fg: #18181b;
+  --fg-muted: #52525b;
+  --fg-subtle: #6b6b74;
+  --accent: #d6195a;
+  --accent-hover: #bf1650;
+  --accent-fg: #ffffff;
+  --accent-muted: rgb(214 25 90 / 0.1);
+  --focus-ring: rgb(214 25 90 / 0.85);
+  --danger: #c2410c;
+  --danger-fg: #ffffff;
+  --success: #15803d;
+  --warning: #b45309;
+  --overlay: rgb(24 24 27 / 0.35);
+  --selection: rgb(214 25 90 / 0.18);
+  --scrollbar-thumb: #d0d0d6;
+  --scrollbar-thumb-hover: #b0b0b8;
+
+  --shadow-sm: 0 1px 2px rgb(16 24 40 / 0.06);
+  --shadow-md: 0 4px 16px rgb(16 24 40 / 0.08), 0 1px 2px rgb(16 24 40 / 0.06);
+  --shadow-lg: 0 12px 40px rgb(16 24 40 / 0.14);
+
+  --tabbar-bg: #e9e9ec;
+  --toolbar-bg: #fafafa;
+  --tab-hover-bg: #f1f1f3;
+
+  --backdrop-red: #fb7185;
+  --backdrop-blue: #60a5fa;
+  --backdrop-alpha-subtle: 0.08;
+  --backdrop-alpha-page: 0.392;
+
+  --gradient-chrome:
+    radial-gradient(60% 90% at 100% 0%, rgb(214 25 90 / 0.06) 0%, transparent 60%),
+    linear-gradient(180deg, #f4f4f5 0%, #fafafa 100%);
+
+  --cue-1: #d6195a;
+  --cue-2: #0369a1;
+  --cue-3: #b45309;
+  --cue-4: #7c3aed;
+  --cue-5: #15803d;
+  --cue-6: #c2410c;
+  --cue-7: #0f766e;
+  --cue-8: #a21caf;
+  --cue-fg: #ffffff;
+
+  --beat-grid: rgb(24 24 27 / 0.14);
+  --beat-grid-downbeat: rgb(24 24 27 / 0.45);
+  --loop-region: rgb(180 83 9 / 0.16);
+
+  --meter-clip: var(--accent-hover);
+  --meter-off: var(--border);
+
+  color-scheme: light;
+}
+
+/*
+ * Tokens that only reference other tokens. They are declared on every theme
+ * scope so a nested [data-theme] wrapper re-resolves them.
+ */
+:root,
+[data-theme="dark"],
+[data-theme="light"] {
+  --tab-active-bg: var(--toolbar-bg);
+  --panel-header-bg: var(--bg-subtle);
+
+  /* waveform */
+  --wave-low: var(--cue-6);
+  --wave-mid: var(--cue-5);
+  --wave-high: var(--cue-2);
+  --playhead: var(--fg);
+  --loop-edge: var(--warning);
+
+  /* level meters */
+  --meter-green: var(--success);
+  --meter-amber: var(--warning);
+  --meter-red: var(--danger);
+
+  /* deck accents */
+  --deck-a: var(--cue-2);
+  --deck-b: var(--cue-1);
+  --deck-c: var(--cue-3);
+  --deck-d: var(--cue-4);
+
+  /* sync and master indicators */
+  --sync-on: var(--cue-7);
+  --master-on: var(--cue-3);
+
+  /* soft mesh backdrops (chrome and empty states only) */
+  --gradient-mesh:
+    radial-gradient(
+      50% 60% at 12% 18%,
+      color-mix(in srgb, var(--backdrop-red) calc(var(--backdrop-alpha-subtle) * 100%), transparent)
+        0%,
+      transparent 70%
+    ),
+    radial-gradient(
+      55% 65% at 88% 82%,
+      color-mix(in srgb, var(--backdrop-blue) calc(var(--backdrop-alpha-subtle) * 100%), transparent)
+        0%,
+      transparent 70%
+    );
+  --gradient-mesh-page:
+    radial-gradient(
+      50% 60% at 12% 18%,
+      color-mix(in srgb, var(--backdrop-red) calc(var(--backdrop-alpha-page) * 100%), transparent)
+        0%,
+      transparent 70%
+    ),
+    radial-gradient(
+      55% 65% at 88% 82%,
+      color-mix(in srgb, var(--backdrop-blue) calc(var(--backdrop-alpha-page) * 100%), transparent)
+        0%,
+      transparent 70%
+    );
+}
+
+/* motion collapses under reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0.01ms;
+    --duration-base: 0.01ms;
+  }
+}
+
+@keyframes ds-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes ds-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(2px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}

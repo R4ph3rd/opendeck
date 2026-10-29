@@ -1,0 +1,93 @@
+/* Tailwind v4 mapping: utilities read the tokens in tokens.css. */
+@theme inline {
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+
+  --color-bg: var(--bg);
+  --color-bg-subtle: var(--bg-subtle);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-hover: var(--surface-hover);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-subtle: var(--fg-subtle);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-muted: var(--accent-muted);
+  --color-danger: var(--danger);
+  --color-danger-fg: var(--danger-fg);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-overlay: var(--overlay);
+  --color-focus-ring: var(--focus-ring);
+  --color-selection: var(--selection);
+
+  --color-tabbar: var(--tabbar-bg);
+  --color-toolbar: var(--toolbar-bg);
+  --color-tab-active: var(--tab-active-bg);
+  --color-tab-hover: var(--tab-hover-bg);
+  --color-panel-header: var(--panel-header-bg);
+
+  --color-deck-a: var(--deck-a);
+  --color-deck-b: var(--deck-b);
+  --color-deck-c: var(--deck-c);
+  --color-deck-d: var(--deck-d);
+  --color-cue-1: var(--cue-1);
+  --color-cue-2: var(--cue-2);
+  --color-cue-3: var(--cue-3);
+  --color-cue-4: var(--cue-4);
+  --color-cue-5: var(--cue-5);
+  --color-cue-6: var(--cue-6);
+  --color-cue-7: var(--cue-7);
+  --color-cue-8: var(--cue-8);
+  --color-cue-fg: var(--cue-fg);
+  --color-wave-low: var(--wave-low);
+  --color-wave-mid: var(--wave-mid);
+  --color-wave-high: var(--wave-high);
+  --color-beat-grid: var(--beat-grid);
+  --color-beat-grid-downbeat: var(--beat-grid-downbeat);
+  --color-playhead: var(--playhead);
+  --color-meter-green: var(--meter-green);
+  --color-meter-amber: var(--meter-amber);
+  --color-meter-red: var(--meter-red);
+  --color-meter-clip: var(--meter-clip);
+  --color-meter-off: var(--meter-off);
+  --color-loop-region: var(--loop-region);
+  --color-loop-edge: var(--loop-edge);
+  --color-sync-on: var(--sync-on);
+  --color-master-on: var(--master-on);
+
+  --spacing: var(--space-1);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+
+  --text-xs: var(--text-xs);
+  --text-sm: var(--text-sm);
+  --text-base: var(--text-base);
+  --text-lg: var(--text-lg);
+  --text-xl: var(--text-xl);
+  --text-2xl: var(--text-2xl);
+
+  --ease-standard: var(--ease-standard);
+}
+
+@utility bg-chrome {
+  background: var(--gradient-chrome);
+}
+
+@utility bg-mesh {
+  background: var(--gradient-mesh);
+}
+
+@utility bg-mesh-page {
+  background: var(--gradient-mesh-page);
+}
