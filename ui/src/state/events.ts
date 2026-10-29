@@ -1,7 +1,9 @@
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import { commands, events, type EngineEvent } from "../ipc/bindings";
-import { errorMessage } from "./actions";
-import { useAppStore } from "./app";
+import { errorMessage, hydrateDeck } from "./actions";
+import { VISIBLE_DECKS, useAppStore } from "./app";
+import { hydrateMixer } from "./mixer";
+import { notifyError } from "./notify";
 import { telemetryStore } from "./telemetry";
 
 /** Message for engine events the user should see; `null` for the quiet ones. */
@@ -24,7 +26,6 @@ export function engineEventMessage(event: EngineEvent): string | null {
  * a failure to listen shows a toast instead of throwing.
  */
 export async function startEventBridge(): Promise<() => void> {
-  const app = useAppStore.getState();
   const unlisten: UnlistenFn[] = [];
   try {
     unlisten.push(
@@ -32,7 +33,7 @@ export async function startEventBridge(): Promise<() => void> {
       await events.engineEvent.listen((e) => {
         const message = engineEventMessage(e.payload);
         if (message) {
-          useAppStore.getState().pushToast("error", message);
+          notifyError(message);
         }
       }),
       await events.trackLoaded.listen((e) => {
@@ -43,9 +44,11 @@ export async function startEventBridge(): Promise<() => void> {
         });
       }),
       await events.trackLoadFailed.listen((e) => {
-        const state = useAppStore.getState();
-        state.patchDeck(e.payload.deck, { incoming: null, loading: false });
-        state.pushToast("error", `Could not load ${fileName(e.payload.path)}: ${e.payload.message}`);
+        useAppStore.getState().patchDeck(e.payload.deck, { incoming: null, loading: false });
+        notifyError(`Could not load ${fileName(e.payload.path)}: ${e.payload.message}`);
+      }),
+      await events.hotCuesChanged.listen((e) => {
+        useAppStore.getState().patchDeck(e.payload.deck, { hotCues: e.payload.slots });
       }),
       await events.audioDeviceChanged.listen((e) => useAppStore.getState().setAudio(e.payload)),
     );
@@ -54,8 +57,9 @@ export async function startEventBridge(): Promise<() => void> {
     if (status.status === "ok") {
       useAppStore.getState().setAudio(status.data);
     }
+    await Promise.all([hydrateMixer(), ...VISIBLE_DECKS.map((deck) => hydrateDeck(deck))]);
   } catch (error) {
-    app.pushToast("error", errorMessage(error));
+    notifyError(errorMessage(error));
   }
   return () => {
     for (const stop of unlisten) {

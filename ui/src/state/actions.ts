@@ -1,7 +1,8 @@
 import { open } from "@tauri-apps/plugin-dialog";
-import { commands, type CommandError, type TempoRange } from "../ipc/bindings";
+import { commands, type CommandError, type SyncMode, type TempoRange } from "../ipc/bindings";
 import { framesToSeconds, telemetryStore } from "./telemetry";
-import { useAppStore } from "./app";
+import { DEFAULT_JUMP_BEATS, selectDeckUi, useAppStore, type DeckUi } from "./app";
+import { notifyError } from "./notify";
 
 type Outcome<T> = { status: "ok"; data: T } | { status: "error"; error: CommandError | string };
 
@@ -23,9 +24,9 @@ export async function report<T>(pending: Promise<Outcome<T>>): Promise<T | null>
     if (result.status === "ok") {
       return result.data;
     }
-    useAppStore.getState().pushToast("error", errorMessage(result.error));
+    notifyError(errorMessage(result.error));
   } catch (error) {
-    useAppStore.getState().pushToast("error", errorMessage(error));
+    notifyError(errorMessage(error));
   }
   return null;
 }
@@ -51,7 +52,7 @@ export async function pickAndLoad(deck: number): Promise<void> {
   try {
     picked = await open({ multiple: false, directory: false, filters });
   } catch (error) {
-    useAppStore.getState().pushToast("error", errorMessage(error));
+    notifyError(errorMessage(error));
     return;
   }
   if (typeof picked === "string") {
@@ -138,4 +139,161 @@ export function setKeyLock(deck: number, on: boolean): void {
 /** Pitch bend while a button is held: `amount` is -1 or 1, 0 releases. */
 export function pitchBend(deck: number, amount: number): void {
   void report(commands.pitchBend(deck, amount));
+}
+
+// ----- sync, quantize, slip (milestone 2) -----
+
+export function setSync(deck: number, mode: SyncMode): void {
+  const patch: Partial<DeckUi> = mode === "off" ? { sync: mode } : { sync: mode, syncPref: mode };
+  useAppStore.getState().patchDeck(deck, patch);
+  void report(commands.setSync(deck, mode));
+}
+
+/** SYNC button: off turns sync on in the last chosen mode, on turns it off. */
+export function toggleSync(deck: number): void {
+  const ui = selectDeckUi(deck)(useAppStore.getState());
+  setSync(deck, ui.sync === "off" ? ui.syncPref : "off");
+}
+
+/** Makes `deck` the sync leader, or hands the choice back to the engine with `null`. */
+export function setLeader(deck: number | null): void {
+  useAppStore.getState().setLeader(deck);
+  void report(commands.setLeader(deck));
+}
+
+/** MASTER button: `isLeader` is what the button currently shows. */
+export function toggleLeader(deck: number, isLeader: boolean): void {
+  setLeader(isLeader ? null : deck);
+}
+
+export function setQuantize(deck: number, on: boolean): void {
+  useAppStore.getState().patchDeck(deck, { quantize: on });
+  void report(commands.setQuantize(deck, on));
+}
+
+export function toggleQuantize(deck: number): void {
+  setQuantize(deck, !selectDeckUi(deck)(useAppStore.getState()).quantize);
+}
+
+export function setSlip(deck: number, on: boolean): void {
+  useAppStore.getState().patchDeck(deck, { slip: on });
+  void report(commands.setSlip(deck, on));
+}
+
+export function toggleSlip(deck: number): void {
+  setSlip(deck, !selectDeckUi(deck)(useAppStore.getState()).slip);
+}
+
+// ----- loops and beat jump -----
+
+export function loopIn(deck: number): void {
+  void report(commands.loopIn(deck));
+}
+
+export function loopOut(deck: number): void {
+  void report(commands.loopOut(deck));
+}
+
+/** RELOOP / EXIT: leaves the active loop or re-enters the last one. */
+export function loopToggle(deck: number): void {
+  void report(commands.loopToggle(deck));
+}
+
+export function autoLoop(deck: number, beats: number): void {
+  void report(commands.autoLoop(deck, beats));
+}
+
+export function resizeLoop(deck: number, factor: number): void {
+  void report(commands.resizeLoop(deck, factor));
+}
+
+const rollHeld = new Map<number, number>();
+
+/** Loop roll pressed. A second press on the same deck while one is held is ignored. */
+export function loopRollPress(deck: number, beats: number): void {
+  if (rollHeld.has(deck)) {
+    return;
+  }
+  rollHeld.set(deck, beats);
+  void report(commands.loopRoll(deck, beats, true));
+}
+
+/** Loop roll released; a release without a press is ignored. */
+export function loopRollRelease(deck: number): void {
+  const beats = rollHeld.get(deck);
+  if (beats === undefined) {
+    return;
+  }
+  rollHeld.delete(deck);
+  void report(commands.loopRoll(deck, beats, false));
+}
+
+export function setRollMode(deck: number, on: boolean): void {
+  useAppStore.getState().patchDeck(deck, { rollMode: on });
+}
+
+export function setJumpBeats(deck: number, beats: number): void {
+  useAppStore.getState().patchDeck(deck, { jumpBeats: beats > 0 ? beats : DEFAULT_JUMP_BEATS });
+}
+
+/** Jumps the selected beat count forward (`1`) or backward (`-1`). */
+export function beatJump(deck: number, direction: 1 | -1): void {
+  const { jumpBeats } = selectDeckUi(deck)(useAppStore.getState());
+  void report(commands.beatJump(deck, direction * jumpBeats));
+}
+
+// ----- hot cues -----
+
+const hotCueHeld = new Set<string>();
+const hotCueKey = (deck: number, index: number): string => `${deck}:${index}`;
+
+/**
+ * Hot cue pad pressed. Empty slot: stores the playhead. Set slot: jumps (and
+ * previews while held when paused). With `shift`, a set slot is deleted.
+ */
+export function hotCuePress(deck: number, index: number, shift = false): void {
+  const slot = selectDeckUi(deck)(useAppStore.getState()).hotCues[index] ?? null;
+  if (slot === null) {
+    void report(commands.setHotCue(deck, index));
+    return;
+  }
+  if (shift) {
+    void report(commands.deleteHotCue(deck, index));
+    return;
+  }
+  const key = hotCueKey(deck, index);
+  if (hotCueHeld.has(key)) {
+    return;
+  }
+  hotCueHeld.add(key);
+  void report(commands.triggerHotCue(deck, index, true));
+}
+
+/** Hot cue pad released; a release without a trigger press is ignored. */
+export function hotCueRelease(deck: number, index: number): void {
+  if (hotCueHeld.delete(hotCueKey(deck, index))) {
+    void report(commands.triggerHotCue(deck, index, false));
+  }
+}
+
+/** Releases every held hot cue and loop roll (window blur, unmount). */
+export function releaseAllHeld(): void {
+  releaseAllCues();
+  for (const deck of [...rollHeld.keys()]) {
+    loopRollRelease(deck);
+  }
+  for (const key of [...hotCueHeld]) {
+    const [deck, index] = key.split(":").map(Number);
+    if (deck !== undefined && index !== undefined) {
+      hotCueRelease(deck, index);
+    }
+  }
+}
+
+/** Reads the backend's deck state into the store (startup). */
+export async function hydrateDeck(deck: number): Promise<void> {
+  const state = await report(commands.getDeckState(deck));
+  if (state) {
+    useAppStore.getState().applyDeckState(state);
+  }
 }

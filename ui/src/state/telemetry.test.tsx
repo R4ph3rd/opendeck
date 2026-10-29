@@ -1,8 +1,17 @@
 import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { useStore } from "zustand";
-import { telemetry } from "../test/fixtures";
-import { framesToSeconds, selectDeck, telemetryStore } from "./telemetry";
+import { telemetry, telemetryFor } from "../test/fixtures";
+import {
+  framesToSeconds,
+  isClipping,
+  meterFraction,
+  selectBpm,
+  selectDeck,
+  selectLeader,
+  selectLoopActive,
+  telemetryStore,
+} from "./telemetry";
 
 beforeEach(() => telemetryStore.getState().reset());
 afterEach(cleanup);
@@ -51,5 +60,55 @@ describe("telemetry store", () => {
     act(() => telemetryStore.getState().push(telemetry(61, { playing: true })));
     expect(getByText("playing")).toBeTruthy();
     expect(renders).toBe(afterMount + 1);
+  });
+});
+
+describe("meters, sync state and loop state", () => {
+  it("maps a peak to a meter fraction between -60 dBFS and full scale", () => {
+    expect(meterFraction(null)).toBe(0);
+    expect(meterFraction(0)).toBe(0);
+    expect(meterFraction(0.0005)).toBe(0);
+    expect(meterFraction(1)).toBe(1);
+    expect(meterFraction(2)).toBe(1);
+    expect(meterFraction(0.5)).toBeCloseTo((20 * Math.log10(0.5) + 60) / 60, 9);
+    expect(meterFraction(0.1)).toBeLessThan(meterFraction(0.5));
+  });
+
+  it("flags clipping at full scale", () => {
+    expect(isClipping(0.99)).toBe(false);
+    expect(isClipping(1)).toBe(true);
+    expect(isClipping(null)).toBe(false);
+  });
+
+  it("selects the loop, leader and bpm of each deck", () => {
+    const state = () => telemetryStore.getState();
+    expect(selectLoopActive(state(), 1)).toBe(false);
+    expect(selectLeader(state())).toBeNull();
+    expect(selectBpm(state(), 1)).toBeNull();
+    state().push(telemetryFor(1, 1, { bpm: 126, active_loop: { start: 0, end: 96_000 } }, 1));
+    expect(selectLoopActive(state(), 1)).toBe(true);
+    expect(selectLoopActive(state(), 0)).toBe(false);
+    expect(selectLeader(state())).toBe(1);
+    expect(selectBpm(state(), 1)).toBe(126);
+    expect(selectBpm(state(), 0)).toBeNull();
+  });
+
+  it("re-renders a loop selector only when the flag changes, not per tick", () => {
+    let renders = 0;
+    function Probe() {
+      renders++;
+      const looping = useStore(telemetryStore, (s) => selectLoopActive(s, 1));
+      return <span>{String(looping)}</span>;
+    }
+    render(<Probe />);
+    const initial = renders;
+    for (let sequence = 1; sequence <= 20; sequence++) {
+      act(() => telemetryStore.getState().push(telemetry(sequence)));
+    }
+    expect(renders).toBe(initial);
+    act(() => {
+      telemetryStore.getState().push(telemetryFor(30, 1, { active_loop: { start: 0, end: 48_000 } }));
+    });
+    expect(renders).toBe(initial + 1);
   });
 });

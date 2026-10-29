@@ -37,3 +37,33 @@ export function selectDeck(state: TelemetryState, deck: number): DeckTelemetry |
 export function framesToSeconds(frames: number, sampleRate: number): number {
   return sampleRate > 0 ? frames / sampleRate : 0;
 }
+
+/** Quietest level a meter shows, in dBFS. Anything below reads as empty. */
+export const METER_FLOOR_DB = -60;
+
+/** Meter fill `0..1` for a linear peak: dBFS from the floor to full scale. */
+export function meterFraction(peak: number | null): number {
+  if (peak === null || !(peak > 0)) {
+    return 0;
+  }
+  const db = 20 * Math.log10(peak);
+  return Math.min(1, Math.max(0, (db - METER_FLOOR_DB) / -METER_FLOOR_DB));
+}
+
+/** A peak at or above full scale is a clip. */
+export const isClipping = (peak: number | null): boolean => peak !== null && peak >= 1;
+
+/** The deck is looping. Boolean, so a component using it re-renders only on change. */
+export function selectLoopActive(state: TelemetryState, deck: number): boolean {
+  return state.telemetry?.decks[deck]?.active_loop != null;
+}
+
+/** Sync leader the engine reports, `null` before the first snapshot or with no leader. */
+export function selectLeader(state: TelemetryState): number | null {
+  return state.telemetry?.leader ?? null;
+}
+
+/** Effective BPM of a deck, `null` until analysis (M3) or a grid provides one. */
+export function selectBpm(state: TelemetryState, deck: number): number | null {
+  return state.telemetry?.decks[deck]?.bpm ?? null;
+}
