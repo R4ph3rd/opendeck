@@ -35,7 +35,7 @@ jobs:
       - run: cargo test --workspace
       - name: Bindings are up to date
         run: |
-          cargo run -p opendeck-desktop --bin export-bindings
+          cargo run -p opendeck-desktop --example export-bindings
           git diff --exit-code ui/src/ipc/bindings.ts
 
   ui:

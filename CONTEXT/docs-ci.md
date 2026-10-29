@@ -15,7 +15,7 @@ CI and release workflows, scripts, changelog, and mechanical doc edits.
 1. `cargo fmt --all --check`
 2. `cargo clippy --workspace --all-targets -- -D warnings`
 3. `cargo test --workspace` (includes the bindings drift test and DB migration tests)
-4. `cargo run -p opendeck-desktop --bin export-bindings && git diff --exit-code ui/src/ipc/bindings.ts`
+4. `cargo run -p opendeck-desktop --example export-bindings && git diff --exit-code ui/src/ipc/bindings.ts`
 5. `pnpm -C ui install --frozen-lockfile && pnpm -C ui typecheck && pnpm -C ui lint && pnpm -C ui test`
 6. Storybook build (from wave 0b)
 7. `cargo deny check` (licences: MIT, Apache-2.0, BSD, Zlib, ISC, CC0, Unicode, MPL-2.0 unmodified; deny GPL, LGPL, AGPL)

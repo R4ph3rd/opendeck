@@ -82,7 +82,7 @@ cargo deny check
 Regenerate the TypeScript IPC bindings after changing any command or contract type (ADR 0004):
 
 ```
-cargo run -p opendeck-desktop --bin export-bindings
+cargo run -p opendeck-desktop --example export-bindings
 ```
 
 Commit `ui/src/ipc/bindings.ts` with the change. CI fails if it is stale.

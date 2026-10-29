@@ -1,6 +1,6 @@
 //! Writes `ui/src/ipc/bindings.ts` without starting the app.
 //!
-//! Usage: `cargo run -p opendeck-desktop --bin export-bindings [OUTPUT]`.
+//! Usage: `cargo run -p opendeck-desktop --example export-bindings [OUTPUT]`.
 //! CI runs it and then `git diff --exit-code ui/src/ipc/bindings.ts`.
 
 use std::path::{Path, PathBuf};
