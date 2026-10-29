@@ -48,7 +48,9 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            ui/pnpm-lock.yaml
       - run: pnpm -C ui install --frozen-lockfile
       - run: pnpm -C ui typecheck
       - run: pnpm -C ui lint
@@ -68,7 +70,9 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            ui/pnpm-lock.yaml
       - run: pnpm -C ui install --frozen-lockfile
       - run: cargo test --workspace
       - name: Build the app (no installer)

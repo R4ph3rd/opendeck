@@ -111,7 +111,9 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            ui/pnpm-lock.yaml
       - run: pnpm -C ui install --frozen-lockfile
       - name: Build and upload bundles
         uses: tauri-apps/tauri-action@v0
