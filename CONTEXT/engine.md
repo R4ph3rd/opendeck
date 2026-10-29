@@ -33,6 +33,7 @@ Real-time audio engine: decks (2 shown, 4 supported), transport, CUE behaviour, 
 - Tracks: `EngineHandle::load_track` pushes a `TrackBuffer` (`Arc<[f32]>`, interleaved stereo at engine rate) on the hand-off ring. Replaced or ejected buffers return on the return ring; call `reclaim()` to drop them off the audio thread.
 - Jumps (seek, cue return, pause, key lock toggle) render a 2 ms fade-out tail of the old state over a 2 ms fade-in of the new one, so they do not click.
 - Key lock: Signalsmith stretcher, primed on every start or jump so the audible playhead matches `pos` despite its ~120 ms latency at 48 kHz. Off: varispeed with linear or cubic (`EngineConfig::interpolation`).
+- Key lock priming is amortised: a 1440-frame warm-up (~30 ms at 48 kHz) with the stretcher running at up to 4x real time, so a callback does at most 4 blocks of extra stretcher work. The deck plays varispeed meanwhile, then crossfades to the stretcher over 10 ms. When rate != 1 the first ~30 ms are off-pitch.
 - Backend errors are reported by `AudioOutput::poll_event` as `EngineEvent::DeviceLost`, `DeviceChanged` or `StreamError` (control thread; not on the audio event ring).
 - cargo features: `asio` (forwards `cpal/asio`, Windows), `alloc-guard` (wraps the callback in `assert_no_alloc`; the binary installs `AllocDisabler` in debug).
 
