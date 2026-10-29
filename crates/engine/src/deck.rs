@@ -28,6 +28,17 @@
 //! over `PRIME_XFADE_SECONDS`. At rate 1.0 both are at the same pitch and the
 //! swap is hard to hear; at other rates the first ~30 ms are varispeed.
 //!
+//! # C++ heap use
+//!
+//! The stretcher is C++, so `assert_no_alloc` cannot see its allocations.
+//! `tests_heap` counts `malloc` and `free` calls from every language (glibc
+//! only) and requires zero during key-locked playback. The stretcher's
+//! scratch vectors are sized in `configure`; `process`, `seek` and `reset`
+//! stay inside that capacity. Its peak list is reserved at `bands / 2`, enough
+//! because `bands` is always even (see `tests_heap`); that list is only used
+//! when transposing, which this deck never does. Key shift (M7) must keep
+//! `tests_heap::transposed_stretcher_makes_no_heap_calls` green.
+//!
 //! # Click-free jumps
 //!
 //! Stopping, seeking, cue jumps and key lock changes would click if the

@@ -21,6 +21,8 @@ mod meter;
 mod offline;
 mod track;
 
+#[cfg(all(test, target_os = "linux", target_env = "gnu"))]
+mod tests_heap;
 #[cfg(test)]
 mod tests_playback;
 
