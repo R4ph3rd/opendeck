@@ -11,6 +11,8 @@ publish.workspace = true
 [dependencies]
 opendeck-contracts.workspace = true
 opendeck-media.workspace = true
+rustfft.workspace = true
+ebur128.workspace = true
 
 [lints]
 workspace = true

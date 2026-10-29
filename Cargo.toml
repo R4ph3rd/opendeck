@@ -45,7 +45,6 @@ atomic_float = "1"
 # Analysis
 rustfft = "6.4"
 ebur128 = "0.1"
-stratum-dsp = "1"
 
 # Library, metadata, MIDI
 # rusqlite 0.40, not 0.41: rusqlite_migration 2.6 requires ^0.40 (ADR 0005).
