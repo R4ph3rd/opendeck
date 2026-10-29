@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Synthetic fixture written for OpenDeck tests in the documented rekordbox XML layout.
+     {{DIR}} is replaced by the test with its scratch directory. -->
+<DJ_PLAYLISTS Version="1.0.0">
+  <PRODUCT Name="rekordbox" Version="6.0.0" Company="Synthetic"/>
+  <COLLECTION Entries="4">
+    <TRACK TrackID="1" Name="Alpha &amp; Omega" Artist="Test Artist" Album="Synthetic" Genre="House"
+           Kind="WAV File" Size="88244" TotalTime="1" Year="2020" AverageBpm="120.00" Comments="fixture"
+           Tonality="Am" Rating="255" Location="file://localhost{{DIR}}/a.wav">
+      <TEMPO Inizio="0.100" Bpm="120.00" Metro="4/4" Battito="1"/>
+      <POSITION_MARK Name="Intro" Type="0" Start="1.500" Num="-1"/>
+      <POSITION_MARK Name="Drop" Type="0" Start="2.000" Num="0" Red="40" Green="226" Blue="20"/>
+      <POSITION_MARK Name="Loop A" Type="4" Start="4.000" End="8.000" Num="2" Red="48" Green="90" Blue="255"/>
+      <POSITION_MARK Name="" Type="1" Start="0.500" Num="-1"/>
+    </TRACK>
+    <TRACK TrackID="2" Name="Beta" Artist="Test Artist" AverageBpm="128.00" Tonality="8A" Rating="102"
+           Location="file://localhost{{DIR}}/b.wav">
+      <TEMPO Inizio="1.000" Bpm="128.00" Metro="4/4" Battito="3"/>
+      <TEMPO Inizio="20.000" Bpm="130.00" Metro="4/4" Battito="1"/>
+    </TRACK>
+    <TRACK TrackID="3" Name="Gamma Spaced" Artist="Other" Location="file://localhost{{DIR}}/sub%20dir/c%20d.wav">
+      <POSITION_MARK Name="Out of range slot" Type="0" Start="1.000" Num="9"/>
+    </TRACK>
+    <TRACK TrackID="4" Name="Not on disk" Artist="Ghost" Location="file://localhost{{DIR}}/missing.wav"/>
+  </COLLECTION>
+  <PLAYLISTS>
+    <NODE Type="0" Name="ROOT" Count="2">
+      <NODE Type="0" Name="Sets" Count="1">
+        <NODE Type="1" Name="Warmup" KeyType="0" Entries="4">
+          <TRACK Key="1"/>
+          <TRACK Key="4"/>
+          <TRACK Key="3"/>
+          <TRACK Key="2"/>
+        </NODE>
+      </NODE>
+      <NODE Type="1" Name="Peak" KeyType="1" Entries="2">
+        <TRACK Key="file://localhost{{DIR}}/b.wav"/>
+        <TRACK Key="file://localhost{{DIR}}/a.wav"/>
+      </NODE>
+    </NODE>
+  </PLAYLISTS>
+</DJ_PLAYLISTS>

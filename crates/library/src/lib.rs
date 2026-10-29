@@ -11,6 +11,7 @@ mod analysis;
 mod cues;
 pub mod db;
 mod error;
+pub mod import;
 mod library;
 mod paths;
 mod playlists;
