@@ -1,6 +1,6 @@
 # Status
 
-Current milestone: **2 (next)**. Milestone 1 landed as v0.1.0 on 2026-10-29 (milestone 0 as v0.0.0).
+Current milestone: **3**. Milestone 2 landed as v0.2.0 on 2026-10-29 (milestone 1 as v0.1.0, milestone 0 as v0.0.0).
 
 ## Milestones
 
@@ -8,8 +8,8 @@ Current milestone: **2 (next)**. Milestone 1 landed as v0.1.0 on 2026-10-29 (mil
 |---|---|---|
 | 0 | Architecture, contracts, skeleton, CI, design tokens | done (v0.0.0) |
 | 1 | Audio engine: one deck plays a file, device selection, offline render tests | done (v0.1.0) |
-| 2 | Two decks, mixer, routing with cue, sync, loops, hot cues | done, not yet released |
-| 3 | Library, DB, import pipeline, analysis, collection view | planned |
+| 2 | Two decks, mixer, routing with cue, sync, loops, hot cues | done (v0.2.0) |
+| 3 | Library, DB, import pipeline, analysis, collection view | next |
 | 4 | Waveforms and deck UI, design system components in Storybook | planned |
 | 5 | FX engine and FX UI with presets and chains | planned |
 | 6 | MIDI layer, DDJ-FLX4 mapping, LED feedback, MIDI monitor, replay harness | planned |

@@ -4,6 +4,30 @@ All notable changes are recorded here. Format follows [Keep a Changelog](https:/
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-29
+
+Milestone 2: two decks and the mixer, with cue routing, sync, loops and hot cues.
+
+### Added
+
+- `engine`: second deck with jog scratch and nudge, tempo and beat sync with leader election, quantize, loops with click-free wraps, loop roll, 8 hot cues, beat jump and slip. Tracks carry an optional beat grid (`load_track_with_grid`, `set_beat_grid`).
+- `engine`: mixer with trim, 3-band isolator EQ with kill, one-knob filter, channel fader, PFL, crossfader with constant power, linear and sharp curves, master level, and a headphone bus with cue/master blend and split cue on the headphone pair.
+- Telemetry: channel, master and headphone meters, beat phase, and per deck sync mode, leader and loop state.
+- `app-core`: deck, mixer, loop and cue control; hot cues and memory cues in memory, re-sent after every load; `render_offline` for headless audio tests.
+- Tauri commands for decks, loops, cues and the mixer.
+- UI: deck B, mixer strip, loop controls, hot cue pads, SYNC/MASTER/QUANT/SLIP, BPM readout, two-deck keyboard shortcuts.
+- Design system: Toaster with an imperative toast API; slider thumb labels, track length and centre detent.
+- Offline tests through the engine and through app-core proving EQ kill, crossfader, PFL, loops and beat sync change the audio.
+
+### Changed
+
+- `DeckTelemetry::active_loop` is replaced by `loop_region` and `loop_active`.
+
+### Fixed
+
+- `DeckState::track_bpm` reports the grid tempo, not the effective tempo.
+- The version test checks the semver shape instead of a hard-coded value.
+
 ## [0.1.0] - 2026-10-29
 
 Milestone 1: audio engine. One deck plays a file on a chosen audio device.
