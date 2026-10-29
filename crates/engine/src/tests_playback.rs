@@ -1,6 +1,8 @@
 //! Offline render tests for deck playback. Every render goes through
 //! `EngineCore::render`, which runs under `assert_no_alloc` in test builds.
 
+use std::time::Duration;
+
 use opendeck_contracts::tempo::TempoRange;
 use opendeck_contracts::{DeckId, EngineCommand, EngineEvent, Frames, Gain, SampleRate};
 
@@ -345,26 +347,76 @@ fn key_lock_start_is_latency_compensated() {
     let onset_frame = SR as usize / 2;
     let mut samples = vec![0.0; onset_frame * 2];
     samples.extend(sine_samples(1000.0, 3.0, 0.5));
-    for (key_lock, tempo) in [(false, 0.0), (true, 0.0), (true, 0.8)] {
+    let cases = [
+        (false, TempoRange::Percent10, 0.0, 64.0),
+        (true, TempoRange::Percent10, 0.0, 64.0),
+        (true, TempoRange::Percent10, 0.8, 64.0),
+        (true, TempoRange::Percent10, -1.0, 64.0),
+        (true, TempoRange::Wide, -0.5, 64.0),
+        // The stretcher smears an onset over its window, more so far from 1x.
+        // Rates below 0.5x are not asserted: the stretcher randomises phases
+        // there and the 50 % crossing moves with the STFT grid by up to
+        // interval / rate frames, in old and new priming alike.
+        (true, TempoRange::Wide, 0.9, 128.0),
+    ];
+    for (key_lock, range, tempo, tolerance) in cases {
         let mut rig = Rig::new();
         rig.load(0, TrackBuffer::from_vec(samples.clone()).expect("track"));
-        rig.tempo(TempoRange::Percent10, tempo);
+        rig.tempo(range, tempo);
         rig.key_lock(key_lock);
         rig.play(0, true);
-        let out = rig.step(SR as usize);
-        let rate = TempoRange::Percent10.ratio(tempo);
+        let rate = range.ratio(tempo);
         let expected = onset_frame as f64 / rate;
+        let out = rig.step(expected as usize + SR as usize / 2);
         let envelope_onset = out
             .chunks_exact(2)
             .position(|f| f[0].abs() > 0.25)
             .expect("tone starts") as f64;
         println!(
-            "onset key_lock={key_lock} tempo={tempo}: {envelope_onset} frames, expected {expected:.0}"
+            "onset key_lock={key_lock} rate={rate:.2}: {envelope_onset} frames, expected {expected:.0}, error {:+.0}",
+            envelope_onset - expected
         );
         assert!(
-            (envelope_onset - expected).abs() < f64::from(SR) * 0.015,
+            (envelope_onset - expected).abs() < tolerance,
             "onset {envelope_onset} vs {expected}"
         );
+    }
+}
+
+#[test]
+fn key_lock_start_has_no_dropout_at_the_handover() {
+    // A steady tone of RMS 0.354: the level in every 5 ms window from the end
+    // of the start fade-in to 45 ms, through the varispeed to stretcher
+    // crossfade (30 ms + 10 ms), stays near it. Odd block sizes, many rates.
+    // Rates below 0.5x are left out: the stretcher then randomises phases
+    // (seeded from the OS) and modulates a pure tone by itself, so levels
+    // there are not deterministic.
+    let expected = 0.5 / std::f64::consts::SQRT_2;
+    for (range, tempo) in [
+        (TempoRange::Percent10, 0.0),
+        (TempoRange::Wide, -0.5),
+        (TempoRange::Wide, 0.9),
+    ] {
+        for block in [64_usize, 777] {
+            let mut rig = Rig::new();
+            rig.r = OfflineRenderer::new(config())
+                .expect("valid config")
+                .with_block_frames(block);
+            rig.load(0, sine(1000.0, 8.0));
+            rig.tempo(range, tempo);
+            rig.key_lock(true);
+            rig.seek(u64::from(SR));
+            rig.play(0, true);
+            let out = rig.step(SR as usize / 10);
+            let window = SR as usize / 200;
+            let levels: Vec<f64> = out.chunks_exact(window * 2).map(rms).take(9).collect();
+            for (i, level) in levels.iter().enumerate().skip(1) {
+                assert!(
+                    (0.6 * expected..1.3 * expected).contains(level),
+                    "{range:?} {tempo} block {block}: window {i} level {level:.3} of {levels:.2?}"
+                );
+            }
+        }
     }
 }
 
@@ -785,6 +837,140 @@ fn sixty_seconds_render_cost() {
         assert!(out.iter().all(|s| s.is_finite()));
         if !cfg!(debug_assertions) {
             assert!(stats.realtime_fraction(SR) < 0.25, "{label} too slow");
+        }
+    }
+}
+
+/// Block times around PLAY with key lock on. Each figure is the worst block of
+/// one trial; the median over trials shrugs off scheduler noise, the maximum
+/// shows it.
+struct StartCost {
+    /// Median over trials of the worst block among the first `START_WATCH`
+    /// blocks after PLAY.
+    start: Duration,
+    /// Maximum of the same.
+    start_max: Duration,
+    /// Median over trials of the worst of the following 200 blocks.
+    steady: Duration,
+}
+
+const START_WATCH: usize = 60;
+
+fn median(mut v: Vec<Duration>) -> Duration {
+    v.sort();
+    v.get(v.len() / 2).copied().unwrap_or_default()
+}
+
+/// Plays from many positions with key lock on at tempo `fader` (range
+/// +/- 100 %) and times every block.
+fn key_lock_start_cost(block: usize, fader: f32) -> StartCost {
+    let mut r = OfflineRenderer::new(EngineConfig {
+        max_block_frames: block as u32,
+        ..config()
+    })
+    .expect("valid config")
+    .with_block_frames(block);
+    r.handle()
+        .load_track(deck(0), sine(1000.0, 30.0), None)
+        .expect("hand-off ring has room");
+    let mut buf = vec![0.0; block * 2];
+    r.render_into(&mut buf);
+    let send = |r: &mut OfflineRenderer, command| {
+        r.handle().send(command).expect("command ring has room");
+    };
+    send(
+        &mut r,
+        EngineCommand::SetTempoRange {
+            deck: deck(0),
+            range: TempoRange::Wide,
+        },
+    );
+    send(
+        &mut r,
+        EngineCommand::SetTempoFader {
+            deck: deck(0),
+            position: fader,
+        },
+    );
+    send(
+        &mut r,
+        EngineCommand::SetKeyLock {
+            deck: deck(0),
+            on: true,
+        },
+    );
+    let mut starts = Vec::new();
+    let mut steadies = Vec::new();
+    // Debug builds only check that the path runs; timing is a release matter.
+    let trials = if cfg!(debug_assertions) { 2 } else { 40 };
+    for trial in 0..trials {
+        send(
+            &mut r,
+            EngineCommand::Seek {
+                deck: deck(0),
+                position: Frames(1000 * trial),
+            },
+        );
+        send(
+            &mut r,
+            EngineCommand::SetPlaying {
+                deck: deck(0),
+                playing: true,
+            },
+        );
+        let mut start = Duration::ZERO;
+        let mut steady = Duration::ZERO;
+        for b in 0..START_WATCH + 200 {
+            let t = std::time::Instant::now();
+            r.render_into(&mut buf);
+            let dt = t.elapsed();
+            if b < START_WATCH {
+                start = start.max(dt);
+            } else {
+                steady = steady.max(dt);
+            }
+        }
+        starts.push(start);
+        steadies.push(steady);
+        send(
+            &mut r,
+            EngineCommand::SetPlaying {
+                deck: deck(0),
+                playing: false,
+            },
+        );
+        r.render_into(&mut buf);
+        r.render_into(&mut buf);
+    }
+    StartCost {
+        start_max: starts.iter().copied().max().unwrap_or_default(),
+        start: median(starts),
+        steady: median(steadies),
+    }
+}
+
+/// Starting key-locked playback must not spike the callback: the work after
+/// PLAY is bounded per block and does not depend on the rate. The bound is
+/// relative to ordinary key-locked blocks (one STFT hop lands in some block
+/// either way), which also cancels most scheduler noise.
+#[test]
+fn key_lock_start_block_cost_is_bounded() {
+    for block in [64_usize, 512] {
+        let budget = Duration::from_secs_f64(block as f64 / f64::from(SR));
+        for (label, fader) in [("rate 1.00", 0.0_f32), ("rate 0.05", -0.95)] {
+            let c = key_lock_start_cost(block, fader);
+            println!(
+                "key lock start, {block:>3}-frame blocks, {label}: worst start block median {:?} (max {:?}), worst steady block median {:?}, budget {budget:?}",
+                c.start, c.start_max, c.steady
+            );
+            if !cfg!(debug_assertions) {
+                assert!(
+                    c.start < c.steady * 3,
+                    "{block}-frame blocks, {label}: start block {:?} vs steady {:?}",
+                    c.start,
+                    c.steady
+                );
+            }
         }
     }
 }

@@ -14,6 +14,31 @@
 //! by exactly the playback rate per output frame, so telemetry is the same in
 //! both modes.
 //!
+//! # Key lock start
+//!
+//! The stretcher delays its output by `input_latency / rate + output_latency`
+//! frames when fed at the playback rate, so aligning it with `pos` the direct
+//! way costs tens of thousands of frames at low rates: far too much for one
+//! callback. Instead the stretcher is seeded so that it reaches alignment a
+//! fixed number of output frames after the start (`warm`), and it runs
+//! `PRIME_SPEEDUP` times faster than real time until then: at most
+//! `PRIME_SPEEDUP * block` extra stretcher frames per callback, whatever the
+//! rate. Until `warm` frames have played the deck outputs plain varispeed
+//! (same position, pitch follows tempo); then it crossfades to the stretcher
+//! over `PRIME_XFADE_SECONDS`. At rate 1.0 both are at the same pitch and the
+//! swap is hard to hear; at other rates the first ~30 ms are varispeed.
+//!
+//! # C++ heap use
+//!
+//! The stretcher is C++, so `assert_no_alloc` cannot see its allocations.
+//! `tests_heap` counts `malloc` and `free` calls from every language (glibc
+//! only) and requires zero during key-locked playback. The stretcher's
+//! scratch vectors are sized in `configure`; `process`, `seek` and `reset`
+//! stay inside that capacity. Its peak list is reserved at `bands / 2`, enough
+//! because `bands` is always even (see `tests_heap`); that list is only used
+//! when transposing, which this deck never does. Key shift (M7) must keep
+//! `tests_heap::transposed_stretcher_makes_no_heap_calls` green.
+//!
 //! # Click-free jumps
 //!
 //! Stopping, seeking, cue jumps and key lock changes would click if the
@@ -42,6 +67,14 @@ const KEY_LOCK_MIN_RATE: f64 = 0.05;
 
 /// Output frames processed per step while priming the stretcher.
 const PRIME_CHUNK: usize = 512;
+
+/// The stretcher warms up this many times faster than real time, so a key
+/// locked start is heard through the stretcher after about 30 ms. The extra
+/// work per block is `PRIME_SPEEDUP` times the block, whatever the rate.
+const PRIME_SPEEDUP: usize = 4;
+
+/// Length of the crossfade from varispeed to the stretcher, in seconds.
+const PRIME_XFADE_SECONDS: f64 = 0.010;
 
 /// Sample interpolation used by plain varispeed playback.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -89,6 +122,21 @@ impl EventSink {
     }
 }
 
+/// Progress of the key lock start (see the module docs).
+#[derive(Debug, Clone, Copy)]
+struct Priming {
+    /// Output frames rendered since the start.
+    done: usize,
+    /// Output frames until the stretcher takes over.
+    warm: usize,
+    /// Length of the crossfade after `warm`.
+    xfade: usize,
+    /// Stretcher frames still to discard.
+    work_left: usize,
+    /// Playback rate the stretcher was seeded for.
+    rate: f64,
+}
+
 /// One playback deck.
 pub(crate) struct Deck {
     id: DeckId,
@@ -114,6 +162,11 @@ pub(crate) struct Deck {
     output_latency: usize,
     scratch_in: Vec<f32>,
     scratch_out: Vec<f32>,
+    /// Varispeed block rendered beside the stretcher while priming.
+    scratch_v: Vec<f32>,
+    /// `Some` from a key lock start until the stretcher has fully taken over.
+    priming: Option<Priming>,
+    xfade: usize,
 
     declick: usize,
     fade_in_left: usize,
@@ -155,6 +208,9 @@ impl Deck {
             output_latency,
             scratch_in: vec![0.0; scratch_frames * 2],
             scratch_out: vec![0.0; PRIME_CHUNK * 2],
+            scratch_v: vec![0.0; max_block_frames.max(16) * 2],
+            priming: None,
+            xfade: ((sample_rate.as_f64() * PRIME_XFADE_SECONDS) as usize).max(1),
             declick,
             fade_in_left: 0,
             tail: vec![0.0; declick * 2],
@@ -193,6 +249,7 @@ impl Deck {
         self.tail_len = 0;
         self.tail_pos = 0;
         self.fade_in_left = 0;
+        self.priming = None;
         self.rate_cur = self.target_rate();
         old
     }
@@ -205,6 +262,7 @@ impl Deck {
         self.tail_len = 0;
         self.tail_pos = 0;
         self.fade_in_left = 0;
+        self.priming = None;
         self.track.take()
     }
 
@@ -324,8 +382,9 @@ impl Deck {
     fn begin_audible(&mut self) {
         self.rate_cur = self.target_rate();
         self.fade_in_left = self.declick;
+        self.priming = None;
         if self.key_lock {
-            self.prime();
+            self.begin_priming();
         }
     }
 
@@ -352,30 +411,54 @@ impl Deck {
         self.tail = buf;
     }
 
-    /// Resets the stretcher and runs it ahead so the first output frame is the
-    /// audio at `self.pos` rather than the stretcher latency earlier.
-    fn prime(&mut self) {
-        let Some(track) = self.track.as_ref() else {
+    /// Resets the stretcher and seeds it for a start at `self.pos`. The
+    /// warm-up itself runs inside [`Self::render_raw`], a bounded slice per
+    /// block.
+    ///
+    /// Fed at rate `r`, a freshly reset stretcher has a fully formed output
+    /// after `total = input_latency + output_latency` frames, and that output
+    /// shows the input at `head0 + r * (total - output_latency) - input_latency`.
+    /// Seeding at `head0 = aim + input_latency * (1 - r)` makes that the
+    /// position `aim` the playhead reaches when the warm-up ends, `warm`
+    /// frames from now. At rate 1 this is plain `head0 = aim`.
+    fn begin_priming(&mut self) {
+        let Some(track) = self.track.take() else {
             return;
         };
         let data = track.samples();
         let rate = self.rate_cur.clamp(KEY_LOCK_MIN_RATE, MAX_RATE);
-        self.stretch.reset();
-
         let il = self.input_latency;
-        let start = self.pos.floor() as i64;
+        let work = il + self.output_latency;
+        let warm = work.div_ceil(PRIME_SPEEDUP);
+        let aim = self.pos + rate * warm as f64;
+        let head0 = aim + il as f64 * (1.0 - rate);
+
+        self.stretch.reset();
         if let Some(pre) = self.scratch_in.get_mut(..il * 2) {
-            fill_input(data, start - il as i64, pre);
+            fill_input(data, head0.floor() as i64 - il as i64, pre);
             self.stretch.seek(&*pre, rate);
         }
+        self.head = head0;
+        self.priming = Some(Priming {
+            done: 0,
+            warm,
+            xfade: self.xfade,
+            work_left: work,
+            rate,
+        });
+        self.track = Some(track);
+    }
 
-        // Output delay at this rate is il / rate + ol output frames.
-        let mut remaining = (il as f64 / rate + self.output_latency as f64).ceil() as usize;
-        let mut head = self.pos;
+    // ----- Rendering -----
+
+    /// Runs the stretcher over `work` output frames at `rate`, discarding the
+    /// output. Advances `self.head`.
+    fn stretch_discard(&mut self, data: &[f32], work: usize, rate: f64) {
+        let mut remaining = work;
         while remaining > 0 {
             let n = remaining.min(PRIME_CHUNK);
-            let next = head + n as f64 * rate;
-            let i0 = head.floor();
+            let next = self.head + n as f64 * rate;
+            let i0 = self.head.floor();
             let count = (next.floor() - i0) as usize;
             if let (Some(input), Some(out)) = (
                 self.scratch_in.get_mut(..count * 2),
@@ -384,48 +467,36 @@ impl Deck {
                 fill_input(data, i0 as i64, input);
                 self.stretch.process(&*input, out);
             }
-            head = next;
+            self.head = next;
             remaining -= n;
         }
-        self.head = head;
     }
 
-    // ----- Rendering -----
-
-    /// Renders `n` frames into `out` (`n * 2` samples, overwritten), advancing
-    /// the playhead. Returns true when the end of the track was reached.
-    fn render_raw(&mut self, out: &mut [f32], n: usize, r0: f64, r1: f64) -> bool {
-        let Some(track) = self.track.as_ref() else {
+    /// Renders `n` frames from the stretcher into `out` at `rate`, advancing
+    /// `self.head`. Does not touch `self.pos`.
+    fn stretch_live(&mut self, data: &[f32], out: &mut [f32], n: usize, rate: f64) {
+        let i0 = self.head.floor();
+        let next = self.head + n as f64 * rate;
+        let count = (next.floor() - i0) as usize;
+        let Some(input) = self.scratch_in.get_mut(..count * 2) else {
             out.fill(0.0);
-            return false;
+            return;
         };
-        let data = track.samples();
+        fill_input(data, i0 as i64, input);
+        self.stretch.process(&*input, &mut *out);
+        self.head = next;
+    }
+
+    /// Plain varispeed read of `n` frames at a rate ramping `r0` to `r1`,
+    /// advancing `self.pos`. Returns true when the end of the track was reached.
+    fn render_varispeed(
+        &mut self,
+        data: &[f32],
+        out: &mut [f32],
+        n: usize,
+        (r0, r1): (f64, f64),
+    ) -> bool {
         let len = (data.len() / 2) as f64;
-
-        if self.key_lock {
-            let rate = 0.5 * (r0 + r1);
-            if rate < KEY_LOCK_MIN_RATE {
-                out.fill(0.0);
-                return false;
-            }
-            let i0 = self.head.floor();
-            let next = self.head + n as f64 * rate;
-            let count = (next.floor() - i0) as usize;
-            let Some(input) = self.scratch_in.get_mut(..count * 2) else {
-                out.fill(0.0);
-                return false;
-            };
-            fill_input(data, i0 as i64, input);
-            self.stretch.process(&*input, &mut *out);
-            self.head = next;
-            self.pos += n as f64 * rate;
-            if self.pos >= len {
-                self.pos = len;
-                return true;
-            }
-            return false;
-        }
-
         let step = (r1 - r0) / n.max(1) as f64;
         let mut pos = self.pos;
         let mut ended = false;
@@ -446,6 +517,83 @@ impl Deck {
         }
         self.pos = pos;
         ended
+    }
+
+    /// Key lock start: varispeed while the stretcher warms up beside it, then
+    /// a crossfade to the stretcher. Per block the stretcher does at most
+    /// `PRIME_SPEEDUP * n` frames of warm-up plus the `n` it renders live.
+    fn render_priming(
+        &mut self,
+        data: &[f32],
+        mut p: Priming,
+        out: &mut [f32],
+        n: usize,
+        rates: (f64, f64),
+    ) -> bool {
+        let rate = 0.5 * (rates.0 + rates.1);
+        let warm_frames = n.min(p.warm.saturating_sub(p.done));
+        let work = p.work_left.min(warm_frames * PRIME_SPEEDUP);
+        self.stretch_discard(data, work, p.rate);
+        p.work_left -= work;
+
+        let mut v = std::mem::take(&mut self.scratch_v);
+        let ended = if let Some(v) = v.get_mut(..n * 2) {
+            let ended = self.render_varispeed(data, v, n, rates);
+            out.copy_from_slice(v);
+            if let Some(live) = out.get_mut(warm_frames * 2..).filter(|l| !l.is_empty()) {
+                self.stretch_live(data, live, n - warm_frames, rate);
+                let frames = out.chunks_exact_mut(2).zip(v.chunks_exact(2));
+                for (i, (o, v)) in frames.enumerate().skip(warm_frames) {
+                    let since = p.done + i - p.warm;
+                    let g = ((since + 1) as f32 / p.xfade as f32).min(1.0);
+                    o[0] = o[0] * g + v[0] * (1.0 - g);
+                    o[1] = o[1] * g + v[1] * (1.0 - g);
+                }
+            }
+            ended
+        } else {
+            out.fill(0.0);
+            false
+        };
+        self.scratch_v = v;
+
+        p.done += n;
+        self.priming = (p.done < p.warm + p.xfade).then_some(p);
+        ended
+    }
+
+    /// Renders `n` frames into `out` (`n * 2` samples, overwritten), advancing
+    /// the playhead. Returns true when the end of the track was reached.
+    fn render_raw(&mut self, out: &mut [f32], n: usize, r0: f64, r1: f64) -> bool {
+        let Some(track) = self.track.take() else {
+            out.fill(0.0);
+            return false;
+        };
+        let ended = self.render_data(track.samples(), out, n, (r0, r1));
+        self.track = Some(track);
+        ended
+    }
+
+    fn render_data(&mut self, data: &[f32], out: &mut [f32], n: usize, rates: (f64, f64)) -> bool {
+        if !self.key_lock {
+            return self.render_varispeed(data, out, n, rates);
+        }
+        let rate = 0.5 * (rates.0 + rates.1);
+        if rate < KEY_LOCK_MIN_RATE {
+            out.fill(0.0);
+            return false;
+        }
+        if let Some(p) = self.priming {
+            return self.render_priming(data, p, out, n, rates);
+        }
+        self.stretch_live(data, out, n, rate);
+        self.pos += n as f64 * rate;
+        let len = (data.len() / 2) as f64;
+        if self.pos >= len {
+            self.pos = len;
+            return true;
+        }
+        false
     }
 
     /// Renders one block of interleaved stereo into `out` (overwritten).
