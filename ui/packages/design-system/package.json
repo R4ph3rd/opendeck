@@ -1,0 +1,7 @@
+{
+  "name": "@opendeck/design-system",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "OpenDeck design tokens, Tailwind theme and components. Filled in by design-system-dev (wave 0b)."
+}
