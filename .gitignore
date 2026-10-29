@@ -1,0 +1,33 @@
+# Rust
+/target/
+**/*.rs.bk
+
+# Node
+node_modules/
+dist/
+storybook-static/
+*.tsbuildinfo
+.vite/
+
+# Tauri
+src-tauri/target/
+src-tauri/gen/schemas/
+
+# Third-party documents kept locally only (copyright of their owners)
+docs/sources/*.pdf
+docs/sources/*.txt
+
+# ASIO SDK is never committed (Steinberg licence)
+asio-sdk/
+ASIOSDK*/
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Claude local
+.claude/settings.local.json
+.claude/worktrees/
