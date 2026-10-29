@@ -26,6 +26,7 @@ opendeck-app-core = { path = "crates/app-core" }
 # Shell and IPC
 tauri = "2.12.5"
 tauri-build = "2.7.4"
+tauri-plugin-dialog = "2"
 # Release candidates: pinned exact, bumped deliberately (ADR 0001, ADR 0004).
 tauri-specta = { version = "=2.0.0-rc.26", features = ["derive", "typescript"] }
 specta = { version = "=2.0.0-rc.26", features = ["derive"] }

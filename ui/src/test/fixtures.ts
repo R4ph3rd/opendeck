@@ -1,0 +1,62 @@
+import type { AudioStatus, DeckTelemetry, EngineTelemetry, TrackInfo } from "../ipc/bindings";
+
+export const RATE = 48_000;
+
+const meter = { peak_l: 0, peak_r: 0, rms_l: 0, rms_r: 0 };
+
+export function deckTelemetry(patch: Partial<DeckTelemetry> = {}): DeckTelemetry {
+  return {
+    loaded: false,
+    playing: false,
+    position: 0,
+    duration: 0,
+    slip_position: null,
+    rate: 1,
+    bpm: null,
+    beat_phase: 0,
+    beat_in_bar: 0,
+    active_loop: null,
+    meter,
+    ...patch,
+  };
+}
+
+/** Snapshot with deck A patched and the other decks empty. */
+export function telemetry(sequence: number, deckA: Partial<DeckTelemetry> = {}): EngineTelemetry {
+  return {
+    sequence,
+    engine_time: 0,
+    sample_rate: RATE,
+    decks: [deckTelemetry(deckA), deckTelemetry(), deckTelemetry(), deckTelemetry()],
+    master: meter,
+    headphones: meter,
+    leader: null,
+    dsp_load: 0,
+    xruns: 0,
+    dropped_events: 0,
+  };
+}
+
+export const track: TrackInfo = {
+  path: "/music/tone.wav",
+  file_name: "tone.wav",
+  title: "Night Drive",
+  artist: "Test Artist",
+  album: null,
+  duration_secs: 200,
+};
+
+export const runningAudio: AudioStatus = {
+  running: true,
+  backend: "device",
+  host: "alsa",
+  device: "Test Device",
+  sample_rate: RATE,
+  channels: 4,
+  buffer_frames: 256,
+  latency_ms: 5.3,
+  master: { left: 0, right: 1 },
+  headphones: { left: 2, right: 3 },
+  stereo_fallback: false,
+  error: null,
+};

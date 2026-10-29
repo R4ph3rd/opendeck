@@ -11,10 +11,12 @@ The `M` column follows the milestone table in `docs/STATUS.md`: M1 engine with o
 | Command | Args | Returns | M |
 |---|---|---|---|
 | `app_info` **done** | | `AppInfo` *shell* | 0 |
-| `list_audio_hosts` **done** (stub) | | `Vec<AudioHostInfo>` | 0, real in 1 |
-| `list_audio_devices` | `host: AudioHostKind` | `Vec<AudioDeviceInfo>` (name, channels, rates, buffer sizes) | 1 |
-| `get_audio_settings` | | `AudioSettings` | 1 |
-| `set_audio_settings` | `settings: AudioSettings` | `()`; restarts the stream | 1 |
+| `list_audio_hosts` **done** | | `Vec<AudioHostInfo>` (cpal hosts the settings enum models) | 1 |
+| `list_audio_devices` **done** | `host: Option<AudioHostKind>` (`None` = platform default) | `Vec<AudioDeviceInfo>` *shell* (name, channels, rate ranges, buffer range) | 1 |
+| `get_audio_settings` **done** | | `AudioSettings` | 1 |
+| `get_audio_status` **done** | | `AudioStatus` *shell* (running, device, rate, buffer, latency, routing, error) | 1 |
+| `supported_audio_extensions` **done** | | `Vec<String>` (decoder extensions, for the file picker) | 1 |
+| `set_audio_settings` **done** | `settings: AudioSettings` | `AudioStatus`; restarts the stream, reloads loaded tracks at the new rate, persists to `settings.json` in the app config dir (SQLite in M3) | 1 |
 | `get_setting` | `key: String` | `Option<serde_json::Value>` | 8 |
 | `set_setting` | `key: String, value: Value` | `()` | 8 |
 | `get_shortcuts` / `set_shortcuts` | `ShortcutMap` | `ShortcutMap` / `()` | 8 |
@@ -25,15 +27,16 @@ The `M` column follows the milestone table in `docs/STATUS.md`: M1 engine with o
 | Command | Args | Returns | M |
 |---|---|---|---|
 | `get_deck_state` | `deck: DeckId` | `DeckState` | 1 |
-| `load_track` | `deck: DeckId, track: TrackId` | `()`; progress via `deck-state-changed` | 1 |
-| `eject_track` | `deck: DeckId` | `()` | 1 |
-| `set_playing` | `deck, playing: bool` | `()` | 1 |
-| `cue` | `deck, pressed: bool` | `()` | 1 |
-| `seek` | `deck, position: Seconds` | `()` | 1 |
-| `set_tempo_fader` | `deck, position: f32` | `()` | 1 |
-| `set_tempo_range` | `deck, range: TempoRange` | `()` | 1 |
-| `set_key_lock` | `deck, on: bool` | `()` | 1 |
-| `pitch_bend` | `deck, amount: f32` | `()` | 1 |
+| `load_track` **done** (path form) | `deck: DeckId, path: String` | `TrackInfo` *shell* (tags, read synchronously); decode runs on the loader thread, then `track-loaded` or `track-load-failed`. Becomes `track: TrackId` when the library lands (M3, contract change) | 1 |
+| `eject_track` **done** | `deck: DeckId` | `()` | 1 |
+| `set_playing` **done** | `deck, playing: bool` | `()` | 1 |
+| `toggle_playing` **done** | `deck` | `()`; flips on the control thread's newest telemetry (space bar, PLAY) | 1 |
+| `cue` **done** | `deck, pressed: bool` | `()` | 1 |
+| `seek` **done** | `deck, position: Seconds` | `()` | 1 |
+| `set_tempo_fader` **done** | `deck, position: f32` | `()` | 1 |
+| `set_tempo_range` **done** | `deck, range: TempoRange` | `()` | 1 |
+| `set_key_lock` **done** | `deck, on: bool` | `()` | 1 |
+| `pitch_bend` **done** | `deck, amount: f32` | `()`; `0` releases | 1 |
 | `set_vinyl_mode` | `deck, on: bool` | `()` | 1 |
 | `set_sync` | `deck, mode: SyncMode` | `()` | 2 |
 | `set_leader` | `deck: Option<DeckId>` | `()` | 2 |
@@ -159,11 +162,13 @@ The `M` column follows the milestone table in `docs/STATUS.md`: M1 engine with o
 
 | Event | Payload | Rate | M |
 |---|---|---|---|
-| `engine-telemetry` **declared** | `EngineTelemetry` | ~60 Hz | 1 |
-| `engine-event` | `EngineEvent` | on change | 1 |
+| `engine-telemetry` **done** | `EngineTelemetry` | ~60 Hz | 1 |
+| `engine-event` **done** | `EngineEvent` (audio thread events plus `device_lost`, `device_changed`, `stream_error`) | on change | 1 |
+| `track-loaded` **done** | `TrackLoaded` *shell* (deck, `TrackInfo`, frames) | once per load | 1 |
+| `track-load-failed` **done** | `TrackLoadFailed` *shell* (deck, path, message) | once per failed load | 1 |
 | `deck-state-changed` | `DeckState` | on change | 1 |
 | `mixer-state-changed` | `MixerState` | on change (MIDI-driven moves) | 2 |
-| `audio-device-changed` | `AudioStatus` (running, device, rate, buffer, error) | on change | 1 |
+| `audio-device-changed` **done** | `AudioStatus` (running, device, rate, buffer, error) | on change | 1 |
 | `job-progress` | `JobProgress` | <= 4 Hz per job | 3 |
 | `library-changed` | `LibraryChange` (tracks or playlists touched) | on change, coalesced | 3 |
 | `analysis-ready` | `TrackId` | per track | 3 |

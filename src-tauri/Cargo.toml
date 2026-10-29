@@ -27,13 +27,19 @@ path = "examples/export_bindings.rs"
 tauri-build = { workspace = true, features = [] }
 
 [dependencies]
-opendeck-app-core.workspace = true
+opendeck-app-core = { workspace = true, features = ["specta"] }
 opendeck-contracts = { workspace = true, features = ["specta"] }
 tauri = { workspace = true, features = [] }
+tauri-plugin-dialog.workspace = true
 tauri-specta.workspace = true
 specta.workspace = true
 specta-typescript.workspace = true
+crossbeam-channel.workspace = true
+opendeck-media.workspace = true
 serde.workspace = true
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+tauri = { workspace = true, features = ["test"] }
