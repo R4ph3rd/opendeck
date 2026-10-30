@@ -10,10 +10,11 @@ publish.workspace = true
 
 [dependencies]
 opendeck-contracts = { workspace = true, features = ["serde"] }
-
-[dev-dependencies]
+crossbeam-channel.workspace = true
+midir.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+thiserror.workspace = true
 
 [lints]
 workspace = true

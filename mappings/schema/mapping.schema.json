@@ -31,6 +31,7 @@
         "additionalProperties": false,
         "properties": {
           "id": { "$ref": "#/$defs/ident" },
+          "ref": { "$ref": "#/$defs/ref" },
           "midi": { "$ref": "#/$defs/midiButton" },
           "verify": { "$ref": "#/$defs/verify" }
         }
@@ -46,12 +47,22 @@
     },
     "on_connect": {
       "type": "array",
-      "description": "Raw messages sent when the output port opens, in order.",
+      "description": "Raw messages sent when the output port opens, in order. Messages longer than 3 bytes must be complete SysEx (F0 ... F7).",
       "items": { "$ref": "#/$defs/rawMessage" }
+    },
+    "unmapped": {
+      "type": "array",
+      "description": "Messages of the source document that are deliberately not mapped, with the reason. The monitor labels them; tests check that nothing in the source is silently missing.",
+      "items": { "$ref": "#/$defs/unmapped" }
     }
   },
   "$defs": {
     "ident": { "type": "string", "pattern": "^[a-z0-9_]+(\\.[a-z0-9_]+)*$" },
+    "ref": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Row or figure id in the source document, e.g. '1-2' for CUE in the DDJ-FLX4 message list. The two tables without figure numbers use 'illumination:<name>' and 'settings:<name>'."
+    },
     "verify": {
       "type": "string",
       "minLength": 1,
@@ -96,7 +107,8 @@
           "properties": {
             "kind": { "const": "button" },
             "threshold": { "$ref": "#/$defs/byte7" },
-            "edge": { "enum": ["both", "press", "release"], "default": "both" }
+            "edge": { "enum": ["both", "press", "release"], "default": "both", "description": "Which edges produce an event. 'press' drops releases." },
+            "invert": { "type": "boolean", "default": false, "description": "Emit Button(false) on press and Button(true) on release (e.g. the FLX4 fader-start CUE message)." }
           }
         },
         {
@@ -149,6 +161,7 @@
       "additionalProperties": false,
       "properties": {
         "id": { "$ref": "#/$defs/ident", "description": "Unique within the file, e.g. deck1.play. DB overrides reference it." },
+        "ref": { "$ref": "#/$defs/ref" },
         "label": { "type": "string", "description": "UI name from the source document, e.g. 'PLAY/PAUSE'." },
         "midi": { "$ref": "#/$defs/midiInput" },
         "when": {
@@ -167,6 +180,14 @@
       "required": ["target", "midi", "output"],
       "additionalProperties": false,
       "properties": {
+        "ref": { "$ref": "#/$defs/ref" },
+        "label": { "type": "string" },
+        "when": {
+          "type": "object",
+          "description": "Modifier states required for this output to be sent (shift-layer LEDs), e.g. {\"shift_deck1\": true}. When a modifier changes, the cached state of entries that now match is sent again.",
+          "propertyNames": { "$ref": "#/$defs/ident" },
+          "additionalProperties": { "type": "boolean" }
+        },
         "target": {
           "type": "object",
           "description": "A contracts FeedbackTarget in its serde form, e.g. {\"target\": \"playing\", \"deck\": 0}.",
@@ -231,9 +252,20 @@
       "required": ["bytes"],
       "additionalProperties": false,
       "properties": {
-        "bytes": { "type": "array", "minItems": 1, "maxItems": 3, "items": { "type": "integer", "minimum": 0, "maximum": 255 } },
+        "bytes": { "type": "array", "minItems": 1, "maxItems": 1024, "items": { "type": "integer", "minimum": 0, "maximum": 255 }, "description": "One MIDI message: a status byte plus up to 2 data bytes, or a complete SysEx (F0 ... F7) with 7-bit data bytes." },
         "comment": { "type": "string" },
         "verify": { "$ref": "#/$defs/verify" }
+      }
+    },
+    "unmapped": {
+      "type": "object",
+      "required": ["ref", "label", "midi", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "ref": { "$ref": "#/$defs/ref" },
+        "label": { "type": "string" },
+        "midi": { "$ref": "#/$defs/midiInput" },
+        "reason": { "type": "string", "minLength": 1 }
       }
     }
   }
