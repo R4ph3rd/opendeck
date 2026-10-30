@@ -219,8 +219,14 @@ impl EngineHandle {
 
     /// Sets where `unit` takes tempo and beat phase from: its usual source,
     /// a given deck, or a tapped BPM (see [`FxTempoSource`]). Returns `false`
-    /// when the hand-off ring is full; retry on the next tick.
+    /// for a tapped BPM that is not finite and positive, or when the hand-off
+    /// ring is full; retry on the next tick.
     pub fn set_fx_tempo_source(&mut self, unit: FxUnit, source: FxTempoSource) -> bool {
+        if let FxTempoSource::Tap(bpm) = source
+            && !(bpm.0.is_finite() && bpm.0 > 0.0)
+        {
+            return false;
+        }
         self.fx_handoff
             .push(FxHandoff::Tempo {
                 unit: FxHost::unit_index(unit),

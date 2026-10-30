@@ -960,6 +960,17 @@ fn tapped_tempo_runs_its_own_beat_counter() {
         "play flag still from the deck"
     );
 
+    // A tapped tempo must be finite and positive.
+    for bad in [0.0, -1.0, f64::NAN, f64::INFINITY] {
+        assert!(
+            !rig.r
+                .handle()
+                .set_fx_tempo_source(FxUnit::Deck(deck(0)), FxTempoSource::Tap(Bpm(bad)))
+        );
+    }
+    rig.step(BLOCK);
+    assert_eq!(f64_of(&p.bpm), 100.0, "rejected taps leave the source");
+
     // Back to auto.
     assert!(
         rig.r
