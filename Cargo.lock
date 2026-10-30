@@ -2742,7 +2742,10 @@ dependencies = [
 name = "opendeck-dsp-fx"
 version = "0.4.0"
 dependencies = [
+ "assert_no_alloc",
  "opendeck-contracts",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
