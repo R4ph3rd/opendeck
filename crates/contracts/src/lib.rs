@@ -39,7 +39,7 @@ pub mod units;
 
 pub use command::EngineCommand;
 pub use ids::{CueId, DeckId, FxSlotId, FxUnit, JobId, PlaylistId, SamplerSlotId, TrackId};
-pub use telemetry::{EngineEvent, EngineTelemetry};
+pub use telemetry::{EngineEvent, EngineTelemetry, FxUnitTelemetry};
 pub use units::{Beats, Bpm, Frames, Gain, SampleRate, Seconds};
 
 /// Maximum number of decks the architecture supports. The MVP UI shows two.

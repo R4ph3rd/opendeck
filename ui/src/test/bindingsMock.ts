@@ -23,6 +23,125 @@ export const neutralMixer = () => ({
   split_cue: false,
 });
 
+const key = (id: string) => ({ provider: "builtin", id });
+
+const param = (
+  id: number,
+  name: string,
+  unit: string,
+  min: number,
+  max: number,
+  def: number,
+  curve: unknown = { kind: "linear" },
+) => ({ id, name, unit, min, max, default: def, curve });
+
+/** A few catalog effects as `fx_list_effects` reports them. */
+export const fxEffects = () => [
+  {
+    key: key("echo"),
+    name: "Echo",
+    routing: "send_return",
+    beat_synced: true,
+    has_tail: true,
+    params: [
+      param(0, "Time", "milliseconds", 10, 4000, 500, { kind: "logarithmic" }),
+      param(1, "Decay", "percent", 0, 98, 55),
+      param(2, "Damping", "hertz", 800, 16000, 5000, { kind: "logarithmic" }),
+    ],
+    primary: 1,
+    release: false,
+    divisions: [0.0625, 0.125, 0.25, 0.5, 0.75, 1, 2, 4],
+  },
+  {
+    key: key("reverb"),
+    name: "Reverb",
+    routing: "send_return",
+    beat_synced: false,
+    has_tail: true,
+    params: [param(0, "Size", "percent", 0, 100, 50)],
+    primary: 0,
+    release: false,
+    divisions: [],
+  },
+  {
+    key: key("vinyl_brake"),
+    name: "Vinyl Brake",
+    routing: "insert",
+    beat_synced: true,
+    has_tail: false,
+    params: [param(0, "Curve", "percent", 0, 100, 40)],
+    primary: 0,
+    release: true,
+    divisions: [0.25, 0.5, 0.75, 1, 2, 4],
+  },
+  {
+    key: key("colour_filter"),
+    name: "Colour Filter",
+    routing: "insert",
+    beat_synced: false,
+    has_tail: false,
+    params: [param(0, "Colour", "percent", -100, 100, 0)],
+    primary: 0,
+    release: false,
+    divisions: [],
+  },
+  {
+    key: key("noise"),
+    name: "Noise",
+    routing: "insert",
+    beat_synced: false,
+    has_tail: false,
+    params: [param(0, "Level", "percent", 0, 100, 30)],
+    primary: 0,
+    release: false,
+    divisions: [],
+  },
+];
+
+const fxSlot = (effect: ReturnType<typeof key> | null, params: number[], division = 1) => ({
+  effect,
+  params,
+  wet: 0.5,
+  division,
+  enabled: true,
+});
+
+const emptySlot = () => fxSlot(null, []);
+
+const beatUnit = (assign: string, effect: string, params: number[], division: number) => ({
+  assign,
+  mode: "multi",
+  slots: [fxSlot(key(effect), params, division), emptySlot(), emptySlot()],
+  on: false,
+  bpm_source: "auto",
+  tap_bpm: null as number | null,
+  release_effect: key("vinyl_brake"),
+  release_hold_ms: 2000,
+});
+
+/** FX model as the backend reports it before anything is touched. */
+export const neutralFxState = () => ({
+  units: [
+    beatUnit("ch1", "echo", [0.1, 0.5, 0.5], 0.75),
+    beatUnit("ch2", "reverb", [0.5], 1),
+  ],
+  cfx: [0, 1].map(() => ({ kind: key("colour_filter"), amount: 0 })),
+  cfx_kinds: [key("colour_filter"), key("noise")],
+  sends: [0, 1].map(() => ({
+    slots: [fxSlot(key("reverb"), [0.5]), emptySlot(), emptySlot()],
+    post_fader: true,
+  })),
+  send_levels: [
+    [0, 0],
+    [0, 0],
+  ],
+  pads: Array.from({ length: 32 }, (_, i) => ({
+    effect: i % 2 === 0 ? key("echo") : key("noise"),
+    division: 0.5,
+    release: false,
+  })),
+});
+
 /** Deck state as the backend reports it before anything is touched. */
 export const deckState = (deck: number) => ({
   deck,
@@ -168,6 +287,15 @@ export function createBindingsMock() {
       getSavedSet: vi.fn(() => ok(null)),
       renameSavedSet: vi.fn(() => ok(null)),
       deleteSavedSet: vi.fn(() => ok(null)),
+      fxGetState: vi.fn(() => ok(neutralFxState())),
+      fxListEffects: vi.fn(() => ok(fxEffects())),
+      fxGetPresets: vi.fn(() => ok({ factory: [], user: [], chains: [] })),
+      fxApply: vi.fn(() => ok(null)),
+      fxPad: vi.fn(() => ok(null)),
+      fxSavePreset: vi.fn(() => ok({ factory: [], user: [], chains: [] })),
+      fxDeletePreset: vi.fn(() => ok({ factory: [], user: [], chains: [] })),
+      fxSaveChain: vi.fn(() => ok({ factory: [], user: [], chains: [] })),
+      fxDeleteChain: vi.fn(() => ok({ factory: [], user: [], chains: [] })),
       listDirectory: vi.fn(() => ok({ path: "/music", parent: "/", entries: [] })),
       revealInExplorer: vi.fn(() => ok(null)),
     },
@@ -180,6 +308,7 @@ export function createBindingsMock() {
       engineEvent: event("engine-event"),
       engineTelemetry: event("engine-telemetry"),
       hotCuesChanged: event("hot-cues-changed"),
+      fxStateChanged: event("fx-state-changed"),
       trackLoadFailed: event("track-load-failed"),
       trackLoaded: event("track-loaded"),
     },

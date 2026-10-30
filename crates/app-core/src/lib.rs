@@ -16,6 +16,8 @@
 mod control;
 mod dto;
 mod fs_browser;
+mod fx;
+mod fx_types;
 mod library_service;
 mod loader;
 mod settings_store;
@@ -36,8 +38,8 @@ use opendeck_contracts::tempo::{SyncMode, TempoRange};
 use opendeck_contracts::{Beats, DeckId, EngineCommand, Gain, MAX_DECKS, Seconds, pad::PadMode};
 use opendeck_engine::device;
 
-use crate::control::Msg;
 pub use crate::control::{Backend, LaunchOptions, TICK};
+use crate::control::{FxMsg, Msg};
 pub use crate::dto::{
     AnalysisStatusDto, DirListing, FsEntry, FsEntryKind, ImportOptionsDto, JobInfo, LibraryChange,
     PlaylistEntryDto, PlaylistKindDto, PlaylistNodeDto, SavedSetDetailDto, SavedSetDto,
@@ -45,6 +47,11 @@ pub use crate::dto::{
     TrackQueryDto, TrackRowDto,
 };
 pub use crate::fs_browser::list_directory;
+pub use crate::fx_types::{
+    BEAT_FX_UNITS, BeatFxUnitDto, CfxDto, FX_CHAIN_SLOTS, FxAssign, FxBpmSource, FxChainPresetDto,
+    FxChainSlotDto, FxEffectDto, FxMode, FxOp, FxPresetsDto, FxSlotDto, FxSlotRef, FxStateDto,
+    FxTarget, FxUnitRef, PAD_FX_COUNT, PADS_PER_LAYER, PadFxAssignDto, SendUnitDto,
+};
 pub use crate::library_service::{LibraryEvent, LibraryService, PROGRESS_INTERVAL};
 pub use crate::settings_store::{SETTINGS_FILE, SettingsStore, StoredSettings};
 pub use crate::types::{
@@ -541,6 +548,81 @@ impl AudioController {
     /// State of the audio output.
     pub fn status(&self) -> Result<AudioStatus, CoreError> {
         self.ask(Msg::GetStatus)
+    }
+
+    // ----- FX -----
+
+    /// The FX model: Beat FX units, Sound Color FX, sends, pad effects.
+    pub fn fx_state(&self) -> Result<FxStateDto, CoreError> {
+        self.ask(|r| Msg::Fx(FxMsg::State(r)))
+    }
+
+    /// Every effect the registry offers, with parameters and catalog flags.
+    pub fn fx_effects(&self) -> Result<Vec<FxEffectDto>, CoreError> {
+        self.ask(|r| Msg::Fx(FxMsg::Effects(r)))
+    }
+
+    /// Factory presets, user presets and chains.
+    pub fn fx_presets(&self) -> Result<FxPresetsDto, CoreError> {
+        self.ask(|r| Msg::Fx(FxMsg::Presets(r)))
+    }
+
+    /// Applies one change to the FX model.
+    pub fn fx_apply(&self, op: FxOp) -> Result<(), CoreError> {
+        self.ask(|r| Msg::Fx(FxMsg::Apply(op, r)))?
+    }
+
+    /// Pad FX edge on `deck`: `bank` 0 or 1 (Pad FX 1 or 2), `shift` layer,
+    /// `pad` 0 to 7. Holding engages the assigned effect, releasing stops it.
+    pub fn fx_pad(
+        &self,
+        deck: DeckId,
+        bank: u8,
+        shift: bool,
+        pad: u8,
+        pressed: bool,
+    ) -> Result<(), CoreError> {
+        if bank > 1 || usize::from(pad) >= PADS_PER_LAYER {
+            return Err(CoreError::Invalid("pad out of range".to_owned()));
+        }
+        let index = usize::from(bank) * 2 * PADS_PER_LAYER
+            + usize::from(shift) * PADS_PER_LAYER
+            + usize::from(pad);
+        self.post(Msg::Fx(FxMsg::Pad {
+            deck,
+            index,
+            pressed,
+        }))
+    }
+
+    /// Stores the effect in `slot` as a user preset.
+    pub fn fx_save_preset(&self, slot: FxSlotRef, name: String) -> Result<FxPresetsDto, CoreError> {
+        self.ask(|reply| Msg::Fx(FxMsg::SavePreset { slot, name, reply }))?
+    }
+
+    /// Deletes a user preset.
+    pub fn fx_delete_preset(
+        &self,
+        effect: opendeck_contracts::fx::EffectKey,
+        name: String,
+    ) -> Result<FxPresetsDto, CoreError> {
+        self.ask(|reply| {
+            Msg::Fx(FxMsg::DeletePreset {
+                effect,
+                name,
+                reply,
+            })
+        })?
+    }
+
+    /// Stores the effects of a unit as a chain preset.
+    pub fn fx_save_chain(&self, unit: FxUnitRef, name: String) -> Result<FxPresetsDto, CoreError> {
+        self.ask(|reply| Msg::Fx(FxMsg::SaveChain { unit, name, reply }))?
+    }
+
+    /// Deletes a chain preset.
+    pub fn fx_delete_chain(&self, name: String) -> Result<FxPresetsDto, CoreError> {
+        self.ask(|reply| Msg::Fx(FxMsg::DeleteChain { name, reply }))?
     }
 }
 

@@ -175,6 +175,8 @@ pub enum CoreEvent {
     CuesChanged(TrackId),
     /// The stream was (re)started or stopped.
     AudioStatus(AudioStatus),
+    /// The FX model changed (assignment, effects, parameters, pads).
+    FxState(Box<crate::fx_types::FxStateDto>),
 }
 
 /// Why a core call failed.

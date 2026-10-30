@@ -14,7 +14,7 @@
 
 use crate::MAX_DECKS;
 use crate::cue::{FrameRegion, HotCueIndex};
-use crate::ids::DeckId;
+use crate::ids::{DeckId, FX_SEND_BUSES};
 use crate::tempo::SyncMode;
 use crate::units::{Bpm, Frames, SampleRate};
 
@@ -72,6 +72,21 @@ pub struct DeckTelemetry {
     pub meter: StereoMeter,
 }
 
+/// State of one FX unit (a chain of slots) over the last block. RT-safe.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct FxUnitTelemetry {
+    /// At least one slot holding an effect is enabled.
+    pub enabled: bool,
+    /// At least one slot is processing: enabled, crossfading, or ringing out
+    /// its tail after being disabled.
+    pub active: bool,
+    /// Peak of the unit's output over the last block it ran, linear
+    /// amplitude; 0 while idle.
+    pub level: f32,
+}
+
 /// Full engine snapshot. RT-safe: `Copy`, fixed size, written without allocation.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -89,6 +104,12 @@ pub struct EngineTelemetry {
     pub master: StereoMeter,
     /// Headphone output level.
     pub headphones: StereoMeter,
+    /// Deck FX units (insert chains), indexed by [`DeckId::index`].
+    pub fx_decks: [FxUnitTelemetry; MAX_DECKS],
+    /// Master FX unit.
+    pub fx_master: FxUnitTelemetry,
+    /// Send FX units, indexed by bus.
+    pub fx_sends: [FxUnitTelemetry; FX_SEND_BUSES],
     /// Current sync leader. See `EngineCommand::SetLeader` for the election.
     pub leader: Option<DeckId>,
     /// Callback time divided by block duration, smoothed, `0..` (1.0 = overrun).
@@ -152,6 +173,8 @@ mod tests {
         assert!(!core::mem::needs_drop::<EngineEvent>());
         let t = EngineTelemetry::default();
         assert_eq!(t.decks.len(), MAX_DECKS);
+        assert_eq!(t.fx_decks.len(), MAX_DECKS);
+        assert_eq!(t.fx_sends.len(), FX_SEND_BUSES);
         assert_eq!(t.sample_rate, SampleRate(48_000));
     }
 }

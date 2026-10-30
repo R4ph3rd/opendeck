@@ -49,6 +49,12 @@ On a 4-channel device (FLX4 or similar) with headphones on 3/4.
 
 ## M5 FX
 
+- [ ] Beat FX unit on channel 1, then 2, then 1&2: only the assigned decks change; on 1&2 both decks stay in time with each other.
+- [ ] Multi unit with three effects on a channel: Sound Color FX, a held pad FX and Release FX still work on that channel.
+- [ ] Release FX (SHIFT+ON/OFF and a release pad): the Beat FX stops, the release effect runs for its hold time, then rings out.
+- [ ] Tap BPM: four taps set the unit tempo and the effect follows it; back to Auto follows the track again.
+- [ ] CFX knob feel for each type: centre is transparent, no zipper noise, both sides sweep evenly.
+- [ ] Echo and reverb tails ring out after ON/OFF and after a pad release, with no click.
 - [ ] Chains and presets survive restart; no clicks when toggling.
 
 ## M6 MIDI (DDJ-FLX4)

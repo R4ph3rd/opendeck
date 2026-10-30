@@ -5,11 +5,14 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicU32;
 
 use opendeck_contracts::beatgrid::BeatGrid;
+use opendeck_contracts::fx::Effect;
+use opendeck_contracts::ids::FX_SLOTS_PER_UNIT;
 use opendeck_contracts::telemetry::{EngineEvent, EngineTelemetry};
-use opendeck_contracts::{DeckId, EngineCommand, Frames, SampleRate};
+use opendeck_contracts::{DeckId, EngineCommand, Frames, FxSlotId, FxUnit, SampleRate};
 use rtrb::{Consumer, Producer, RingBuffer};
 
 use crate::audio::{CoreRings, EngineCore};
+use crate::fx::{FX_UNITS, FxEvent, FxHandoff, FxHost, FxTempoSource, SendTap, SlotRt};
 use crate::track::{Handoff, TrackBuffer};
 use crate::{ConfigError, EngineConfig};
 
@@ -19,6 +22,11 @@ pub const COMMAND_RING: usize = 1024;
 pub const HANDOFF_RING: usize = 16;
 /// Capacity of the return ring for replaced buffers.
 pub const RETURN_RING: usize = 64;
+/// Capacity of the FX hand-off ring (effects, timed events, tempo and send
+/// taps): one install for every slot of every unit fits at once.
+pub const FX_HANDOFF_RING: usize = FX_UNITS * FX_SLOTS_PER_UNIT;
+/// Capacity of the FX return ring for replaced effects: two per slot.
+pub const FX_RETURN_RING: usize = 2 * FX_UNITS * FX_SLOTS_PER_UNIT;
 /// Capacity of the telemetry ring.
 pub const TELEMETRY_RING: usize = 4;
 /// Capacity of the event ring.
@@ -34,10 +42,13 @@ pub struct EngineHandle {
     commands: Producer<EngineCommand>,
     handoff: Producer<Handoff>,
     returns: Consumer<TrackBuffer>,
+    fx_handoff: Producer<FxHandoff>,
+    fx_returns: Consumer<Box<SlotRt>>,
     telemetry: Consumer<EngineTelemetry>,
     events: Consumer<EngineEvent>,
     dropped_commands: u32,
     sample_rate: SampleRate,
+    max_block_frames: usize,
 }
 
 /// Builds the audio-side [`EngineCore`] and the control-side [`EngineHandle`]
@@ -56,6 +67,8 @@ pub fn engine_with_xruns(
     let (commands_tx, commands_rx) = RingBuffer::new(COMMAND_RING);
     let (handoff_tx, handoff_rx) = RingBuffer::new(HANDOFF_RING);
     let (returns_tx, returns_rx) = RingBuffer::new(RETURN_RING);
+    let (fx_handoff_tx, fx_handoff_rx) = RingBuffer::new(FX_HANDOFF_RING);
+    let (fx_returns_tx, fx_returns_rx) = RingBuffer::new(FX_RETURN_RING);
     let (telemetry_tx, telemetry_rx) = RingBuffer::new(TELEMETRY_RING);
     let (events_tx, events_rx) = RingBuffer::new(EVENT_RING);
     let core = EngineCore::new(
@@ -64,6 +77,8 @@ pub fn engine_with_xruns(
             commands: commands_rx,
             handoff: handoff_rx,
             returns: returns_tx,
+            fx_handoff: fx_handoff_rx,
+            fx_returns: fx_returns_tx,
             telemetry: telemetry_tx,
             events: events_tx,
         },
@@ -73,10 +88,13 @@ pub fn engine_with_xruns(
         commands: commands_tx,
         handoff: handoff_tx,
         returns: returns_rx,
+        fx_handoff: fx_handoff_tx,
+        fx_returns: fx_returns_rx,
         telemetry: telemetry_rx,
         events: events_rx,
         dropped_commands: 0,
         sample_rate: config.sample_rate,
+        max_block_frames: config.max_block_frames as usize,
     };
     Ok((core, handle))
 }
@@ -146,12 +164,139 @@ impl EngineHandle {
         self.handoff.push(Handoff::Grid { deck, grid }).is_ok()
     }
 
-    /// Drops every buffer the audio thread has returned and reports how many.
-    /// Call from the control or loader thread, never from the audio thread.
+    /// Installs `effect` into `slot`, replacing the effect there (a hard cut:
+    /// disable the slot and let it settle first to avoid a click).
+    ///
+    /// Control or loader thread. The effect comes from
+    /// `EffectRegistry::create`; this prepares it for the engine (sample rate,
+    /// block size, `Effect::prepare`), allocates the slot buffers and hands
+    /// the box over a dedicated ring, so the audio thread never allocates.
+    /// Set the effect's initial parameters before calling (`set_parameter`
+    /// is safe on any thread). The slot keeps its enabled state, wet/dry and
+    /// beat division from `SetFxEnabled`, `SetFxMix` and `SetFxBeatDivision`.
+    /// Latency is read once here (see the `fx` module docs).
+    ///
+    /// Returns the effect when the hand-off ring is full; retry on the next tick.
+    pub fn install_effect(
+        &mut self,
+        slot: FxSlotId,
+        effect: Box<dyn Effect>,
+    ) -> Result<(), Box<dyn Effect>> {
+        if self.fx_handoff.is_full() {
+            return Err(effect);
+        }
+        let rt = Box::new(SlotRt::new(effect, self.sample_rate, self.max_block_frames));
+        let item = FxHandoff::Install {
+            unit: FxHost::unit_index(slot.unit()),
+            slot: slot.slot(),
+            rt,
+        };
+        match self.fx_handoff.push(item) {
+            Err(rtrb::PushError::Full(FxHandoff::Install { rt, .. })) => Err((*rt).into_effect()),
+            // Only this handle pushes and the ring was not full.
+            _ => Ok(()),
+        }
+    }
+
+    /// Empties `slot`. The old effect comes back through [`reclaim`](Self::reclaim).
+    /// Returns `false` when the hand-off ring is full; retry on the next tick.
+    pub fn clear_effect(&mut self, slot: FxSlotId) -> bool {
+        self.fx_handoff
+            .push(FxHandoff::Clear {
+                unit: FxHost::unit_index(slot.unit()),
+                slot: slot.slot(),
+            })
+            .is_ok()
+    }
+
+    /// Chooses where send bus `bus` takes its signal from every channel
+    /// (default post-fader). Returns `false` for a bad bus or a full ring.
+    pub fn set_fx_send_tap(&mut self, bus: u8, tap: SendTap) -> bool {
+        usize::from(bus) < opendeck_contracts::ids::FX_SEND_BUSES
+            && self
+                .fx_handoff
+                .push(FxHandoff::SendTap { bus, tap })
+                .is_ok()
+    }
+
+    /// Sets where `unit` takes tempo and beat phase from: its usual source,
+    /// a given deck, or a tapped BPM (see [`FxTempoSource`]). Returns `false`
+    /// for a tapped BPM that is not finite and positive, or when the hand-off
+    /// ring is full; retry on the next tick.
+    pub fn set_fx_tempo_source(&mut self, unit: FxUnit, source: FxTempoSource) -> bool {
+        if let FxTempoSource::Tap(bpm) = source
+            && !(bpm.0.is_finite() && bpm.0 > 0.0)
+        {
+            return false;
+        }
+        self.fx_handoff
+            .push(FxHandoff::Tempo {
+                unit: FxHost::unit_index(unit),
+                source,
+            })
+            .is_ok()
+    }
+
+    /// Enables or disables `slot` at engine frame `at` (the
+    /// `EngineTelemetry::engine_time` clock), sample accurate: the slot starts
+    /// its ramp on exactly that frame. `fast` uses a 1 ms ramp (pad FX engage
+    /// and release) instead of the 10 ms bypass crossfade. A time already
+    /// past acts on the first frame of the next block. Up to 48 timed events
+    /// (`2 * MAX_DECKS * FX_SLOTS_PER_UNIT`) wait at once (more act
+    /// immediately). Returns `false` when the ring is
+    /// full; retry on the next tick.
+    pub fn schedule_fx_enabled(
+        &mut self,
+        slot: FxSlotId,
+        on: bool,
+        at: Frames,
+        fast: bool,
+    ) -> bool {
+        self.fx_handoff
+            .push(FxHandoff::Event(FxEvent {
+                unit: FxHost::unit_index(slot.unit()),
+                slot: slot.slot(),
+                on,
+                at,
+                fast,
+            }))
+            .is_ok()
+    }
+
+    /// Release FX: at frame `at`, bypasses `from` (10 ms crossfade) and
+    /// starts `release` with a 1 ms ramp; `hold` frames later `release` is
+    /// disabled again, so an effect with a tail (echo out, reverb) keeps
+    /// ringing after its input is cut while a non-tail effect (brake, filter
+    /// sweep) is simply bypassed. Place `release` after `from` in the chain
+    /// so it hears what `from` was producing. All three switches are queued
+    /// together or none are (`false`, ring too full; retry).
+    pub fn release_fx(
+        &mut self,
+        from: FxSlotId,
+        release: FxSlotId,
+        at: Frames,
+        hold: Frames,
+    ) -> bool {
+        if self.fx_handoff.slots() < 3 {
+            return false;
+        }
+        let end = Frames(at.0.saturating_add(hold.0));
+        self.schedule_fx_enabled(from, false, at, false)
+            && self.schedule_fx_enabled(release, true, at, true)
+            && self.schedule_fx_enabled(release, false, end, false)
+    }
+
+    /// Drops every buffer and effect the audio thread has returned and
+    /// reports how many. Call from the control or loader thread, never from
+    /// the audio thread.
     pub fn reclaim(&mut self) -> usize {
         let mut dropped = 0;
         while let Ok(buffer) = self.returns.pop() {
             drop(buffer);
+            dropped += 1;
+        }
+        while let Ok(old) = self.fx_returns.pop() {
+            drop(old);
             dropped += 1;
         }
         dropped

@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { MiddlePanel } from "./components/Placeholders";
 import { LibraryPane } from "./components/LibraryPane";
 import { DeckPanel } from "./components/DeckPanel";
+import { FxPanel } from "./components/fx/FxPanel";
 import { MixerPanel } from "./components/MixerPanel";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { TopBar } from "./components/TopBar";
@@ -45,6 +46,7 @@ export function App() {
             <MixerPanel />
             <DeckPanel deck={DECK_B} />
           </div>
+          <FxPanel />
           <MiddlePanel />
           <LibraryPane />
         </main>

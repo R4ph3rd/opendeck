@@ -6,11 +6,12 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Instant;
 
 use opendeck_contracts::telemetry::{EngineEvent, EngineTelemetry};
-use opendeck_contracts::{DeckId, EngineCommand, MAX_DECKS};
+use opendeck_contracts::{DeckId, EngineCommand, FxSlotId, FxUnit, MAX_DECKS};
 use rtrb::{Consumer, Producer};
 
 use crate::EngineConfig;
 use crate::deck::{Deck, DeckStatus, EventSink};
+use crate::fx::{FxHandoff, FxHost, FxSlotStatus, FxUnitStatus, FxView, SlotRt};
 use crate::mixer::Mixer;
 use crate::sync::SyncState;
 use crate::track::{Handoff, TrackBuffer};
@@ -34,6 +35,9 @@ pub struct EngineCore {
     decks: Vec<Deck>,
     mixer: Mixer,
     sync: SyncState,
+    fx: FxHost,
+    fx_handoff: Consumer<FxHandoff>,
+    fx_returns: Producer<Box<SlotRt>>,
 
     commands: Consumer<EngineCommand>,
     handoff: Consumer<Handoff>,
@@ -59,6 +63,8 @@ pub(crate) struct CoreRings {
     pub(crate) commands: Consumer<EngineCommand>,
     pub(crate) handoff: Consumer<Handoff>,
     pub(crate) returns: Producer<TrackBuffer>,
+    pub(crate) fx_handoff: Consumer<FxHandoff>,
+    pub(crate) fx_returns: Producer<Box<SlotRt>>,
     pub(crate) telemetry: Producer<EngineTelemetry>,
     pub(crate) events: Producer<EngineEvent>,
 }
@@ -76,6 +82,9 @@ impl EngineCore {
             decks,
             mixer: Mixer::new(config.sample_rate.as_f64(), max_block),
             sync: SyncState::new(config.sample_rate.as_f64()),
+            fx: FxHost::new(config.sample_rate, max_block),
+            fx_handoff: rings.fx_handoff,
+            fx_returns: rings.fx_returns,
             commands: rings.commands,
             handoff: rings.handoff,
             returns: rings.returns,
@@ -106,6 +115,17 @@ impl EngineCore {
     /// the control thread uses telemetry instead.
     pub fn deck_status(&self, deck: DeckId) -> Option<DeckStatus> {
         self.decks.get(deck.index()).map(Deck::status)
+    }
+
+    /// State of one FX slot as of the last rendered block. Same-thread read
+    /// for offline tools and tests.
+    pub fn fx_slot_status(&self, slot: FxSlotId) -> FxSlotStatus {
+        self.fx.slot_status(slot).unwrap_or_default()
+    }
+
+    /// State of one FX unit as of the last rendered block.
+    pub fn fx_unit_status(&self, unit: FxUnit) -> FxUnitStatus {
+        self.fx.unit_status(unit).unwrap_or_default()
     }
 
     /// Renders interleaved stereo master output into `out`, overwriting it.
@@ -167,19 +187,30 @@ impl EngineCore {
     fn render_chunk(&mut self, out: &mut [f32], headphones: &mut [f32]) {
         let frames = out.len() / 2;
         self.flush_pending_returns();
+        self.drain_fx_handoff();
         self.drain_handoff();
         self.drain_commands();
         self.sync.update(&mut self.decks);
 
+        // Tempo and phase for FX, read before the decks move.
+        let mut views = [FxView::default(); MAX_DECKS];
+        for (view, deck) in views.iter_mut().zip(&self.decks) {
+            *view = deck.fx_view();
+        }
+        let master_view = self.master_fx_view(&views);
         out.fill(0.0);
         self.mixer.begin_block(frames);
+        self.fx
+            .begin_block(frames, self.engine_time, &views, &master_view);
         for (index, deck) in self.decks.iter_mut().enumerate() {
             let Some(buf) = self.deck_buf.get_mut(..frames * 2) else {
                 continue;
             };
             deck.render(buf, &mut self.sink);
-            self.mixer.process_deck(index, buf, out);
+            self.mixer.process_deck(index, buf, out, &mut self.fx);
         }
+        self.fx.process_sends(out);
+        self.fx.process_master(out);
         self.mixer.finish(out, headphones);
 
         self.engine_time = self.engine_time.saturating_add(frames as u64);
@@ -210,10 +241,30 @@ impl EngineCore {
             slot.is_leader = leader == Some(index);
             slot.meter = self.mixer.take_channel_meter(index);
         }
+        self.fx.fill_telemetry(&mut snapshot);
         // A full ring means the reader is behind; the next snapshot is complete anyway.
         if self.telemetry.push(snapshot).is_ok() {
             self.sequence = self.sequence.wrapping_add(1);
         }
+    }
+
+    /// Tempo and phase for the master and send units: the sync leader, else
+    /// the first playing deck with a grid. `playing` is true when any deck is.
+    fn master_fx_view(&self, views: &[FxView; MAX_DECKS]) -> FxView {
+        let leader = self.sync.leader().map(DeckId::index);
+        let known = |i: usize| views.get(i).copied().filter(|v| v.bpm.is_some());
+        let mut view = leader
+            .and_then(known)
+            .or_else(|| {
+                self.decks
+                    .iter()
+                    .enumerate()
+                    .find(|(_, d)| d.is_playing())
+                    .and_then(|(i, _)| known(i))
+            })
+            .unwrap_or_default();
+        view.playing = self.decks.iter().any(Deck::is_playing);
+        view
     }
 
     // ----- Rings -----
@@ -247,6 +298,23 @@ impl EngineCore {
                 && let Err(rtrb::PushError::Full(buffer)) = self.returns.push(buffer)
             {
                 *slot = Some(buffer);
+            }
+        }
+    }
+
+    /// Applies every queued FX hand-off. Replaced boxes go to the FX return
+    /// ring; with no room the item stays queued for the next block, so the
+    /// audio thread never drops an effect.
+    fn drain_fx_handoff(&mut self) {
+        while self.fx_returns.slots() > 0 {
+            let Ok(item) = self.fx_handoff.pop() else {
+                return;
+            };
+            if let Some(old) = self.fx.apply_handoff(item) {
+                // Room was checked above and this thread is the only producer.
+                if let Err(rtrb::PushError::Full(old)) = self.fx_returns.push(old) {
+                    std::mem::forget(old);
+                }
             }
         }
     }
@@ -290,7 +358,7 @@ impl EngineCore {
 
     fn apply(&mut self, command: EngineCommand) {
         use EngineCommand as C;
-        if self.mixer.apply(command) {
+        if self.mixer.apply(command) || self.fx.apply(command) {
             return;
         }
         if let C::SetLeader { deck } = command {
@@ -310,7 +378,7 @@ impl EngineCore {
             return;
         }
         let Some(index) = deck_of(&command) else {
-            // TODO(M5): FX. TODO(M7): sampler, key shift.
+            // TODO(M7): sampler, key shift.
             return;
         };
         let Some(d) = self.decks.get_mut(index) else {
