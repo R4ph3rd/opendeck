@@ -38,7 +38,7 @@ Versions below are the latest stable on crates.io / npm on the ADR date. Exact v
 |---|---|---|---|
 | FFT | `rustfft` 6.4 | MIT / Apache-2.0 | |
 | Loudness | `ebur128` 0.1 | MIT | EBU R128 integrated loudness and true peak. |
-| BPM, beat grid, key | `stratum-dsp` 1.0 evaluated first | MIT / Apache-2.0 | Young crate (low download count). Milestone 3 starts with a spike: run it against a labelled test set (BPM within 0.1, key exact or relative). If it fails the bar, fall back to the custom implementation already specified in the brief: onset envelope + autocorrelation/comb filter for tempo, chroma + Krumhansl-Schmuckler for key, Camelot output. Both sit behind one `Analyzer` trait, so the swap is local. |
+| BPM, beat grid, key | `stratum-dsp` 1.0 evaluated first | MIT / Apache-2.0 | Young crate (low download count). Milestone 3 starts with a spike: run it against a labelled test set (BPM within 0.1, key exact or relative). If it fails the bar, fall back to the custom implementation already specified in the brief: onset envelope + autocorrelation/comb filter for tempo, chroma + Krumhansl-Schmuckler for key, Camelot output. Both sit behind one `Analyzer` trait, so the swap is local. **M3 result: rejected.** On the labelled synthetic set it scored 8/28 BPM, 0/28 grid anchor and 8/24 key, used rayon internally and took 0.7 to 1.8 s per 40 s clip. The custom tempo and key analyzers ship instead (`crates/analysis`, scores in `CONTEXT/analysis.md`). |
 | Rejected | `aubio-rs` | GPL-3.0 | Not linked. |
 
 ### Library, metadata, MIDI
@@ -50,7 +50,7 @@ Versions below are the latest stable on crates.io / npm on the ADR date. Exact v
 | Tags and artwork | `lofty` | 0.25 | MIT / Apache-2.0 | |
 | Content hash | `blake3` | 1.x | CC0 / Apache-2.0 | **Addition.** Dedupe key: file size plus BLAKE3 of the first and last 1 MiB. Fast on large imports; a full-file hash runs only on collision. |
 | Rekordbox XML import | `quick-xml` | 0.x | MIT | **Addition.** Documented XML export only. |
-| Job pool | `rayon` (analysis) + `crossbeam-channel` (job queue) | | MIT / Apache-2.0 | **Addition.** Worker pool sized to cores minus one, leaving a core for audio. |
+| Job pool | `crossbeam-channel` (job queue) + plain threads | | MIT / Apache-2.0 | **Addition.** Worker pool sized to cores minus one, leaving a core for audio, capped at 4 because each worker holds one decoded track (about 210 MB per ten minutes). M3 dropped `rayon`: plain threads let the cancel flag reach every worker. |
 | MIDI | `midir` | 0.11 | MIT | WinMM on Windows, CoreMIDI, ALSA. |
 | Serialization | `serde`, `serde_json` | 1.x | MIT / Apache-2.0 | Mapping files, presets, settings. |
 | Errors / logging | `thiserror`, `tracing` | | MIT | `tracing` is never called from the audio thread. |
