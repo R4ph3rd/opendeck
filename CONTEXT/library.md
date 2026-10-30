@@ -14,7 +14,7 @@ SQLite collection: schema and migrations, track queries for the collection view,
 
 ## External crates
 - In use: `rusqlite` 0.40 (bundled, includes FTS5), `rusqlite_migration` 2.6, `thiserror`, `blake3` (dedupe fingerprint, MIT/Apache-2.0/CC0), `crossbeam-channel` (progress channel, work queue), `quick-xml` 0.42 (rekordbox XML, MIT), `serde` and `serde_json` (settings, job options).
-- Not used: `rayon`. The import pool is plain threads sized cores minus one, so the cancel flag reaches every worker.
+- Not used: `rayon`. The import pool is plain threads, so the cancel flag reaches every worker. Default size is cores minus one, capped at 4 (`DEFAULT_MAX_WORKERS`); `ImportConfig::workers` overrides it.
 
 ## Rules (ADR 0005)
 - Migrations append-only; back up the DB file before migrating an older schema; refuse to downgrade.
@@ -38,5 +38,5 @@ SQLite collection: schema and migrations, track queries for the collection view,
 - Artwork: store originals or downscaled thumbnails (size budget).
 - Variable-tempo rekordbox tracks keep only the first `TEMPO` segment until contracts gets a tempo map (grid blob version 2).
 - `TODO(verify)` against the Pioneer rekordbox XML Format List: `POSITION_MARK` type codes and `Num`, rating scale (0 to 255 step 51), `Battito`.
-- Memory: a decode for analysis holds the whole file as stereo f32 (about 210 MB for ten minutes at 44.1 kHz), once per worker. Streamed or mono analysis would cut it.
+- Memory: a decode for analysis holds the whole file as stereo f32, about 210 MB per ten-minute track at 44.1 kHz, once per worker (so up to about 840 MB with the default 4 workers). Streamed or mono analysis would cut it.
 - ADR 0005 needs a v2 addendum (architect): the schema changes above and the `Library` ownership of all SQL.

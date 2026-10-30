@@ -35,10 +35,22 @@ use engine::{Engine, Source, Stop};
 
 pub use hash::{Fingerprint, fingerprint};
 
+/// Upper bound on the default worker count. A worker decodes a whole track
+/// to stereo f32 for analysis (about 210 MB for ten minutes at 44.1 kHz), so
+/// more workers cost memory faster than they save time.
+pub const DEFAULT_MAX_WORKERS: usize = 4;
+
+/// Default worker count for `cores` logical cores: cores minus one (a core is
+/// left for audio), at most [`DEFAULT_MAX_WORKERS`], at least 1.
+pub(crate) fn default_workers(cores: usize) -> usize {
+    cores.saturating_sub(1).clamp(1, DEFAULT_MAX_WORKERS)
+}
+
 /// Import queue settings.
 #[derive(Debug, Clone)]
 pub struct ImportConfig {
-    /// Pipeline worker threads; 0 means available cores minus one (at least 1).
+    /// Pipeline worker threads; 0 means [`DEFAULT_MAX_WORKERS`] or cores minus one,
+    /// whichever is smaller (at least 1). Each worker holds one decoded track.
     pub workers: usize,
     /// Rate files are decoded to for analysis.
     pub analysis_rate: SampleRate,
@@ -264,5 +276,20 @@ impl ImportManager {
     /// Items of a job in source order, including failures such as files not found.
     pub fn job_report(&self, job: JobId) -> Result<Vec<ItemReport>> {
         engine::job_report(&self.engine.shared.lib, job)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::default_workers;
+
+    #[test]
+    fn default_workers_leaves_a_core_and_caps_at_four() {
+        assert_eq!(default_workers(0), 1);
+        assert_eq!(default_workers(1), 1);
+        assert_eq!(default_workers(2), 1);
+        assert_eq!(default_workers(4), 3);
+        assert_eq!(default_workers(5), 4);
+        assert_eq!(default_workers(16), 4);
     }
 }

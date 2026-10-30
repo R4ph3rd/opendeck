@@ -30,7 +30,7 @@ use rusqlite::{OptionalExtension, Transaction, params};
 
 use super::discover;
 use super::hash::{fingerprint, full_hash};
-use super::{ImportConfig, ItemReport, JobSummary};
+use super::{ImportConfig, ItemReport, JobSummary, default_workers};
 use crate::analysis::{save_analysis_on, set_beat_grid_on};
 use crate::cues::add_cue_on;
 use crate::error::{LibraryError, Result};
@@ -252,10 +252,7 @@ impl Engine {
         let n = if cfg.workers > 0 {
             cfg.workers
         } else {
-            std::thread::available_parallelism()
-                .map_or(1, std::num::NonZero::get)
-                .saturating_sub(1)
-                .max(1)
+            default_workers(std::thread::available_parallelism().map_or(1, std::num::NonZero::get))
         };
         let shared = Arc::new(Shared {
             lib,
