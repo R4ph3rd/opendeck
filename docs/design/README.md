@@ -25,6 +25,29 @@ Components come from the package index: `import { Button, Panel } from "@opendec
 | `src/components/*` | shadcn/ui on Radix, restyled with tokens, one story per file. |
 | `src/tokens/contrast.test.ts` | WCAG contrast tests that parse `tokens.css`. |
 
+## Components
+
+Base (shadcn/ui on Radix): Badge, Button, ContextMenu, Dialog, DropdownMenu, EmptyState, IconButton, Input, Kbd, Panel, ScrollArea, Select, Separator, Slider, Switch, Table, Tabs, Toast, Toggle and ToggleGroup, Tooltip.
+
+Added in milestone 4:
+
+| Component | Use | Built on |
+|---|---|---|
+| `ResizablePanelGroup`, `ResizablePanel`, `ResizableHandle` | Deck, middle panel and collection split. Persist with `onLayoutChanged`, restore with `defaultLayout`. | `react-resizable-panels` (MIT) |
+| `Popover`, `HoverCard` | Click-opened panel; hover and focus preview. | Radix |
+| `Command`, `CommandPalette`, `Combobox` | Quick search and commands (Mod+K), searchable select. | `cmdk` (MIT) |
+| `NumberField` | BPM entry: type, arrows, wheel (focused), drag-to-scrub, precision. | native input |
+| `ColorSwatchPicker` | Hot cue colour from the 8 `--cue-N` tokens. | Radix RadioGroup |
+| `SegmentedControl` | One of a few values (tempo range, beat size). | Radix RadioGroup |
+| `StatusDot` | LED for SYNC, MASTER, loop: on, off, blink. | native |
+| `ProgressBar`, `Skeleton` | Import progress (determinate or not); loading placeholders. | Radix Progress |
+| `Breadcrumb` | File explorer path. | native |
+| `KeyValueList` | Info and settings summaries. | native |
+| `Callout` | Inline info, success, warning, danger message. | native |
+| `SettingsLayout`, `SettingsNav`, `SettingsSection`, `SettingsRow` | Frame for the settings dialog. | native |
+
+Storybook "Patterns" section: dense panel header, empty state, settings page skeleton.
+
 ## Add a token
 
 1. Add the variable to `tokens.css`. If it is a color or shadow, define it for dark in the `:root, [data-theme="dark"]` block and for light in `[data-theme="light"]`. A token that only references other tokens (`var(--x)`) goes in the shared block at the end so nested theme wrappers re-resolve it.
