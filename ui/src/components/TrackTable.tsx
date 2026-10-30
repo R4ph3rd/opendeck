@@ -40,7 +40,7 @@ import {
   type KeyboardEvent,
   type MouseEvent,
 } from "react";
-import type { SortColumnDto } from "../ipc/bindings";
+import { commands, type SortColumnDto } from "../ipc/bindings";
 import { writeDrag } from "../lib/dnd";
 import { SORT_COLUMN, displayTitle, type ColumnId } from "../lib/library";
 import {
@@ -167,6 +167,29 @@ export function TrackTable({ source, playlist = null, sort, onSort, label }: Tra
   });
 
   const idAt = useCallback((index: number) => source.getRow(index)?.id ?? null, [source]);
+
+  // The controller's browse encoder moves the selection; the table follows once per move.
+  const browseCursor = useLibraryStore((s) => s.browseCursor);
+  const seenCursor = useRef(browseCursor?.nonce ?? 0);
+  useEffect(() => {
+    if (!browseCursor || browseCursor.nonce === seenCursor.current) {
+      return;
+    }
+    seenCursor.current = browseCursor.nonce;
+    virtualizer.scrollToIndex(browseCursor.index, { align: "auto" });
+    setSelection({
+      ids: new Set([browseCursor.track]),
+      anchor: browseCursor.index,
+      focus: browseCursor.index,
+    });
+  }, [browseCursor, virtualizer, setSelection]);
+
+  // The encoder continues from the row the user selected.
+  useEffect(() => {
+    if (selection.focus !== null && selection.focus !== useLibraryStore.getState().browseCursor?.index) {
+      void commands.browseSelect(selection.focus);
+    }
+  }, [selection.focus]);
 
   // ----- selection -----
 

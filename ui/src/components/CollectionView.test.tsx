@@ -337,4 +337,27 @@ describe("CollectionView empty states", () => {
     await waitFor(() => expect(commands.queryTracks.mock.calls.length).toBeGreaterThan(before));
     await waitFor(() => expect(screen.getByText("Fresh import")).toBeTruthy());
   });
+
+  it("tells the controller's browse encoder what is on screen and follows its cursor", async () => {
+    render(<CollectionView />);
+    await waitFor(() => expect(bodyRows().length).toBeGreaterThan(5));
+    await waitFor(() => expect(commands.browseSetContext).toHaveBeenCalled());
+    const context = (commands.browseSetContext.mock.calls as unknown as [
+      { source: { kind: string; query: { limit: number } }; index: number | null },
+    ][])[0]?.[0];
+    expect(context?.source.kind).toBe("collection");
+    expect(context?.index).toBeNull();
+
+    // The encoder moves to row 3 (track id 4): the table selects it.
+    act(() => useLibraryStore.getState().moveBrowseCursor(3, 4));
+    await waitFor(() => expect(useLibraryStore.getState().selection.focus).toBe(3));
+    expect([...useLibraryStore.getState().selection.ids]).toEqual([4]);
+    expect(commands.browseSelect).not.toHaveBeenCalledWith(3);
+
+    // A click on another row is reported, so the encoder continues from there.
+    const row = bodyRows().find((r) => r.getAttribute("aria-rowindex") === "8");
+    expect(row).toBeTruthy();
+    fireEvent.click(row as HTMLElement);
+    await waitFor(() => expect(commands.browseSelect).toHaveBeenCalledWith(6));
+  });
 });

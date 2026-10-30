@@ -1,6 +1,7 @@
 import { Badge, IconButton } from "@opendeck/design-system";
-import { AudioLines, Settings } from "lucide-react";
+import { Activity, AudioLines, Piano, Settings } from "lucide-react";
 import { useAppStore } from "../state/app";
+import { useMidiStore } from "../state/midi";
 import { ImportMenu } from "./ImportMenu";
 
 const KHZ = 1000;
@@ -9,6 +10,9 @@ const KHZ = 1000;
 export function TopBar() {
   const audio = useAppStore((s) => s.audio);
   const setSettingsOpen = useAppStore((s) => s.setSettingsOpen);
+  const openSettings = useAppStore((s) => s.openSettings);
+  const setMonitorOpen = useAppStore((s) => s.setMidiMonitorOpen);
+  const midi = useMidiStore((s) => s.status);
 
   let status = "Audio starting";
   let variant: "success" | "danger" | "neutral" = "neutral";
@@ -21,11 +25,35 @@ export function TopBar() {
     variant = "danger";
   }
 
+  let midiText = "No controller";
+  let midiVariant: "success" | "neutral" | "danger" = "neutral";
+  if (midi?.connected) {
+    midiText = midi.input ?? midi.mapping_name;
+    midiVariant = "success";
+  } else if (midi && !midi.enabled) {
+    midiText = "MIDI off";
+    midiVariant = "danger";
+  }
+
   return (
     <header className="flex h-10 shrink-0 items-center gap-3 border-b border-border bg-toolbar px-3">
       <h1 className="text-base font-semibold tracking-wide text-fg">OpenDeck</h1>
       <div className="flex-1" />
       <ImportMenu />
+      <button
+        type="button"
+        onClick={() => openSettings("midi")}
+        aria-label={`MIDI controller: ${midiText}. Open MIDI settings`}
+        className="rounded-sm focus-visible:outline-2 focus-visible:outline-focus-ring"
+      >
+        <Badge variant={midiVariant} className="max-w-48 truncate">
+          <Piano className="size-3 shrink-0" aria-hidden />
+          <span className="truncate">{midiText}</span>
+        </Badge>
+      </button>
+      <IconButton aria-label="MIDI monitor" onClick={() => setMonitorOpen(true)}>
+        <Activity className="size-4" aria-hidden />
+      </IconButton>
       <button
         type="button"
         onClick={() => setSettingsOpen(true)}

@@ -164,6 +164,22 @@ export const deckState = (deck: number) => ({
   pad_mode: "hot_cue",
 });
 
+/** MIDI status as the backend reports it with no controller plugged in. */
+export const midiStatus = () => ({
+  mapping_id: "pioneer-ddj-flx4",
+  mapping_name: "Pioneer DDJ-FLX4",
+  enabled: true,
+  connected: false,
+  input: null as string | null,
+  output: null as string | null,
+  last_error: null as string | null,
+  auto_connect: true,
+  device: null as string | null,
+  fader_start: false,
+  dropped_input: 0,
+  verify_count: 165,
+});
+
 /**
  * Mock of the generated `ipc/bindings` module. Use inside `vi.mock` with
  * `vi.hoisted`:
@@ -298,6 +314,23 @@ export function createBindingsMock() {
       fxDeleteChain: vi.fn(() => ok({ factory: [], user: [], chains: [] })),
       listDirectory: vi.fn(() => ok({ path: "/music", parent: "/", entries: [] })),
       revealInExplorer: vi.fn(() => ok(null)),
+      midiListPorts: vi.fn(() => ok([])),
+      midiGetStatus: vi.fn(() => ok(midiStatus())),
+      midiConnect: vi.fn(() => ok(midiStatus())),
+      midiDisconnect: vi.fn(() => ok(midiStatus())),
+      midiSetAutoConnect: vi.fn(() => ok(midiStatus())),
+      midiSetFaderStart: vi.fn(() => ok(midiStatus())),
+      midiSetMonitor: vi.fn(() => ok(null)),
+      midiLearnStart: vi.fn(() => ok(null)),
+      midiLearnCancel: vi.fn(() => ok(null)),
+      midiGetMapping: vi.fn(() => ok([])),
+      midiSetOverride: vi.fn(() => ok([])),
+      midiClearOverride: vi.fn(() => ok([])),
+      midiResetOverrides: vi.fn(() => ok([])),
+      midiExportMapping: vi.fn(() => ok(null)),
+      midiImportMapping: vi.fn(() => ok([])),
+      browseSetContext: vi.fn(() => ok(null)),
+      browseSelect: vi.fn(() => ok(null)),
     },
     events: {
       analysisReady: event("analysis-ready"),
@@ -311,6 +344,13 @@ export function createBindingsMock() {
       fxStateChanged: event("fx-state-changed"),
       trackLoadFailed: event("track-load-failed"),
       trackLoaded: event("track-loaded"),
+      midiConnectionChanged: event("midi-connection-changed"),
+      midiMonitor: event("midi-monitor"),
+      midiLearned: event("midi-learned"),
+      browseCursorMoved: event("browse-cursor-moved"),
+      padModeChanged: event("pad-mode-changed"),
+      mixerStateChanged: event("mixer-state-changed"),
+      deckStateChanged: event("deck-state-changed"),
     },
     /** Delivers `payload` to the listener registered for `name`. */
     emit(name: string, payload: unknown) {

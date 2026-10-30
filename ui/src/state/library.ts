@@ -23,6 +23,13 @@ export type LibraryView =
   | { kind: "set"; id: number };
 
 /** A job in the import panel: live progress plus what the stored row knows. */
+/** A browse encoder move. `nonce` makes two moves to the same row distinct. */
+export interface BrowseCursor {
+  index: number;
+  track: number;
+  nonce: number;
+}
+
 export interface JobEntry extends JobProgress {
   source: string | null;
   error: string | null;
@@ -66,6 +73,8 @@ export interface LibraryState extends LibraryPrefs {
   revision: number;
   /** Rows in the collection, when known (sidebar count, empty state). */
   collectionTotal: number | null;
+  /** Where the controller's browse encoder put the cursor; the table follows it. */
+  browseCursor: BrowseCursor | null;
   setView: (view: LibraryView) => void;
   setFilters: (patch: Partial<TrackFilters>) => void;
   clearFilters: () => void;
@@ -78,6 +87,8 @@ export interface LibraryState extends LibraryPrefs {
   setSavedSets: (sets: SavedSetDto[]) => void;
   setCollectionTotal: (total: number | null) => void;
   bumpRevision: () => void;
+  /** Records a move of the controller's browse encoder. */
+  moveBrowseCursor: (index: number, track: number) => void;
   /** Merges a progress event into the job list. */
   applyProgress: (progress: JobProgress) => void;
   /** Replaces the job list with stored jobs (startup). */
@@ -97,6 +108,7 @@ const initial = () => ({
   jobs: [] as JobEntry[],
   revision: 0,
   collectionTotal: null as number | null,
+  browseCursor: null as BrowseCursor | null,
 });
 
 function saved(state: LibraryState): LibraryPrefs {
@@ -134,6 +146,8 @@ export const useLibraryStore = create<LibraryState>()((set, get) => {
     setSavedSets: (savedSets) => set({ savedSets }),
     setCollectionTotal: (collectionTotal) => set({ collectionTotal }),
     bumpRevision: () => set((s) => ({ revision: s.revision + 1 })),
+    moveBrowseCursor: (index, track) =>
+      set((s) => ({ browseCursor: { index, track, nonce: (s.browseCursor?.nonce ?? 0) + 1 } })),
     applyProgress: (progress) =>
       set((s) => {
         const known = s.jobs.find((j) => j.job === progress.job);
