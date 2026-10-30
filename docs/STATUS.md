@@ -33,6 +33,10 @@ Done: two decks with jog scratch and nudge, tempo and beat sync with leader elec
 
 Done: zoomed and overview waveforms from analysis peaks (`get_track_peaks`), with beat grid, hot and memory cues, loops and a playhead extrapolated from telemetry; zoom (2 to 64 s) and scrub. Canvas knob, jog wheel (touch, turn, nudge ring, Shift search), performance pads and stereo level meter, wired into the deck and mixer panels. Design system: info, blink and sweep tokens with contrast tests; resizable, popover, command, number field, status dot, segmented control, settings layout, breadcrumb, callout, key-value, skeleton, progress bar and colour swatch picker, with stories and pattern docs. Flat FL-style slate re-theme: gradients, mesh backgrounds and backdrop blur removed and banned in stylelint and ESLint. Viz Storybook (`pnpm -C ui storybook:viz`) with a two-deck and mixer layout story on synthetic tracks.
 
+## Milestone 5
+
+Done: 17 built-in effects (`dsp-fx`) with catalog data, factory presets and a reference slot host. Engine FX host: `MAX_DECKS` deck units, a master unit and two send units, each a chain of `FX_SLOTS_PER_UNIT` (6) slots, with equal-power mix, 10 ms bypass, tail spill, slot latency compensation, sample-accurate timed engage, Release FX, tapped tempo source, per-unit telemetry and zero heap calls in the callback. App-core FX model: two FLX4-style Beat FX units (channel 1, 2 or 1&2, Multi and Single, BEAT stepper, tap BPM, Release FX), Sound Color FX per channel, two send buses (pre or post fader), 32 pad FX, user presets in `fx_presets`, chain presets and persisted state. Each deck chain has dedicated slots: 0 to 2 Beat FX, 3 Sound Color FX, 4 pad FX, 5 Release FX, so a full Multi unit no longer disables the others. Tauri FX commands and `fx-state-changed`. UI: effects panel with Beat FX units, CFX knobs and sends on the channel strips, send units, pad FX editor, presets and chains.
+
 ## Branch model
 
 - `main`: released milestones only. Every push to `main` runs the release workflow.
@@ -70,6 +74,9 @@ Done: zoomed and overview waveforms from analysis peaks (`get_track_peaks`), wit
 | M6 midi | `on_connect` raw messages are capped at 3 bytes, so no SysEx |
 | M6 midi | Feedback entries lack `when` for shift-layer LEDs |
 | M6 midi | Drift test only checks schema to contracts |
+| M5 dsp-fx | Effect parameter names, ranges and defaults and the beat division list are `TODO(verify)` pending the rekordbox manual (`docs/fx-catalog.md`) |
+| M5 app-core | Smart CFX mapping (knob to parameter and wet), the default pad FX set and the Release FX set are project choices, not taken from a source |
+| M6 midi, M7 ui | FX controls have no MIDI mapping yet (M6); pad FX are reached from the pad FX editor only until pad-mode routing lands (M7) |
 
 ## Open questions
 
