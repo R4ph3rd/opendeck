@@ -90,7 +90,8 @@
 use opendeck_contracts::fx::{Effect, ParamId, ProcessContext, StereoBufferMut};
 use opendeck_contracts::ids::{FX_SEND_BUSES, FX_SLOTS_PER_UNIT};
 use opendeck_contracts::{
-    Beats, Bpm, DeckId, EngineCommand, Frames, FxSlotId, FxUnit, MAX_DECKS, SampleRate,
+    Beats, Bpm, DeckId, EngineCommand, EngineTelemetry, Frames, FxSlotId, FxUnit, FxUnitTelemetry,
+    MAX_DECKS, SampleRate,
 };
 
 use crate::mixer::Ramp;
@@ -155,7 +156,7 @@ pub enum FxTempoSource {
 }
 
 /// Same-thread view of one slot, for tests and offline tools. The control
-/// thread has no telemetry for FX yet (contract change needed).
+/// thread sees per-unit state in `EngineTelemetry::fx_*`.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct FxSlotStatus {
     /// An effect is installed.
@@ -743,6 +744,28 @@ impl FxHost {
 
     pub(crate) fn unit_status(&self, unit: FxUnit) -> Option<FxUnitStatus> {
         self.units.get(Self::unit_index(unit)).map(Unit::status)
+    }
+
+    /// Copies every unit's status into a telemetry snapshot. RT-safe.
+    pub(crate) fn fill_telemetry(&self, snapshot: &mut EngineTelemetry) {
+        let to_telemetry = |unit: &Unit| {
+            let s = unit.status();
+            FxUnitTelemetry {
+                enabled: s.enabled,
+                active: s.active,
+                level: s.level,
+            }
+        };
+        for (dst, unit) in snapshot.fx_decks.iter_mut().zip(&self.units) {
+            *dst = to_telemetry(unit);
+        }
+        if let Some(unit) = self.units.get(MASTER_UNIT) {
+            snapshot.fx_master = to_telemetry(unit);
+        }
+        let sends = self.units.get(FIRST_SEND_UNIT..).unwrap_or_default();
+        for (dst, unit) in snapshot.fx_sends.iter_mut().zip(sends) {
+            *dst = to_telemetry(unit);
+        }
     }
 
     /// Applies one hand-off item. Returns the replaced box, if any.

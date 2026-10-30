@@ -370,6 +370,42 @@ fn unit_status_reports_enabled_active_and_level() {
     assert!(!st.enabled && !st.active, "gain has no tail: {st:?}");
 }
 
+#[test]
+fn telemetry_carries_unit_state() {
+    let deck_slot = slot(FxUnit::Deck(deck(0)), 0);
+    let master_slot = slot(FxUnit::Master, 0);
+    let mut rig = Rig::new(2);
+    rig.load(0, sine(440.0, 4.0), None);
+    let (g, _) = gain_fx(1.0);
+    install(&mut rig, deck_slot, g);
+    let (echo, _) = fx(Kind::Echo);
+    install(&mut rig, master_slot, echo);
+    mix(&mut rig, deck_slot, 1.0);
+    enable(&mut rig, deck_slot, true);
+    enable(&mut rig, master_slot, true);
+    rig.play(0, true);
+    rig.step(4 * BLOCK);
+    let t = rig.telemetry();
+    assert!(t.fx_decks[0].enabled && t.fx_decks[0].active && t.fx_decks[0].level > 0.3);
+    assert!(!t.fx_decks[1].enabled && !t.fx_decks[1].active);
+    assert!(t.fx_master.enabled && t.fx_master.active && t.fx_master.level > 0.0);
+    assert!(
+        t.fx_sends
+            .iter()
+            .all(|u| !u.enabled && !u.active && u.level == 0.0)
+    );
+
+    // Disabled with a tail: not enabled, still active while it rings.
+    enable(&mut rig, master_slot, false);
+    rig.step(2 * BLOCK);
+    let t = rig.telemetry();
+    assert!(
+        !t.fx_master.enabled && t.fx_master.active,
+        "{:?}",
+        t.fx_master
+    );
+}
+
 // ----- Send / return -----
 
 fn send(rig: &mut Rig, deck_index: u8, bus: u8, level: f32) {

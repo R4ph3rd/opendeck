@@ -241,6 +241,7 @@ impl EngineCore {
             slot.is_leader = leader == Some(index);
             slot.meter = self.mixer.take_channel_meter(index);
         }
+        self.fx.fill_telemetry(&mut snapshot);
         // A full ring means the reader is behind; the next snapshot is complete anyway.
         if self.telemetry.push(snapshot).is_ok() {
             self.sequence = self.sequence.wrapping_add(1);
