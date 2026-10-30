@@ -51,6 +51,8 @@ pub use crate::types::{
     AudioDeviceInfo, AudioStatus, CoreError, CoreEvent, HotCues, OfflineAudio, TrackInfo,
     TrackLoadFailed, TrackLoaded,
 };
+pub use opendeck_library::DATABASE_FILE_NAME;
+pub use opendeck_library::import::ImportConfig;
 
 /// How long a call waits for the control thread before giving up.
 const REPLY_TIMEOUT: Duration = Duration::from_secs(10);
@@ -598,6 +600,16 @@ impl AppCore {
         self.library
             .clone()
             .ok_or_else(|| CoreError::Library("the library is not open".to_owned()))
+    }
+
+    /// Loads a file into `deck`. With a library the file is imported first
+    /// (see [`LibraryService::load_track_path`]); without one it loads straight
+    /// from the path.
+    pub fn load_track_path(&self, deck: DeckId, path: &Path) -> Result<TrackInfo, CoreError> {
+        match &self.library {
+            Some(library) => library.load_track_path(deck, path),
+            None => self.audio()?.load_track(deck, path),
+        }
     }
 
     /// Unloads `deck` and forgets which library track it held.

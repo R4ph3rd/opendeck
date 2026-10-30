@@ -10,11 +10,18 @@ use std::path::Path;
 use std::sync::Mutex;
 
 use opendeck_app_core::{
-    AppCore, AudioController, AudioDeviceInfo, AudioStatus, Backend, CoreError, CoreEvent, HotCues,
-    LaunchOptions, SettingsStore, TrackInfo, TrackLoadFailed, TrackLoaded,
+    AppCore, AudioController, AudioDeviceInfo, AudioStatus, Backend, CoreError, CoreEvent,
+    DirListing, HotCues, ImportOptionsDto, JobInfo, LaunchOptions, LibraryChange, LibraryEvent,
+    LibraryService, PlaylistEntryDto, PlaylistNodeDto, SavedSetDetailDto, SavedSetDto,
+    SettingsStore, TrackAnalysisDto, TrackDetailDto, TrackInfo, TrackLoadFailed, TrackLoaded,
+    TrackMetaDto, TrackPageDto, TrackQueryDto,
 };
+use opendeck_contracts::analysis::AnalysisFeatures;
+use opendeck_contracts::beatgrid::BeatGrid;
 use opendeck_contracts::cue::{Cue, HotCueIndex};
 use opendeck_contracts::deck::DeckState;
+use opendeck_contracts::ids::{JobId, PlaylistId, TrackId};
+use opendeck_contracts::jobs::JobProgress;
 use opendeck_contracts::mixer::{CrossfaderAssign, CrossfaderCurve, EqBand, MixerState};
 use opendeck_contracts::pad::PadMode;
 use opendeck_contracts::settings::{AudioHostInfo, AudioHostKind, AudioSettings};
@@ -81,7 +88,7 @@ impl From<CoreError> for CommandError {
             CoreError::Media(_) | CoreError::TooLong { .. } | CoreError::Cancelled => {
                 CommandError::Media(message)
             }
-            CoreError::Settings(_) => CommandError::Internal(message),
+            CoreError::Settings(_) | CoreError::Library(_) => CommandError::Internal(message),
             CoreError::Invalid(_) => CommandError::Invalid(message),
         }
     }
@@ -110,6 +117,10 @@ impl AppState {
 
     fn audio(&self) -> Result<AudioController, CommandError> {
         Ok(self.snapshot()?.audio()?)
+    }
+
+    fn library(&self) -> Result<LibraryService, CommandError> {
+        Ok(self.snapshot()?.library()?)
     }
 }
 
@@ -206,25 +217,38 @@ fn supported_audio_extensions() -> Vec<String> {
         .collect()
 }
 
-/// Reads the tags of an audio file and queues its decode into `deck`.
-/// Returns once the tags are known; `track-loaded` or `track-load-failed`
-/// follows when the decode ends.
+/// Loads a library track into `deck` with its stored beat grid and cues.
+/// Returns the deck info (tags, BPM, key) at once; `track-loaded` or
+/// `track-load-failed` follows when the decode ends.
 #[tauri::command]
 #[specta::specta]
 async fn load_track(
     state: tauri::State<'_, AppState>,
     deck: DeckId,
+    track: TrackId,
+) -> Result<TrackInfo, CommandError> {
+    let library = state.library()?;
+    blocking(move || library.load_track(deck, track)).await
+}
+
+/// Loads a file that may not be in the library (drag from the file explorer):
+/// imports it, then loads the new track by id.
+#[tauri::command]
+#[specta::specta]
+async fn load_track_path(
+    state: tauri::State<'_, AppState>,
+    deck: DeckId,
     path: String,
 ) -> Result<TrackInfo, CommandError> {
-    let audio = state.audio()?;
-    blocking(move || audio.load_track(deck, Path::new(&path))).await
+    let core = state.snapshot()?;
+    blocking(move || core.load_track_path(deck, Path::new(&path))).await
 }
 
 /// Unloads a deck.
 #[tauri::command]
 #[specta::specta]
 fn eject_track(state: tauri::State<'_, AppState>, deck: DeckId) -> Result<(), CommandError> {
-    Ok(state.audio()?.eject(deck)?)
+    Ok(state.snapshot()?.eject(deck)?)
 }
 
 /// Starts or stops playback.
@@ -660,6 +684,405 @@ fn set_split_cue(state: tauri::State<'_, AppState>, on: bool) -> Result<(), Comm
     Ok(state.audio()?.set_split_cue(on)?)
 }
 
+// ----- library: tracks, import jobs, playlists, saved sets (milestone 3) -----
+
+/// One sorted, filtered page of the collection.
+#[tauri::command]
+#[specta::specta]
+async fn query_tracks(
+    state: tauri::State<'_, AppState>,
+    query: TrackQueryDto,
+) -> Result<TrackPageDto, CommandError> {
+    let library = state.library()?;
+    blocking(move || library.query_tracks(query)).await
+}
+
+/// Full row of a track.
+#[tauri::command]
+#[specta::specta]
+async fn get_track(
+    state: tauri::State<'_, AppState>,
+    track: TrackId,
+) -> Result<TrackDetailDto, CommandError> {
+    let library = state.library()?;
+    blocking(move || library.get_track(track)).await
+}
+
+/// Edits tag fields: `None` keeps a field, an empty string clears it.
+#[tauri::command]
+#[specta::specta]
+async fn update_track_meta(
+    state: tauri::State<'_, AppState>,
+    track: TrackId,
+    patch: TrackMetaDto,
+) -> Result<(), CommandError> {
+    let library = state.library()?;
+    blocking(move || library.update_track_meta(track, patch)).await
+}
+
+/// Star rating, 0 to 5.
+#[tauri::command]
+#[specta::specta]
+async fn set_rating(
+    state: tauri::State<'_, AppState>,
+    track: TrackId,
+    rating: u8,
+) -> Result<(), CommandError> {
+    let library = state.library()?;
+    blocking(move || library.set_rating(track, rating)).await
+}
+
+/// Removes tracks from the collection; the files stay on disk. Returns how many went.
+#[tauri::command]
+#[specta::specta]
+async fn delete_tracks(
+    state: tauri::State<'_, AppState>,
+    tracks: Vec<TrackId>,
+) -> Result<u64, CommandError> {
+    let library = state.library()?;
+    blocking(move || library.delete_tracks(&tracks)).await
+}
+
+/// Raw artwork bytes. On the wire this is a binary payload (an `ArrayBuffer`
+/// in the webview), not JSON; the generated binding types it as `number[]`, so
+/// callers read it with `new Uint8Array(buffer as unknown as ArrayBuffer)`.
+#[derive(Type)]
+#[specta(transparent)]
+pub struct ArtworkBytes(#[specta(type = Vec<u8>)] tauri::ipc::Response);
+
+impl tauri::ipc::IpcResponse for ArtworkBytes {
+    fn body(self) -> tauri::Result<tauri::ipc::InvokeResponseBody> {
+        self.0.body()
+    }
+}
+
+/// Artwork bytes of a track (empty when it has none), as a raw binary payload.
+#[tauri::command]
+#[specta::specta]
+async fn get_artwork(
+    state: tauri::State<'_, AppState>,
+    track: TrackId,
+) -> Result<ArtworkBytes, CommandError> {
+    let library = state.library()?;
+    let art = blocking(move || library.artwork(track)).await?;
+    Ok(ArtworkBytes(tauri::ipc::Response::new(
+        art.map(|(_mime, bytes)| bytes).unwrap_or_default(),
+    )))
+}
+
+/// Stored analysis of a track: BPM, key, beat grid, loudness.
+#[tauri::command]
+#[specta::specta]
+async fn get_analysis(
+    state: tauri::State<'_, AppState>,
+    track: TrackId,
+) -> Result<Option<TrackAnalysisDto>, CommandError> {
+    let library = state.library()?;
+    blocking(move || library.get_analysis(track)).await
+}
+
+/// Stores a hand-edited beat grid (locked against re-analysis) and sends it to
+/// the decks holding the track.
+#[tauri::command]
+#[specta::specta]
+async fn set_beat_grid(
+    state: tauri::State<'_, AppState>,
+    track: TrackId,
+    grid: BeatGrid,
+) -> Result<(), CommandError> {
+    let library = state.library()?;
+    blocking(move || library.set_beat_grid(track, grid)).await
+}
+
+/// Stored hot, memory and loop cues of a track.
+#[tauri::command]
+#[specta::specta]
+async fn list_cues(
+    state: tauri::State<'_, AppState>,
+    track: TrackId,
+) -> Result<Vec<Cue>, CommandError> {
+    let library = state.library()?;
+    blocking(move || library.list_cues(track)).await
+}
+
+/// Imports a folder, recursively. Progress arrives as `import-progress`.
+#[tauri::command]
+#[specta::specta]
+async fn import_folder(
+    state: tauri::State<'_, AppState>,
+    path: String,
+    options: Option<ImportOptionsDto>,
+) -> Result<JobId, CommandError> {
+    let library = state.library()?;
+    blocking(move || library.import_folder(Path::new(&path), options.unwrap_or_default())).await
+}
+
+/// Imports a list of files.
+#[tauri::command]
+#[specta::specta]
+async fn import_files(
+    state: tauri::State<'_, AppState>,
+    paths: Vec<String>,
+    options: Option<ImportOptionsDto>,
+) -> Result<JobId, CommandError> {
+    let library = state.library()?;
+    let paths: Vec<std::path::PathBuf> = paths.into_iter().map(Into::into).collect();
+    blocking(move || library.import_files(&paths, options.unwrap_or_default())).await
+}
+
+/// Imports an M3U or M3U8 playlist and creates a playlist from it.
+#[tauri::command]
+#[specta::specta]
+async fn import_playlist_file(
+    state: tauri::State<'_, AppState>,
+    path: String,
+    options: Option<ImportOptionsDto>,
+) -> Result<JobId, CommandError> {
+    let library = state.library()?;
+    blocking(move || library.import_playlist(Path::new(&path), options.unwrap_or_default())).await
+}
+
+/// Imports a rekordbox XML export: tracks, grids, cues and playlists.
+#[tauri::command]
+#[specta::specta]
+async fn import_rekordbox_xml(
+    state: tauri::State<'_, AppState>,
+    path: String,
+    options: Option<ImportOptionsDto>,
+) -> Result<JobId, CommandError> {
+    let library = state.library()?;
+    blocking(move || library.import_rekordbox_xml(Path::new(&path), options.unwrap_or_default()))
+        .await
+}
+
+/// Re-analyses tracks. A locked beat grid survives.
+#[tauri::command]
+#[specta::specta]
+async fn reanalyze_tracks(
+    state: tauri::State<'_, AppState>,
+    tracks: Vec<TrackId>,
+    features: AnalysisFeatures,
+) -> Result<JobId, CommandError> {
+    let library = state.library()?;
+    blocking(move || library.reanalyze(&tracks, features)).await
+}
+
+/// Stored jobs, newest first (the import panel's startup state).
+#[tauri::command]
+#[specta::specta]
+async fn list_jobs(state: tauri::State<'_, AppState>) -> Result<Vec<JobInfo>, CommandError> {
+    let library = state.library()?;
+    blocking(move || library.list_jobs()).await
+}
+
+/// Pauses a running job.
+#[tauri::command]
+#[specta::specta]
+async fn pause_job(state: tauri::State<'_, AppState>, job: JobId) -> Result<(), CommandError> {
+    let library = state.library()?;
+    blocking(move || library.pause_job(job)).await
+}
+
+/// Resumes a paused job.
+#[tauri::command]
+#[specta::specta]
+async fn resume_job(state: tauri::State<'_, AppState>, job: JobId) -> Result<(), CommandError> {
+    let library = state.library()?;
+    blocking(move || library.resume_job(job)).await
+}
+
+/// Cancels a job; finished items stay in the library.
+#[tauri::command]
+#[specta::specta]
+async fn cancel_job(state: tauri::State<'_, AppState>, job: JobId) -> Result<(), CommandError> {
+    let library = state.library()?;
+    blocking(move || library.cancel_job(job)).await
+}
+
+/// The playlist tree, flat with parent ids, in sibling order.
+#[tauri::command]
+#[specta::specta]
+async fn list_playlists(
+    state: tauri::State<'_, AppState>,
+) -> Result<Vec<PlaylistNodeDto>, CommandError> {
+    let library = state.library()?;
+    blocking(move || library.list_playlists()).await
+}
+
+/// Creates a playlist, or a folder when `folder` is true.
+#[tauri::command]
+#[specta::specta]
+async fn create_playlist(
+    state: tauri::State<'_, AppState>,
+    parent: Option<PlaylistId>,
+    name: String,
+    folder: bool,
+) -> Result<PlaylistId, CommandError> {
+    let library = state.library()?;
+    blocking(move || library.create_playlist(parent, &name, folder)).await
+}
+
+/// Renames a playlist or folder.
+#[tauri::command]
+#[specta::specta]
+async fn rename_playlist(
+    state: tauri::State<'_, AppState>,
+    playlist: PlaylistId,
+    name: String,
+) -> Result<(), CommandError> {
+    let library = state.library()?;
+    blocking(move || library.rename_playlist(playlist, &name)).await
+}
+
+/// Deletes a playlist or folder with its contents; the tracks stay.
+#[tauri::command]
+#[specta::specta]
+async fn delete_playlist(
+    state: tauri::State<'_, AppState>,
+    playlist: PlaylistId,
+) -> Result<(), CommandError> {
+    let library = state.library()?;
+    blocking(move || library.delete_playlist(playlist)).await
+}
+
+/// Moves a node under `parent` (`None` for the top level) at sibling index `position`.
+#[tauri::command]
+#[specta::specta]
+async fn move_playlist(
+    state: tauri::State<'_, AppState>,
+    playlist: PlaylistId,
+    parent: Option<PlaylistId>,
+    position: u32,
+) -> Result<(), CommandError> {
+    let library = state.library()?;
+    blocking(move || library.move_playlist(playlist, parent, position)).await
+}
+
+/// Entries of a playlist in order.
+#[tauri::command]
+#[specta::specta]
+async fn get_playlist_tracks(
+    state: tauri::State<'_, AppState>,
+    playlist: PlaylistId,
+) -> Result<Vec<PlaylistEntryDto>, CommandError> {
+    let library = state.library()?;
+    blocking(move || library.playlist_tracks(playlist)).await
+}
+
+/// Adds tracks to a playlist at `position` (the end when `None`).
+#[tauri::command]
+#[specta::specta]
+async fn add_to_playlist(
+    state: tauri::State<'_, AppState>,
+    playlist: PlaylistId,
+    tracks: Vec<TrackId>,
+    position: Option<u32>,
+) -> Result<(), CommandError> {
+    let library = state.library()?;
+    blocking(move || library.add_to_playlist(playlist, &tracks, position)).await
+}
+
+/// Removes playlist entries by entry id.
+#[tauri::command]
+#[specta::specta]
+async fn remove_from_playlist(
+    state: tauri::State<'_, AppState>,
+    playlist: PlaylistId,
+    entries: Vec<i64>,
+) -> Result<(), CommandError> {
+    let library = state.library()?;
+    blocking(move || library.remove_from_playlist(playlist, &entries)).await
+}
+
+/// Moves playlist entries so the first ends at `to_index`.
+#[tauri::command]
+#[specta::specta]
+async fn reorder_playlist(
+    state: tauri::State<'_, AppState>,
+    playlist: PlaylistId,
+    entries: Vec<i64>,
+    to_index: u32,
+) -> Result<(), CommandError> {
+    let library = state.library()?;
+    blocking(move || library.move_playlist_entries(playlist, &entries, to_index)).await
+}
+
+/// Saved sets, newest first. The session's set is made on the first load.
+#[tauri::command]
+#[specta::specta]
+async fn list_saved_sets(
+    state: tauri::State<'_, AppState>,
+) -> Result<Vec<SavedSetDto>, CommandError> {
+    let library = state.library()?;
+    blocking(move || library.list_saved_sets()).await
+}
+
+/// One saved set with its entries.
+#[tauri::command]
+#[specta::specta]
+async fn get_saved_set(
+    state: tauri::State<'_, AppState>,
+    set: i64,
+) -> Result<SavedSetDetailDto, CommandError> {
+    let library = state.library()?;
+    blocking(move || library.get_saved_set(set)).await
+}
+
+/// Renames a saved set.
+#[tauri::command]
+#[specta::specta]
+async fn rename_saved_set(
+    state: tauri::State<'_, AppState>,
+    set: i64,
+    name: String,
+) -> Result<(), CommandError> {
+    let library = state.library()?;
+    blocking(move || library.rename_saved_set(set, &name)).await
+}
+
+/// Deletes a saved set.
+#[tauri::command]
+#[specta::specta]
+async fn delete_saved_set(state: tauri::State<'_, AppState>, set: i64) -> Result<(), CommandError> {
+    let library = state.library()?;
+    blocking(move || library.delete_saved_set(set)).await
+}
+
+/// Lists a folder for the file explorer pane. `None` is the home folder and an
+/// empty path lists the filesystem roots.
+#[tauri::command]
+#[specta::specta]
+async fn list_directory(path: Option<String>) -> Result<DirListing, CommandError> {
+    blocking(move || opendeck_app_core::list_directory(path.as_deref().map(Path::new))).await
+}
+
+/// Shows a file in the system file manager.
+#[tauri::command]
+#[specta::specta]
+fn reveal_in_explorer(path: String) -> Result<(), CommandError> {
+    let path = std::path::PathBuf::from(path);
+    if !path.exists() {
+        return Err(CommandError::Media(format!(
+            "{} does not exist",
+            path.display()
+        )));
+    }
+    let mut cmd;
+    if cfg!(target_os = "windows") {
+        cmd = std::process::Command::new("explorer");
+        cmd.arg(format!("/select,{}", path.display()));
+    } else if cfg!(target_os = "macos") {
+        cmd = std::process::Command::new("open");
+        cmd.arg("-R").arg(&path);
+    } else {
+        cmd = std::process::Command::new("xdg-open");
+        cmd.arg(path.parent().unwrap_or(&path));
+    }
+    cmd.spawn()
+        .map(|_| ())
+        .map_err(|e| CommandError::Internal(format!("could not open the file manager: {e}")))
+}
+
 /// Engine snapshot pushed to the UI at ~60 Hz (ADR 0003, ADR 0004).
 #[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
 #[tauri_specta(event_name = "engine-telemetry")]
@@ -690,6 +1113,26 @@ pub struct HotCuesChangedEvent(pub HotCues);
 #[tauri_specta(event_name = "audio-device-changed")]
 pub struct AudioDeviceChangedEvent(pub AudioStatus);
 
+/// Progress of an import or analysis job, at most about 10 per second per job.
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+#[tauri_specta(event_name = "import-progress")]
+pub struct ImportProgressEvent(pub JobProgress);
+
+/// Tracks or playlists changed (import, delete, playlist edits); coalesced.
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+#[tauri_specta(event_name = "library-changed")]
+pub struct LibraryChangedEvent(pub LibraryChange);
+
+/// Analysis of a track was stored (BPM, key and grid are readable).
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+#[tauri_specta(event_name = "analysis-ready")]
+pub struct AnalysisReadyEvent(pub TrackId);
+
+/// The stored cues of a track changed.
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+#[tauri_specta(event_name = "cues-changed")]
+pub struct CuesChangedEvent(pub TrackId);
+
 /// The tauri-specta builder holding every command and event. Used by the app
 /// and by the bindings exporter, so both always agree.
 pub fn specta_builder() -> Builder<tauri::Wry> {
@@ -703,6 +1146,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             get_audio_status,
             supported_audio_extensions,
             load_track,
+            load_track_path,
             eject_track,
             set_playing,
             toggle_playing,
@@ -748,6 +1192,39 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             set_headphone_level,
             set_headphone_mix,
             set_split_cue,
+            query_tracks,
+            get_track,
+            update_track_meta,
+            set_rating,
+            delete_tracks,
+            get_artwork,
+            get_analysis,
+            set_beat_grid,
+            list_cues,
+            import_folder,
+            import_files,
+            import_playlist_file,
+            import_rekordbox_xml,
+            reanalyze_tracks,
+            list_jobs,
+            pause_job,
+            resume_job,
+            cancel_job,
+            list_playlists,
+            create_playlist,
+            rename_playlist,
+            delete_playlist,
+            move_playlist,
+            get_playlist_tracks,
+            add_to_playlist,
+            remove_from_playlist,
+            reorder_playlist,
+            list_saved_sets,
+            get_saved_set,
+            rename_saved_set,
+            delete_saved_set,
+            list_directory,
+            reveal_in_explorer,
         ])
         .events(collect_events![
             EngineTelemetryEvent,
@@ -755,7 +1232,11 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             TrackLoadedEvent,
             TrackLoadFailedEvent,
             HotCuesChangedEvent,
-            AudioDeviceChangedEvent
+            AudioDeviceChangedEvent,
+            ImportProgressEvent,
+            LibraryChangedEvent,
+            AnalysisReadyEvent,
+            CuesChangedEvent
         ])
         // IDs (SQLite rowids) and frame counts are u64/i64 but stay far below
         // 2^53, so they are exported as `number` (ADR 0004).
@@ -778,12 +1259,50 @@ fn forward_events(app: tauri::AppHandle, events: crossbeam_channel::Receiver<Cor
             CoreEvent::TrackLoaded(t) => TrackLoadedEvent(t).emit(&app),
             CoreEvent::TrackLoadFailed(f) => TrackLoadFailedEvent(f).emit(&app),
             CoreEvent::HotCues(h) => HotCuesChangedEvent(h).emit(&app),
+            CoreEvent::CuesChanged(t) => CuesChangedEvent(t).emit(&app),
             CoreEvent::AudioStatus(s) => AudioDeviceChangedEvent(s).emit(&app),
         };
         if let Err(err) = result {
             eprintln!("could not emit event: {err}");
         }
     }
+}
+
+/// Forwards library events to the webview until the library shuts down.
+fn forward_library_events(
+    app: tauri::AppHandle,
+    events: crossbeam_channel::Receiver<LibraryEvent>,
+) {
+    for event in events {
+        let result = match event {
+            LibraryEvent::ImportProgress(p) => ImportProgressEvent(p).emit(&app),
+            LibraryEvent::LibraryChanged(c) => LibraryChangedEvent(c).emit(&app),
+            LibraryEvent::AnalysisReady(t) => AnalysisReadyEvent(t).emit(&app),
+            LibraryEvent::CuesChanged(t) => CuesChangedEvent(t).emit(&app),
+        };
+        if let Err(err) = result {
+            eprintln!("could not emit event: {err}");
+        }
+    }
+}
+
+/// Opens the library in the app data dir. A library that cannot be opened
+/// (unreadable folder, a database from a newer version) is reported and
+/// replaced by an in-memory one, so the decks still work.
+fn open_library(dir: Option<std::path::PathBuf>) -> Result<LibraryService, CoreError> {
+    let analyzers = LibraryService::default_analyzers();
+    let config = opendeck_app_core::ImportConfig::default();
+    if let Some(dir) = dir {
+        let path = dir.join(opendeck_app_core::DATABASE_FILE_NAME);
+        match LibraryService::open(&path, analyzers.clone(), config.clone()) {
+            Ok(service) => return Ok(service),
+            Err(err) => eprintln!(
+                "could not open {}: {err}; using a temporary library",
+                path.display()
+            ),
+        }
+    }
+    LibraryService::open_in_memory(analyzers, config)
 }
 
 /// Starts the application.
@@ -794,10 +1313,12 @@ pub fn run() {
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             builder.mount_events(app);
+            let library = open_library(app.path().app_data_dir().ok())?;
             let store = match app.path().app_config_dir() {
                 Ok(dir) => SettingsStore::in_dir(&dir),
                 Err(_) => SettingsStore::memory(),
-            };
+            }
+            .with_library(library.library());
             let backend = if std::env::var_os(OFFLINE_AUDIO_ENV).is_some_and(|v| !v.is_empty()) {
                 Backend::Offline {
                     sample_rate: 48_000,
@@ -805,16 +1326,24 @@ pub fn run() {
             } else {
                 Backend::Device
             };
-            let core = AppCore::launch(LaunchOptions {
-                backend,
-                store,
-                ..LaunchOptions::default()
-            })?;
+            let library_events = library.subscribe();
+            let core = AppCore::launch_with_library(
+                LaunchOptions {
+                    backend,
+                    store,
+                    ..LaunchOptions::default()
+                },
+                library,
+            )?;
             let events = core.audio()?.subscribe()?;
             let handle = app.handle().clone();
             std::thread::Builder::new()
                 .name("opendeck-events".into())
                 .spawn(move || forward_events(handle, events))?;
+            let handle = app.handle().clone();
+            std::thread::Builder::new()
+                .name("opendeck-library-events".into())
+                .spawn(move || forward_library_events(handle, library_events))?;
             app.manage(AppState::new(core));
             Ok(())
         })
@@ -1013,7 +1542,7 @@ mod tests {
             .expect("audio")
             .subscribe()
             .expect("subscribe");
-        let info = tauri::async_runtime::block_on(load_track(
+        let info = tauri::async_runtime::block_on(load_track_path(
             app.state(),
             deck_a(),
             wav.to_string_lossy().into_owned(),
@@ -1044,7 +1573,7 @@ mod tests {
     #[test]
     fn load_track_reports_a_missing_file_as_media_error() {
         let app = offline_app();
-        let result = tauri::async_runtime::block_on(load_track(
+        let result = tauri::async_runtime::block_on(load_track_path(
             app.state(),
             deck_a(),
             "/nonexistent/opendeck/missing.wav".to_owned(),
@@ -1176,5 +1705,175 @@ mod tests {
         assert_eq!(info.name, "OpenDeck");
         assert_eq!(info.max_decks, 4);
         assert_eq!(info.visible_decks, 2);
+    }
+
+    // ----- library commands (in-memory library, offline audio) -----
+
+    use opendeck_app_core::{SortColumnDto, TrackQueryDto};
+    use opendeck_contracts::jobs::JobState;
+
+    fn library_app() -> MockApp {
+        let library = LibraryService::open_in_memory(
+            LibraryService::default_analyzers(),
+            opendeck_app_core::ImportConfig::default(),
+        )
+        .expect("library");
+        let core = AppCore::launch_with_library(
+            LaunchOptions {
+                backend: Backend::Offline {
+                    sample_rate: 48_000,
+                },
+                ..LaunchOptions::default()
+            },
+            library,
+        )
+        .expect("launch");
+        mock_app(core)
+    }
+
+    fn all_tracks() -> TrackQueryDto {
+        TrackQueryDto {
+            text: None,
+            bpm_min: None,
+            bpm_max: None,
+            keys: Vec::new(),
+            genre: None,
+            min_rating: None,
+            status: None,
+            sort: SortColumnDto::DateAdded,
+            descending: false,
+            offset: 0,
+            limit: 50,
+        }
+    }
+
+    fn wait_for_job(app: &MockApp, job: JobId) {
+        let deadline = Instant::now() + Duration::from_secs(60);
+        while Instant::now() < deadline {
+            let jobs = tauri::async_runtime::block_on(list_jobs(app.state())).expect("jobs");
+            if jobs
+                .iter()
+                .any(|j| j.progress.job == job && j.progress.state == JobState::Completed)
+            {
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        panic!("job did not finish");
+    }
+
+    #[test]
+    fn import_query_rate_and_load_by_id() {
+        let dir = std::env::temp_dir().join(format!("opendeck-shell-lib-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        write_wav(&dir.join("one.wav"));
+        let app = library_app();
+
+        let empty =
+            tauri::async_runtime::block_on(query_tracks(app.state(), all_tracks())).expect("query");
+        assert_eq!((empty.rows.len(), empty.total), (0, 0));
+
+        let job = tauri::async_runtime::block_on(import_folder(
+            app.state(),
+            dir.to_string_lossy().into_owned(),
+            None,
+        ))
+        .expect("import");
+        wait_for_job(&app, job);
+
+        let page =
+            tauri::async_runtime::block_on(query_tracks(app.state(), all_tracks())).expect("query");
+        assert_eq!(page.total, 1);
+        let row = &page.rows[0];
+        assert!(row.path.ends_with("one.wav"));
+
+        tauri::async_runtime::block_on(set_rating(app.state(), row.id, 4)).expect("rating");
+        let detail = tauri::async_runtime::block_on(get_track(app.state(), row.id)).expect("track");
+        assert_eq!(detail.rating, 4);
+        assert!(matches!(
+            tauri::async_runtime::block_on(set_rating(app.state(), row.id, 9)),
+            Err(CommandError::Invalid(_))
+        ));
+
+        let info = tauri::async_runtime::block_on(load_track(app.state(), deck_a(), row.id))
+            .expect("load by id");
+        assert_eq!(info.id, Some(row.id));
+
+        // No artwork in a generated WAV: an empty payload, not an error.
+        assert!(tauri::async_runtime::block_on(get_artwork(app.state(), row.id)).is_ok());
+
+        let removed = tauri::async_runtime::block_on(delete_tracks(app.state(), vec![row.id]))
+            .expect("delete");
+        assert_eq!(removed, 1);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn playlists_round_trip() {
+        let app = library_app();
+        let folder =
+            tauri::async_runtime::block_on(create_playlist(app.state(), None, "Sets".into(), true))
+                .expect("folder");
+        let list = tauri::async_runtime::block_on(create_playlist(
+            app.state(),
+            Some(folder),
+            "Warm up".into(),
+            false,
+        ))
+        .expect("playlist");
+        tauri::async_runtime::block_on(rename_playlist(app.state(), list, "Opening".into()))
+            .expect("rename");
+        let tree = tauri::async_runtime::block_on(list_playlists(app.state())).expect("tree");
+        assert_eq!(tree.len(), 2);
+        assert!(
+            tree.iter()
+                .any(|n| n.name == "Opening" && n.parent == Some(folder))
+        );
+        // Playlists only nest in folders.
+        assert!(matches!(
+            tauri::async_runtime::block_on(create_playlist(
+                app.state(),
+                Some(list),
+                "Nested".into(),
+                false
+            )),
+            Err(CommandError::Invalid(_))
+        ));
+        tauri::async_runtime::block_on(delete_playlist(app.state(), folder)).expect("delete");
+        assert!(
+            tauri::async_runtime::block_on(list_playlists(app.state()))
+                .expect("tree")
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn library_commands_fail_cleanly_without_a_library() {
+        let app = mock_app(AppCore::new());
+        assert!(matches!(
+            tauri::async_runtime::block_on(query_tracks(app.state(), all_tracks())),
+            Err(CommandError::Internal(_))
+        ));
+        assert!(matches!(
+            tauri::async_runtime::block_on(list_jobs(app.state())),
+            Err(CommandError::Internal(_))
+        ));
+    }
+
+    #[test]
+    fn list_directory_command_lists_roots_and_folders() {
+        let roots =
+            tauri::async_runtime::block_on(list_directory(Some(String::new()))).expect("roots");
+        assert!(roots.parent.is_none() && !roots.entries.is_empty());
+        let dir = std::env::temp_dir();
+        let listing = tauri::async_runtime::block_on(list_directory(Some(
+            dir.to_string_lossy().into_owned(),
+        )))
+        .expect("temp dir");
+        assert_eq!(listing.path, dir.to_string_lossy());
+        assert!(
+            tauri::async_runtime::block_on(list_directory(Some("/nonexistent/opendeck".into())))
+                .is_err()
+        );
     }
 }
