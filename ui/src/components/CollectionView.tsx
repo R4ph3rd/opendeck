@@ -9,6 +9,7 @@ import {
   querySignature,
   type ColumnId,
 } from "../lib/library";
+import { commands, type TrackQueryDto } from "../ipc/bindings";
 import { EMPTY_SELECTION } from "../lib/selection";
 import { TrackWindowCache, type QueryBase } from "../lib/trackCache";
 import { fetchTrackPage, pickAndImportFolder } from "../state/libraryActions";
@@ -60,6 +61,12 @@ export function CollectionView() {
       cache.refresh();
     }
   }, [cache, revision]);
+
+  // The controller's browse encoder walks the list that is on screen.
+  useEffect(() => {
+    const query: TrackQueryDto = { ...(JSON.parse(signature) as QueryBase), offset: 0, limit: 1 };
+    void commands.browseSetContext({ source: { kind: "collection", query }, index: null });
+  }, [signature]);
 
   // The selection belongs to the rows of one query.
   useEffect(() => {

@@ -59,12 +59,38 @@ On a 4-channel device (FLX4 or similar) with headphones on 3/4.
 
 ## M6 MIDI (DDJ-FLX4)
 
-- [ ] Shift-layer pad mode pairs: which pad mode each shifted pad button selects. TODO(verify)
-- [ ] Jog ticks per revolution (touch-on and touch-off, platter vs side). TODO(verify)
-- [ ] 14-bit faders and knobs: MSB/LSB send order (MSB first or LSB first). TODO(verify)
-- [ ] VU meter LED curve: value to LED segment mapping. TODO(verify)
-- [ ] Shift-layer LEDs light and clear correctly.
-- [ ] Hot unplug and replug recovers without restart.
+Never run on a real FLX4 yet. Open the MIDI monitor from the controller indicator in the top bar. Channels below are 1-based as in the message list (channel 1 is status 0x90 or 0xB0). Record results against the question id in `docs/midi-open-questions.md`.
+
+Connection
+- [ ] Settings, MIDI: device on Automatic, Connect at launch on. Start the app with the FLX4 plugged in: the indicator shows the controller with no click on Connect.
+- [ ] Unplug the FLX4 while a deck plays: the indicator changes and playback continues. Replug: it reconnects within about 2 s and the LEDs come back (vinyl mode, loaded, play, pads).
+
+Controls
+- [ ] Move every control once, section by section (deck 1, deck 2, Beat FX, mixer, browse, pads in each of the 8 modes, each with and without SHIFT). For each row in the monitor, the bytes match the message list and "Mapped to" names the expected control. Note rows without a mapping and rows with a `verify` badge.
+- [ ] Each control does what the manual says in the app (play, CUE, sync, tempo, loops, hot cues, beat jump, beat loop, pad FX, EQ, CFX, faders, crossfader, CH CUE, browse and load).
+
+LEDs
+- [ ] Each pad mode button: the mode LED lights and the 8 pads show the state for that mode (hot cue set, loop length active, pad FX held). Repeat with SHIFT for the shifted modes.
+- [ ] PLAY blinks while paused with a track loaded, lights while playing, is off with no track; CUE, SYNC, CH CUE, loop IN and OUT follow the app.
+- [ ] Hold SHIFT: LEDs keep the same state and clear correctly when SHIFT is released.
+
+Jog and meters
+- [ ] Jog feel: touch stops the deck in vinyl mode, scratch and nudge rates feel natural, SHIFT + jog search is usable (search speed 32 beats per revolution is a placeholder).
+- [ ] Q02 jog scale: pause a deck, mark the platter, turn it exactly one revolution. Filter the monitor on the deck's channel and count messages on CC 0x22 (vinyl on), CC 0x23 (vinyl off), CC 0x29 (SHIFT) and CC 0x21 (side ring). Record ticks per revolution for each and whether turning faster changes the count or the value (0x41 or more up, 0x3F or less down).
+- [ ] Q04 VU curve: play a steady tone at the levels the master meter in the app reads 0, -6, -12, -18, -24 and -36 dB. Record which channel meter segments light on the FLX4 at each level (bands per list 3-15: Green1 0x26, Green2 0x41, Orange1 0x57, Orange2 0x65, Red 0x77).
+
+Open questions
+- [ ] Q03 14-bit order: move the deck 1 tempo fader slowly. Record whether CC 0x00 (MSB) or CC 0x20 (LSB) arrives first, and repeat on a channel fader and an EQ knob.
+- [ ] Q05 sampler pads: in SAMPLER mode press pads 1 to 8 on each deck. Record the status bytes (channel 8 and 10 per list 5-5). Behaviour waits for M7.
+- [ ] Q06 audio routing: see M1 (channels 1/2 master, 3/4 headphones).
+- [ ] Q07 Beat FX LEVEL/DEPTH: turn the knob. Record the status byte: 0xB4 (channel 5, as mapped) or 0xB5 (channel 6, as the channel column prints).
+- [ ] Q08 crossfader start: turn Fader start on in Settings, MIDI. Move the crossfader off each edge and back. Record whether messages arrive on channel 7 (0x96) or as 0x90/0x91 notes 0x66 and 0x52, and compare with moving the channel faders off the bottom.
+- [ ] Q09 BEAT SYNC: press and hold SYNC on deck 1, then release. Record when the message arrives (press or release) and which values (0x7F then 0x00, or 0x7F only). Hold for 2 s and record the long-press note 0x5C.
+- [ ] Q10 FX ON/OFF LED: assign the Beat FX to CH1 and turn it on, then off. Record whether the button blinks while on and is steady lit while off, as note *4 says. If not, record what it shows for 0x7F and 0x00 on note 0x47.
+- [ ] Q11 LOADED: connect with both decks empty, then load a track on each. Record that the LOADED indicator is off when empty (0x00 assumed) and on after load (0x7F).
+- [ ] Q12 IN and OUT LEDs: set a loop with IN then OUT, exit it, then use 4 BEAT. Record which LEDs light at each step against manual p.15-16 (the mapping lights both while a loop is active).
+- [ ] Q13 SHIFT LED bank: with play, cue, loop, sync and CH CUE on, hold SHIFT. Record whether the LEDs show the +SHIFT bank (play 0x0E, cue 0x48, IN 0x4C, OUT 0x4E, sync 0x60, CH CUE 0x68) with the same state.
+- [ ] Q14 pad colours: in each pad mode, record the colour each lit pad shows and whether it differs per mode.
 
 ## M7 Pad modes and sampler
 

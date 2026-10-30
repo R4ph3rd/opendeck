@@ -5,7 +5,8 @@ import { VISIBLE_DECKS, useAppStore } from "./app";
 import { useLibraryStore } from "./library";
 import { hydrateJobs, onImportProgress, refreshPlaylists } from "./libraryActions";
 import { hydrateFx, useFxStore } from "./fx";
-import { hydrateMixer } from "./mixer";
+import { hydrateMixer, useMixerStore } from "./mixer";
+import { hydrateMidi, onLearned, useMidiStore } from "./midi";
 import { notifyError } from "./notify";
 import { telemetryStore } from "./telemetry";
 
@@ -68,6 +69,17 @@ export async function startEventBridge(): Promise<() => void> {
       }),
       await events.analysisReady.listen((e) => void refreshDeckAnalysis(e.payload)),
       await events.fxStateChanged.listen((e) => useFxStore.getState().setState(e.payload)),
+      await events.midiConnectionChanged.listen((e) => useMidiStore.getState().setStatus(e.payload)),
+      await events.midiMonitor.listen((e) => useMidiStore.getState().pushMonitor(e.payload)),
+      await events.midiLearned.listen((e) => void onLearned(e.payload)),
+      await events.browseCursorMoved.listen((e) =>
+        useLibraryStore.getState().moveBrowseCursor(e.payload.index, e.payload.track),
+      ),
+      await events.padModeChanged.listen((e) =>
+        useAppStore.getState().setPadMode(e.payload.deck, e.payload.mode),
+      ),
+      await events.mixerStateChanged.listen((e) => useMixerStore.getState().apply(e.payload)),
+      await events.deckStateChanged.listen((e) => useAppStore.getState().applyDeckState(e.payload)),
     );
     // Subscribe first, then read: a change between the two is not lost.
     const status = await commands.getAudioStatus();
@@ -78,6 +90,7 @@ export async function startEventBridge(): Promise<() => void> {
       hydrateMixer(),
       hydrateFx(),
       hydrateJobs(),
+      hydrateMidi(),
       ...VISIBLE_DECKS.map((deck) => hydrateDeck(deck)),
     ]);
   } catch (error) {

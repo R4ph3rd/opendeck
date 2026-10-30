@@ -19,6 +19,11 @@ export function PlaylistView({ id, name }: { id: number; name: string }) {
   const [entries, setEntries] = useState<PlaylistEntryDto[] | null>(null);
   const [sort, setSort] = useState<TrackSort | null>(null);
 
+  // The controller's browse encoder walks this playlist (in playlist order).
+  useEffect(() => {
+    void commands.browseSetContext({ source: { kind: "playlist", id }, index: null });
+  }, [id]);
+
   useEffect(() => {
     let cancelled = false;
     void report(commands.getPlaylistTracks(id)).then((loaded) => {

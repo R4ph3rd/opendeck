@@ -62,3 +62,58 @@ Recorded MIDI input (timestamped bytes) plus a mapping produce a `ControlEvent` 
 - New controllers need no Rust changes unless they need a new encoding.
 - Mapping files are verbose (one entry per message, including SHIFT and per-mode pad notes); a generator script is allowed but the committed JSON is the source of truth.
 - `ControlAction` changes are contract changes and update the schema enum in the same commit.
+
+## Addendum: M6 wave 6a, FLX4 mapping and runtime (2026-10-30)
+
+Status: accepted. Resolves the three carried issues (SysEx in `on_connect`, `when` on feedback, one-way drift test) and records what the first full mapping settled.
+
+### Format changes
+
+All additive; `format_version` stays 1.
+
+- `on_connect` messages may be longer than 3 bytes when they are a complete SysEx (`F0 ... F7`, 7-bit data). Anything else longer than 3 bytes is rejected on load.
+- `feedback` entries take `when` with the same meaning as on controls. An entry with `when` is only sent while its modifiers match. When a modifier changes, the cached state of entries that just became active is sent (de-duplicated per address). The FLX4 mapping does not need it, because the controller has separate `+SHIFT` MIDI-OUT addresses that are fed the same state (open question Q13); it is for controllers whose LEDs change with the layer.
+- `value.kind = "button"` takes `invert` (press reports `false`, release `true`). The FLX4 uses it for the fader-start CUE message (3-7).
+- Every modifier, control and feedback entry may carry `ref`, the row or figure id in the source (`"1-2"`; `"illumination:LOADED"` and `"settings:VINYL MODE"` for the two tables without figure numbers). The FLX4 mapping cites one for every entry and a test enforces it. Feedback entries may also carry `label`.
+- Root `unmapped`: source rows that are deliberately not mapped, with a reason (`ref`, `label`, `midi`, `reason`). The monitor labels such messages instead of calling them unknown.
+- The `verify` text starts with a question id (`Q07`) that must have a `TODO(verify)` row in `docs/midi-open-questions.md`; a test checks it in both files and checks the counts stated in the doc.
+
+### Drift tests
+
+`crates/midi/tests/schema.rs` checks both directions. Every schema action or target is a contracts variant (serde probe). Every contracts variant is in the schema enum: a macro generates an exhaustive `match` and the name list from one input, so a new `ControlAction` or `FeedbackTarget` variant fails to compile until it is listed. Every action the FLX4 mapping uses is in the schema, and every variant it does not use is on a reviewed list with a reason (`NOT_ON_FLX4`). Property names in `ddj-flx4.json` must exist in the schema.
+
+### Contract additions
+
+Five additive `ControlAction` variants for FLX4 controls that had no action: `MemoryCueDelete` (SHIFT + CUE/LOOP CALL left, 1-8), `TapTempo` (SHIFT + CH CUE, 3-6), `FxRelease` (SHIFT + FX ON/OFF, 2-6), `FxBpmAuto` and `FxBpmTap` (SHIFT + BEAT left and right, 2-3 and 2-4). `FxAssign` documents `Button(bool)` as set or clear.
+
+### Runtime
+
+- `Pipeline` = `MappingEngine` (bytes to `ControlEvent`) + `FeedbackEngine` (state to bytes). Both are state machines driven with explicit microsecond timestamps; the replay harness and the worker thread run the same code.
+- 14-bit controls: the engine emits on every LSB with the last MSB, and emits an MSB that stays alone for 5 ms with the last LSB. Equal consecutive values are dropped. Send order stays Q03.
+- Feedback policy: per `(status, data1)` address, de-duplication and rate limiting (lights 1 ms, meters 33 ms). A newer value replaces a waiting one, so the final state always arrives. Timer blinks and waiting values are released by `tick`.
+- `Controller` runs one worker thread. The midir callback copies at most 3 bytes and a timestamp into a bounded channel with `try_send` (longer messages and overflow are counted, never blocked on). The worker rescans ports every second, opens the ports the mapping's `devices` patterns match, closes them when the device vanishes, and on every output connect sends `on_connect` and replays the cached LED state. Driver timestamps are mapped onto the worker clock at the first message of a connection, keeping the driver's spacing.
+- Monitor stream (`MonitorEvent`: timestamp, direction, bytes, text, label with the control id and its `verify`) and MIDI learn (`LearnSession`, `build_control`, `Mapping::upsert_control`) are library API; the shell wires them in a later wave.
+- `Mapping::apply_input_overrides` applies `midi_mapping_overrides` rows (ADR 0005) and reports ids that no longer exist.
+- Soft takeover is not applied here. The FLX4 sends no position dump on connect, so absolute controls have no value until they move. `MappingEngine::last_absolute` gives app-core the last reported position for its own pickup policy.
+
+### FLX4 conventions for app-core
+
+- **Edges**: toggles and one-shot buttons report presses only (`edge: press`): PLAY, SYNC, IN, OUT, 4 BEAT, CALL, LOAD, CH CUE, FX SELECT, BEAT, mode buttons. CUE, jog touch, pads, FX release and the FX CH SELECT flags report both edges.
+- **Pads**: `Pad { mode, index, shifted }`; `shifted` is the channel 9/11 layer. The mode is the high nibble of the note, so app-core's active-mode filter drops presses of other modes.
+- **Jog**: `jog_top` on both the vinyl-on (CC 0x22) and vinyl-off (CC 0x23) CCs, `jog_search` on SHIFT (CC 0x29), `jog_side` on CC 0x21. The scale is a placeholder (Q02). The vinyl state is app-core's; the device cannot change it (note *2), so `VinylMode` feedback is the only source for the unit.
+- **Fader start**: note 0x66 reports `ChannelFaderStart` `Button(true)` (leaves the bottom), note 0x52 reports `Button(false)` (reaches the bottom). The crossfader start rows use the same bytes (Q08).
+- **Beat FX**: `FxUnit::Deck(n)` means "the section as seen on MIDI channel 5 + n"; see `docs/midi-open-questions.md` for the CH SELECT flags and how app-core resolves the target unit.
+- **LED values**: lights send 0x7F on and 0x00 off. `Blink` on PLAY is a software timer (500 ms). The channel meter is linear 0-127 over the level app-core publishes. `FxOn` sends 0x7F for on, which the device shows as a blink (note *4, Q10).
+
+## Addendum: M6 wave 6b, app-core bridge and UI (2026-10-30)
+
+Status: accepted.
+
+- `MidiBridge` (app-core) translates `ControlEvent`s into app actions and derives LED states; `MidiService` runs it on one thread next to the controller worker. The replay tests drive the bridge with the midi crate's `Pipeline` and a headless `AppCore`, so the FLX4 fixtures also exercise app-core.
+- **Beat FX section**: CH SELECT only records the two flags. Section controls (on, release, level, select, beat, BPM) apply to the Beat FX unit(s) that own the selected channel(s) in the FX model, so the model's own assignment is never rewritten by the hardware. Level/depth is the wet amount of the unit's slots in use. FX ON/OFF is lit (blinking) when the unit owning that channel is on.
+- **Soft takeover** (tempo fader): the hardware value is ignored until it is within 0.02 of the software position or crosses it; a deck load, a range change, tap tempo or a UI move of the fader starts the wait again.
+- **CFX knob**: the FLX4 knob (`filter` action) sets the channel's Sound Color FX amount, not the mixer filter. SMART CFX stays unmapped.
+- **Placeholders** (project choices, `TODO(verify)`): beat jump distances and beat loop lengths per pad (`midi_bridge.rs`), SHIFT + jog search at 32 beats per revolution (Q02), LED meter curve 36 dB below full scale (Q04). Sampler, keyboard and key shift pads, and MASTER CUE, have no application action yet and are dropped.
+- **Fader start** is off by default (setting). **Overrides** are stored as JSON in the library settings (`midi.settings`), not in the `midi_mapping_overrides` table, which has no API in the library crate. A learned input that another control already uses is refused.
+- Controller-side changes the UI cannot see otherwise are pushed as `mixer-state-changed` and `deck-state-changed` (mixer and deck state are re-read at 4 Hz and after button presses).
+

@@ -1,0 +1,93 @@
+{"note": "3-3 to 3-5: TRIM, EQ HI/MID/LOW and CFX (14-bit) for both channels"}
+{"t": 1000, "in": [176, 4, 0]}
+{"t": 1100, "in": [176, 36, 0]}
+{"expect": [{"action": {"action": "trim", "deck": 0}, "value": {"kind": "absolute", "value": 0.0}}]}
+{"t": 2100, "in": [176, 4, 64]}
+{"t": 2200, "in": [176, 36, 0]}
+{"expect": [{"action": {"action": "trim", "deck": 0}, "value": {"kind": "absolute", "value": 0.5000305194408838}}]}
+{"t": 3200, "in": [176, 4, 127]}
+{"t": 3300, "in": [176, 36, 127]}
+{"expect": [{"action": {"action": "trim", "deck": 0}, "value": {"kind": "absolute", "value": 1.0}}]}
+{"t": 4300, "in": [176, 7, 0]}
+{"t": 4400, "in": [176, 39, 0]}
+{"expect": [{"action": {"action": "eq", "deck": 0, "band": "high"}, "value": {"kind": "absolute", "value": 0.0}}]}
+{"t": 5400, "in": [176, 7, 64]}
+{"t": 5500, "in": [176, 39, 0]}
+{"expect": [{"action": {"action": "eq", "deck": 0, "band": "high"}, "value": {"kind": "absolute", "value": 0.5000305194408838}}]}
+{"t": 6500, "in": [176, 7, 127]}
+{"t": 6600, "in": [176, 39, 127]}
+{"expect": [{"action": {"action": "eq", "deck": 0, "band": "high"}, "value": {"kind": "absolute", "value": 1.0}}]}
+{"t": 7600, "in": [176, 11, 0]}
+{"t": 7700, "in": [176, 43, 0]}
+{"expect": [{"action": {"action": "eq", "deck": 0, "band": "mid"}, "value": {"kind": "absolute", "value": 0.0}}]}
+{"t": 8700, "in": [176, 11, 64]}
+{"t": 8800, "in": [176, 43, 0]}
+{"expect": [{"action": {"action": "eq", "deck": 0, "band": "mid"}, "value": {"kind": "absolute", "value": 0.5000305194408838}}]}
+{"t": 9800, "in": [176, 11, 127]}
+{"t": 9900, "in": [176, 43, 127]}
+{"expect": [{"action": {"action": "eq", "deck": 0, "band": "mid"}, "value": {"kind": "absolute", "value": 1.0}}]}
+{"t": 10900, "in": [176, 15, 0]}
+{"t": 11000, "in": [176, 47, 0]}
+{"expect": [{"action": {"action": "eq", "deck": 0, "band": "low"}, "value": {"kind": "absolute", "value": 0.0}}]}
+{"t": 12000, "in": [176, 15, 64]}
+{"t": 12100, "in": [176, 47, 0]}
+{"expect": [{"action": {"action": "eq", "deck": 0, "band": "low"}, "value": {"kind": "absolute", "value": 0.5000305194408838}}]}
+{"t": 13100, "in": [176, 15, 127]}
+{"t": 13200, "in": [176, 47, 127]}
+{"expect": [{"action": {"action": "eq", "deck": 0, "band": "low"}, "value": {"kind": "absolute", "value": 1.0}}]}
+{"note": "CFX is on MIDI channel 7: deck 1 CC 0x17/0x37, deck 2 CC 0x18/0x38"}
+{"t": 14200, "in": [182, 23, 0]}
+{"t": 14300, "in": [182, 55, 0]}
+{"expect": [{"action": {"action": "filter", "deck": 0}, "value": {"kind": "absolute", "value": 0.0}}]}
+{"t": 15300, "in": [182, 23, 64]}
+{"t": 15400, "in": [182, 55, 0]}
+{"expect": [{"action": {"action": "filter", "deck": 0}, "value": {"kind": "absolute", "value": 0.5000305194408838}}]}
+{"t": 16400, "in": [182, 23, 127]}
+{"t": 16500, "in": [182, 55, 127]}
+{"expect": [{"action": {"action": "filter", "deck": 0}, "value": {"kind": "absolute", "value": 1.0}}]}
+{"t": 17500, "in": [177, 4, 0]}
+{"t": 17600, "in": [177, 36, 0]}
+{"expect": [{"action": {"action": "trim", "deck": 1}, "value": {"kind": "absolute", "value": 0.0}}]}
+{"t": 18600, "in": [177, 4, 64]}
+{"t": 18700, "in": [177, 36, 0]}
+{"expect": [{"action": {"action": "trim", "deck": 1}, "value": {"kind": "absolute", "value": 0.5000305194408838}}]}
+{"t": 19700, "in": [177, 4, 127]}
+{"t": 19800, "in": [177, 36, 127]}
+{"expect": [{"action": {"action": "trim", "deck": 1}, "value": {"kind": "absolute", "value": 1.0}}]}
+{"t": 20800, "in": [177, 7, 0]}
+{"t": 20900, "in": [177, 39, 0]}
+{"expect": [{"action": {"action": "eq", "deck": 1, "band": "high"}, "value": {"kind": "absolute", "value": 0.0}}]}
+{"t": 21900, "in": [177, 7, 64]}
+{"t": 22000, "in": [177, 39, 0]}
+{"expect": [{"action": {"action": "eq", "deck": 1, "band": "high"}, "value": {"kind": "absolute", "value": 0.5000305194408838}}]}
+{"t": 23000, "in": [177, 7, 127]}
+{"t": 23100, "in": [177, 39, 127]}
+{"expect": [{"action": {"action": "eq", "deck": 1, "band": "high"}, "value": {"kind": "absolute", "value": 1.0}}]}
+{"t": 24100, "in": [177, 11, 0]}
+{"t": 24200, "in": [177, 43, 0]}
+{"expect": [{"action": {"action": "eq", "deck": 1, "band": "mid"}, "value": {"kind": "absolute", "value": 0.0}}]}
+{"t": 25200, "in": [177, 11, 64]}
+{"t": 25300, "in": [177, 43, 0]}
+{"expect": [{"action": {"action": "eq", "deck": 1, "band": "mid"}, "value": {"kind": "absolute", "value": 0.5000305194408838}}]}
+{"t": 26300, "in": [177, 11, 127]}
+{"t": 26400, "in": [177, 43, 127]}
+{"expect": [{"action": {"action": "eq", "deck": 1, "band": "mid"}, "value": {"kind": "absolute", "value": 1.0}}]}
+{"t": 27400, "in": [177, 15, 0]}
+{"t": 27500, "in": [177, 47, 0]}
+{"expect": [{"action": {"action": "eq", "deck": 1, "band": "low"}, "value": {"kind": "absolute", "value": 0.0}}]}
+{"t": 28500, "in": [177, 15, 64]}
+{"t": 28600, "in": [177, 47, 0]}
+{"expect": [{"action": {"action": "eq", "deck": 1, "band": "low"}, "value": {"kind": "absolute", "value": 0.5000305194408838}}]}
+{"t": 29600, "in": [177, 15, 127]}
+{"t": 29700, "in": [177, 47, 127]}
+{"expect": [{"action": {"action": "eq", "deck": 1, "band": "low"}, "value": {"kind": "absolute", "value": 1.0}}]}
+{"note": "CFX is on MIDI channel 7: deck 1 CC 0x17/0x37, deck 2 CC 0x18/0x38"}
+{"t": 30700, "in": [182, 24, 0]}
+{"t": 30800, "in": [182, 56, 0]}
+{"expect": [{"action": {"action": "filter", "deck": 1}, "value": {"kind": "absolute", "value": 0.0}}]}
+{"t": 31800, "in": [182, 24, 64]}
+{"t": 31900, "in": [182, 56, 0]}
+{"expect": [{"action": {"action": "filter", "deck": 1}, "value": {"kind": "absolute", "value": 0.5000305194408838}}]}
+{"t": 32900, "in": [182, 24, 127]}
+{"t": 33000, "in": [182, 56, 127]}
+{"expect": [{"action": {"action": "filter", "deck": 1}, "value": {"kind": "absolute", "value": 1.0}}]}

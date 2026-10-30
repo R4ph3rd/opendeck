@@ -1,5 +1,13 @@
 import { create } from "zustand";
-import type { AudioStatus, Cue, DeckState, SyncMode, TempoRange, TrackInfo } from "../ipc/bindings";
+import type {
+  AudioStatus,
+  Cue,
+  DeckState,
+  PadMode,
+  SyncMode,
+  TempoRange,
+  TrackInfo,
+} from "../ipc/bindings";
 
 /** Deck indices the UI shows (MVP: two). */
 export const DECK_A = 0;
@@ -43,8 +51,15 @@ export interface DeckUi {
   cuePoint: number | null;
 }
 
+/** Pages of the settings dialog. */
+export type SettingsPage = "audio" | "midi";
+
 export interface AppState {
   decks: DeckUi[];
+  /** Active pad mode per deck (changes from the controller's mode buttons). */
+  padModes: PadMode[];
+  settingsPage: SettingsPage;
+  midiMonitorOpen: boolean;
   /** Sync leader as last requested or reported by the backend. */
   leader: number | null;
   audio: AudioStatus | null;
@@ -55,6 +70,11 @@ export interface AppState {
   setLeader: (deck: number | null) => void;
   setAudio: (status: AudioStatus) => void;
   setSettingsOpen: (open: boolean) => void;
+  /** Opens the settings dialog, on `page` when given. */
+  openSettings: (page?: SettingsPage) => void;
+  setSettingsPage: (page: SettingsPage) => void;
+  setMidiMonitorOpen: (open: boolean) => void;
+  setPadMode: (deck: number, mode: PadMode) => void;
   reset: () => void;
 }
 
@@ -88,6 +108,9 @@ export const selectDeckUi =
 
 const initial = () => ({
   decks: VISIBLE_DECKS.map(emptyDeck),
+  padModes: VISIBLE_DECKS.map((): PadMode => "hot_cue"),
+  settingsPage: "audio" as SettingsPage,
+  midiMonitorOpen: false,
   leader: null,
   audio: null,
   settingsOpen: false,
@@ -118,12 +141,19 @@ export const useAppStore = create<AppState>()((set) => ({
       };
       return {
         decks: state.decks.map((d, i) => (i === deck ? { ...d, ...patch } : d)),
+        padModes: state.padModes.map((m, i) => (i === deck ? deckState.pad_mode : m)),
         leader: deckState.is_leader ? deck : state.leader === deck ? null : state.leader,
       };
     }),
   setLeader: (leader) => set({ leader }),
   setAudio: (audio) => set({ audio }),
   setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
+  openSettings: (page) =>
+    set((state) => ({ settingsOpen: true, settingsPage: page ?? state.settingsPage })),
+  setSettingsPage: (settingsPage) => set({ settingsPage }),
+  setMidiMonitorOpen: (midiMonitorOpen) => set({ midiMonitorOpen }),
+  setPadMode: (deck, mode) =>
+    set((state) => ({ padModes: state.padModes.map((m, i) => (i === deck ? mode : m)) })),
   reset: () => set(initial()),
 }));
 

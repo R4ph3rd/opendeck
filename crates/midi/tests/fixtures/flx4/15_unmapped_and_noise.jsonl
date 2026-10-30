@@ -1,0 +1,10 @@
+{"note": "Messages outside the mapping produce nothing: unknown notes and CCs, system realtime, pitch bend, program change, and a play release (the play control only reports presses)"}
+{"t": 1000, "in": [159, 85, 127]}
+{"t": 2000, "in": [149, 0, 127]}
+{"t": 3000, "in": [248]}
+{"t": 4000, "in": [254]}
+{"t": 5000, "in": [224, 0, 64]}
+{"t": 6000, "in": [192, 5]}
+{"t": 7000, "in": [179, 7, 64]}
+{"t": 8000, "in": [128, 11, 0]}
+{"expect": []}

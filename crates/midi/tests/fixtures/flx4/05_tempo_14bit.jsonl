@@ -1,0 +1,171 @@
+{"note": "1-11: TEMPO fader, 14-bit MSB (CC 0x00) and LSB (CC 0x20), full sweep on both decks, MSB-only timeout, LSB-first order"}
+{"note": "deck 1: min is 0x00/0x00 ('-' side), max 0x7F/0x7F ('+' side)"}
+{"t": 1000, "in": [176, 0, 0]}
+{"t": 1100, "in": [176, 32, 0]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 0}, "value": {"kind": "absolute", "value": 0.0}}]}
+{"t": 2100, "in": [176, 0, 0]}
+{"t": 2200, "in": [176, 32, 1]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 0}, "value": {"kind": "absolute", "value": 6.103888176768602e-05}}]}
+{"t": 3200, "in": [176, 0, 0]}
+{"t": 3300, "in": [176, 32, 127]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 0}, "value": {"kind": "absolute", "value": 0.007751937984496124}}]}
+{"t": 4300, "in": [176, 0, 1]}
+{"t": 4400, "in": [176, 32, 0]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 0}, "value": {"kind": "absolute", "value": 0.00781297686626381}}]}
+{"t": 5400, "in": [176, 0, 16]}
+{"t": 5500, "in": [176, 32, 0]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 0}, "value": {"kind": "absolute", "value": 0.12500762986022096}}]}
+{"t": 6500, "in": [176, 0, 32]}
+{"t": 6600, "in": [176, 32, 0]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 0}, "value": {"kind": "absolute", "value": 0.2500152597204419}}]}
+{"t": 7600, "in": [176, 0, 63]}
+{"t": 7700, "in": [176, 32, 127]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 0}, "value": {"kind": "absolute", "value": 0.49996948055911616}}]}
+{"t": 8700, "in": [176, 0, 64]}
+{"t": 8800, "in": [176, 32, 0]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 0}, "value": {"kind": "absolute", "value": 0.5000305194408838}}]}
+{"t": 9800, "in": [176, 0, 96]}
+{"t": 9900, "in": [176, 32, 0]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 0}, "value": {"kind": "absolute", "value": 0.7500457791613258}}]}
+{"t": 10900, "in": [176, 0, 127]}
+{"t": 11000, "in": [176, 32, 0]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 0}, "value": {"kind": "absolute", "value": 0.9922480620155039}}]}
+{"t": 12000, "in": [176, 0, 127]}
+{"t": 12100, "in": [176, 32, 126]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 0}, "value": {"kind": "absolute", "value": 0.9999389611182323}}]}
+{"t": 13100, "in": [176, 0, 127]}
+{"t": 13200, "in": [176, 32, 127]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 0}, "value": {"kind": "absolute", "value": 1.0}}]}
+{"note": "descending sweep"}
+{"t": 14200, "in": [176, 0, 127]}
+{"t": 14300, "in": [176, 32, 126]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 0}, "value": {"kind": "absolute", "value": 0.9999389611182323}}]}
+{"t": 15300, "in": [176, 0, 127]}
+{"t": 15400, "in": [176, 32, 0]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 0}, "value": {"kind": "absolute", "value": 0.9922480620155039}}]}
+{"t": 16400, "in": [176, 0, 96]}
+{"t": 16500, "in": [176, 32, 0]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 0}, "value": {"kind": "absolute", "value": 0.7500457791613258}}]}
+{"t": 17500, "in": [176, 0, 64]}
+{"t": 17600, "in": [176, 32, 0]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 0}, "value": {"kind": "absolute", "value": 0.5000305194408838}}]}
+{"t": 18600, "in": [176, 0, 63]}
+{"t": 18700, "in": [176, 32, 127]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 0}, "value": {"kind": "absolute", "value": 0.49996948055911616}}]}
+{"t": 19700, "in": [176, 0, 32]}
+{"t": 19800, "in": [176, 32, 0]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 0}, "value": {"kind": "absolute", "value": 0.2500152597204419}}]}
+{"t": 20800, "in": [176, 0, 16]}
+{"t": 20900, "in": [176, 32, 0]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 0}, "value": {"kind": "absolute", "value": 0.12500762986022096}}]}
+{"t": 21900, "in": [176, 0, 1]}
+{"t": 22000, "in": [176, 32, 0]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 0}, "value": {"kind": "absolute", "value": 0.00781297686626381}}]}
+{"t": 23000, "in": [176, 0, 0]}
+{"t": 23100, "in": [176, 32, 127]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 0}, "value": {"kind": "absolute", "value": 0.007751937984496124}}]}
+{"t": 24100, "in": [176, 0, 0]}
+{"t": 24200, "in": [176, 32, 1]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 0}, "value": {"kind": "absolute", "value": 6.103888176768602e-05}}]}
+{"note": "MSB alone: the value is emitted when the 5 ms timeout passes (LSB stays at its last value)"}
+{"t": 25200, "in": [176, 0, 64]}
+{"expect": []}
+{"t": 30200, "tick": true}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 0}, "value": {"kind": "absolute", "value": 0.5000915583226515}}]}
+{"note": "LSB first, then MSB: the stale pair is emitted first and the timeout corrects it"}
+{"t": 31200, "in": [176, 32, 16]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 0}, "value": {"kind": "absolute", "value": 0.5010071415491668}}]}
+{"t": 32200, "in": [176, 0, 32]}
+{"t": 37200, "tick": true}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 0}, "value": {"kind": "absolute", "value": 0.2509918818287249}}]}
+{"note": "SHIFT sends the same CCs (1-11 +SHIFT)"}
+{"t": 38200, "in": [144, 63, 127]}
+{"t": 39200, "in": [176, 0, 127]}
+{"t": 39300, "in": [176, 32, 127]}
+{"t": 40300, "in": [144, 63, 0]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 0}, "value": {"kind": "absolute", "value": 1.0}}]}
+{"note": "deck 2: min is 0x00/0x00 ('-' side), max 0x7F/0x7F ('+' side)"}
+{"t": 41300, "in": [177, 0, 0]}
+{"t": 41400, "in": [177, 32, 0]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 1}, "value": {"kind": "absolute", "value": 0.0}}]}
+{"t": 42400, "in": [177, 0, 0]}
+{"t": 42500, "in": [177, 32, 1]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 1}, "value": {"kind": "absolute", "value": 6.103888176768602e-05}}]}
+{"t": 43500, "in": [177, 0, 0]}
+{"t": 43600, "in": [177, 32, 127]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 1}, "value": {"kind": "absolute", "value": 0.007751937984496124}}]}
+{"t": 44600, "in": [177, 0, 1]}
+{"t": 44700, "in": [177, 32, 0]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 1}, "value": {"kind": "absolute", "value": 0.00781297686626381}}]}
+{"t": 45700, "in": [177, 0, 16]}
+{"t": 45800, "in": [177, 32, 0]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 1}, "value": {"kind": "absolute", "value": 0.12500762986022096}}]}
+{"t": 46800, "in": [177, 0, 32]}
+{"t": 46900, "in": [177, 32, 0]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 1}, "value": {"kind": "absolute", "value": 0.2500152597204419}}]}
+{"t": 47900, "in": [177, 0, 63]}
+{"t": 48000, "in": [177, 32, 127]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 1}, "value": {"kind": "absolute", "value": 0.49996948055911616}}]}
+{"t": 49000, "in": [177, 0, 64]}
+{"t": 49100, "in": [177, 32, 0]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 1}, "value": {"kind": "absolute", "value": 0.5000305194408838}}]}
+{"t": 50100, "in": [177, 0, 96]}
+{"t": 50200, "in": [177, 32, 0]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 1}, "value": {"kind": "absolute", "value": 0.7500457791613258}}]}
+{"t": 51200, "in": [177, 0, 127]}
+{"t": 51300, "in": [177, 32, 0]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 1}, "value": {"kind": "absolute", "value": 0.9922480620155039}}]}
+{"t": 52300, "in": [177, 0, 127]}
+{"t": 52400, "in": [177, 32, 126]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 1}, "value": {"kind": "absolute", "value": 0.9999389611182323}}]}
+{"t": 53400, "in": [177, 0, 127]}
+{"t": 53500, "in": [177, 32, 127]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 1}, "value": {"kind": "absolute", "value": 1.0}}]}
+{"note": "descending sweep"}
+{"t": 54500, "in": [177, 0, 127]}
+{"t": 54600, "in": [177, 32, 126]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 1}, "value": {"kind": "absolute", "value": 0.9999389611182323}}]}
+{"t": 55600, "in": [177, 0, 127]}
+{"t": 55700, "in": [177, 32, 0]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 1}, "value": {"kind": "absolute", "value": 0.9922480620155039}}]}
+{"t": 56700, "in": [177, 0, 96]}
+{"t": 56800, "in": [177, 32, 0]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 1}, "value": {"kind": "absolute", "value": 0.7500457791613258}}]}
+{"t": 57800, "in": [177, 0, 64]}
+{"t": 57900, "in": [177, 32, 0]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 1}, "value": {"kind": "absolute", "value": 0.5000305194408838}}]}
+{"t": 58900, "in": [177, 0, 63]}
+{"t": 59000, "in": [177, 32, 127]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 1}, "value": {"kind": "absolute", "value": 0.49996948055911616}}]}
+{"t": 60000, "in": [177, 0, 32]}
+{"t": 60100, "in": [177, 32, 0]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 1}, "value": {"kind": "absolute", "value": 0.2500152597204419}}]}
+{"t": 61100, "in": [177, 0, 16]}
+{"t": 61200, "in": [177, 32, 0]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 1}, "value": {"kind": "absolute", "value": 0.12500762986022096}}]}
+{"t": 62200, "in": [177, 0, 1]}
+{"t": 62300, "in": [177, 32, 0]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 1}, "value": {"kind": "absolute", "value": 0.00781297686626381}}]}
+{"t": 63300, "in": [177, 0, 0]}
+{"t": 63400, "in": [177, 32, 127]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 1}, "value": {"kind": "absolute", "value": 0.007751937984496124}}]}
+{"t": 64400, "in": [177, 0, 0]}
+{"t": 64500, "in": [177, 32, 1]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 1}, "value": {"kind": "absolute", "value": 6.103888176768602e-05}}]}
+{"note": "MSB alone: the value is emitted when the 5 ms timeout passes (LSB stays at its last value)"}
+{"t": 65500, "in": [177, 0, 64]}
+{"expect": []}
+{"t": 70500, "tick": true}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 1}, "value": {"kind": "absolute", "value": 0.5000915583226515}}]}
+{"note": "LSB first, then MSB: the stale pair is emitted first and the timeout corrects it"}
+{"t": 71500, "in": [177, 32, 16]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 1}, "value": {"kind": "absolute", "value": 0.5010071415491668}}]}
+{"t": 72500, "in": [177, 0, 32]}
+{"t": 77500, "tick": true}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 1}, "value": {"kind": "absolute", "value": 0.2509918818287249}}]}
+{"note": "SHIFT sends the same CCs (1-11 +SHIFT)"}
+{"t": 78500, "in": [145, 63, 127]}
+{"t": 79500, "in": [177, 0, 127]}
+{"t": 79600, "in": [177, 32, 127]}
+{"t": 80600, "in": [145, 63, 0]}
+{"expect": [{"action": {"action": "tempo_fader", "deck": 1}, "value": {"kind": "absolute", "value": 1.0}}]}
