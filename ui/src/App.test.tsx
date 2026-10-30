@@ -43,7 +43,7 @@ describe("App", () => {
     expect(screen.getByRole("region", { name: "Deck 1" })).toBeTruthy();
     expect(screen.getByRole("region", { name: "Deck 2" })).toBeTruthy();
     expect(screen.getByRole("region", { name: "Pads and effects" })).toBeTruthy();
-    expect(screen.getByRole("region", { name: "Collection" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Library" })).toBeTruthy();
     expect(screen.getAllByText("No track loaded")).toHaveLength(2);
     expect(screen.getByRole("region", { name: "Mixer" })).toBeTruthy();
   });

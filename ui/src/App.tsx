@@ -1,6 +1,7 @@
 import { Toaster } from "@opendeck/design-system";
 import { useEffect } from "react";
-import { CollectionPanel, MiddlePanel } from "./components/Placeholders";
+import { MiddlePanel } from "./components/Placeholders";
+import { LibraryPane } from "./components/LibraryPane";
 import { DeckPanel } from "./components/DeckPanel";
 import { MixerPanel } from "./components/MixerPanel";
 import { SettingsDialog } from "./components/SettingsDialog";
@@ -43,7 +44,7 @@ export function App() {
             <DeckPanel deck={DECK_B} />
           </div>
           <MiddlePanel />
-          <CollectionPanel />
+          <LibraryPane />
         </main>
         <SettingsDialog />
       </div>
