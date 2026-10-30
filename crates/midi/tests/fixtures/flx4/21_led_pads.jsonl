@@ -1,0 +1,577 @@
+{"note": "5-1 to 5-5: pad mode button LEDs and pad LEDs per mode for both decks (base bank on channels 8/10, +SHIFT bank on 9/11)"}
+{"t": 1000, "feedback": {"target": {"target": "pad_mode_active", "deck": 0, "mode": "hot_cue"}, "value": {"kind": "on"}}}
+{"expect_out": [[144, 27, 127]]}
+{"t": 2000, "feedback": {"target": {"target": "pad_mode_active", "deck": 0, "mode": "keyboard"}, "value": {"kind": "on"}}}
+{"expect_out": [[144, 105, 127]]}
+{"t": 3000, "feedback": {"target": {"target": "pad_mode_active", "deck": 0, "mode": "hot_cue"}, "value": {"kind": "off"}}}
+{"expect_out": [[144, 27, 0]]}
+{"t": 4000, "feedback": {"target": {"target": "pad_mode_active", "deck": 0, "mode": "keyboard"}, "value": {"kind": "off"}}}
+{"expect_out": [[144, 105, 0]]}
+{"t": 5000, "feedback": {"target": {"target": "pad_mode_active", "deck": 0, "mode": "pad_fx1"}, "value": {"kind": "on"}}}
+{"expect_out": [[144, 30, 127]]}
+{"t": 6000, "feedback": {"target": {"target": "pad_mode_active", "deck": 0, "mode": "pad_fx2"}, "value": {"kind": "on"}}}
+{"expect_out": [[144, 107, 127]]}
+{"t": 7000, "feedback": {"target": {"target": "pad_mode_active", "deck": 0, "mode": "pad_fx1"}, "value": {"kind": "off"}}}
+{"expect_out": [[144, 30, 0]]}
+{"t": 8000, "feedback": {"target": {"target": "pad_mode_active", "deck": 0, "mode": "pad_fx2"}, "value": {"kind": "off"}}}
+{"expect_out": [[144, 107, 0]]}
+{"t": 9000, "feedback": {"target": {"target": "pad_mode_active", "deck": 0, "mode": "beat_jump"}, "value": {"kind": "on"}}}
+{"expect_out": [[144, 32, 127]]}
+{"t": 10000, "feedback": {"target": {"target": "pad_mode_active", "deck": 0, "mode": "beat_loop"}, "value": {"kind": "on"}}}
+{"expect_out": [[144, 109, 127]]}
+{"t": 11000, "feedback": {"target": {"target": "pad_mode_active", "deck": 0, "mode": "beat_jump"}, "value": {"kind": "off"}}}
+{"expect_out": [[144, 32, 0]]}
+{"t": 12000, "feedback": {"target": {"target": "pad_mode_active", "deck": 0, "mode": "beat_loop"}, "value": {"kind": "off"}}}
+{"expect_out": [[144, 109, 0]]}
+{"t": 13000, "feedback": {"target": {"target": "pad_mode_active", "deck": 0, "mode": "sampler"}, "value": {"kind": "on"}}}
+{"expect_out": [[144, 34, 127]]}
+{"t": 14000, "feedback": {"target": {"target": "pad_mode_active", "deck": 0, "mode": "key_shift"}, "value": {"kind": "on"}}}
+{"expect_out": [[144, 111, 127]]}
+{"t": 15000, "feedback": {"target": {"target": "pad_mode_active", "deck": 0, "mode": "sampler"}, "value": {"kind": "off"}}}
+{"expect_out": [[144, 34, 0]]}
+{"t": 16000, "feedback": {"target": {"target": "pad_mode_active", "deck": 0, "mode": "key_shift"}, "value": {"kind": "off"}}}
+{"expect_out": [[144, 111, 0]]}
+{"t": 17000, "feedback": {"target": {"target": "pad_mode_active", "deck": 1, "mode": "hot_cue"}, "value": {"kind": "on"}}}
+{"expect_out": [[145, 27, 127]]}
+{"t": 18000, "feedback": {"target": {"target": "pad_mode_active", "deck": 1, "mode": "keyboard"}, "value": {"kind": "on"}}}
+{"expect_out": [[145, 105, 127]]}
+{"t": 19000, "feedback": {"target": {"target": "pad_mode_active", "deck": 1, "mode": "hot_cue"}, "value": {"kind": "off"}}}
+{"expect_out": [[145, 27, 0]]}
+{"t": 20000, "feedback": {"target": {"target": "pad_mode_active", "deck": 1, "mode": "keyboard"}, "value": {"kind": "off"}}}
+{"expect_out": [[145, 105, 0]]}
+{"t": 21000, "feedback": {"target": {"target": "pad_mode_active", "deck": 1, "mode": "pad_fx1"}, "value": {"kind": "on"}}}
+{"expect_out": [[145, 30, 127]]}
+{"t": 22000, "feedback": {"target": {"target": "pad_mode_active", "deck": 1, "mode": "pad_fx2"}, "value": {"kind": "on"}}}
+{"expect_out": [[145, 107, 127]]}
+{"t": 23000, "feedback": {"target": {"target": "pad_mode_active", "deck": 1, "mode": "pad_fx1"}, "value": {"kind": "off"}}}
+{"expect_out": [[145, 30, 0]]}
+{"t": 24000, "feedback": {"target": {"target": "pad_mode_active", "deck": 1, "mode": "pad_fx2"}, "value": {"kind": "off"}}}
+{"expect_out": [[145, 107, 0]]}
+{"t": 25000, "feedback": {"target": {"target": "pad_mode_active", "deck": 1, "mode": "beat_jump"}, "value": {"kind": "on"}}}
+{"expect_out": [[145, 32, 127]]}
+{"t": 26000, "feedback": {"target": {"target": "pad_mode_active", "deck": 1, "mode": "beat_loop"}, "value": {"kind": "on"}}}
+{"expect_out": [[145, 109, 127]]}
+{"t": 27000, "feedback": {"target": {"target": "pad_mode_active", "deck": 1, "mode": "beat_jump"}, "value": {"kind": "off"}}}
+{"expect_out": [[145, 32, 0]]}
+{"t": 28000, "feedback": {"target": {"target": "pad_mode_active", "deck": 1, "mode": "beat_loop"}, "value": {"kind": "off"}}}
+{"expect_out": [[145, 109, 0]]}
+{"t": 29000, "feedback": {"target": {"target": "pad_mode_active", "deck": 1, "mode": "sampler"}, "value": {"kind": "on"}}}
+{"expect_out": [[145, 34, 127]]}
+{"t": 30000, "feedback": {"target": {"target": "pad_mode_active", "deck": 1, "mode": "key_shift"}, "value": {"kind": "on"}}}
+{"expect_out": [[145, 111, 127]]}
+{"t": 31000, "feedback": {"target": {"target": "pad_mode_active", "deck": 1, "mode": "sampler"}, "value": {"kind": "off"}}}
+{"expect_out": [[145, 34, 0]]}
+{"t": 32000, "feedback": {"target": {"target": "pad_mode_active", "deck": 1, "mode": "key_shift"}, "value": {"kind": "off"}}}
+{"expect_out": [[145, 111, 0]]}
+{"t": 33000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "hot_cue", "index": 0}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 0, 127], [152, 0, 127]]}
+{"t": 34000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "hot_cue", "index": 0}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 0, 0], [152, 0, 0]]}
+{"t": 35000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "pad_fx1", "index": 0}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 16, 127], [152, 16, 127]]}
+{"t": 36000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "pad_fx1", "index": 0}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 16, 0], [152, 16, 0]]}
+{"t": 37000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "beat_jump", "index": 0}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 32, 127], [152, 32, 127]]}
+{"t": 38000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "beat_jump", "index": 0}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 32, 0], [152, 32, 0]]}
+{"t": 39000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "sampler", "index": 0}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 48, 127], [152, 48, 127]]}
+{"t": 40000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "sampler", "index": 0}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 48, 0], [152, 48, 0]]}
+{"t": 41000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "keyboard", "index": 0}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 64, 127], [152, 64, 127]]}
+{"t": 42000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "keyboard", "index": 0}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 64, 0], [152, 64, 0]]}
+{"t": 43000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "pad_fx2", "index": 0}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 80, 127], [152, 80, 127]]}
+{"t": 44000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "pad_fx2", "index": 0}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 80, 0], [152, 80, 0]]}
+{"t": 45000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "beat_loop", "index": 0}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 96, 127], [152, 96, 127]]}
+{"t": 46000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "beat_loop", "index": 0}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 96, 0], [152, 96, 0]]}
+{"t": 47000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "key_shift", "index": 0}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 112, 127], [152, 112, 127]]}
+{"t": 48000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "key_shift", "index": 0}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 112, 0], [152, 112, 0]]}
+{"t": 49000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "hot_cue", "index": 0}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 0, 127], [154, 0, 127]]}
+{"t": 50000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "hot_cue", "index": 0}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 0, 0], [154, 0, 0]]}
+{"t": 51000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "pad_fx1", "index": 0}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 16, 127], [154, 16, 127]]}
+{"t": 52000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "pad_fx1", "index": 0}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 16, 0], [154, 16, 0]]}
+{"t": 53000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "beat_jump", "index": 0}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 32, 127], [154, 32, 127]]}
+{"t": 54000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "beat_jump", "index": 0}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 32, 0], [154, 32, 0]]}
+{"t": 55000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "sampler", "index": 0}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 48, 127], [154, 48, 127]]}
+{"t": 56000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "sampler", "index": 0}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 48, 0], [154, 48, 0]]}
+{"t": 57000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "keyboard", "index": 0}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 64, 127], [154, 64, 127]]}
+{"t": 58000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "keyboard", "index": 0}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 64, 0], [154, 64, 0]]}
+{"t": 59000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "pad_fx2", "index": 0}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 80, 127], [154, 80, 127]]}
+{"t": 60000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "pad_fx2", "index": 0}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 80, 0], [154, 80, 0]]}
+{"t": 61000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "beat_loop", "index": 0}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 96, 127], [154, 96, 127]]}
+{"t": 62000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "beat_loop", "index": 0}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 96, 0], [154, 96, 0]]}
+{"t": 63000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "key_shift", "index": 0}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 112, 127], [154, 112, 127]]}
+{"t": 64000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "key_shift", "index": 0}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 112, 0], [154, 112, 0]]}
+{"t": 65000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "hot_cue", "index": 1}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 1, 127], [152, 1, 127]]}
+{"t": 66000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "hot_cue", "index": 1}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 1, 0], [152, 1, 0]]}
+{"t": 67000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "pad_fx1", "index": 1}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 17, 127], [152, 17, 127]]}
+{"t": 68000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "pad_fx1", "index": 1}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 17, 0], [152, 17, 0]]}
+{"t": 69000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "beat_jump", "index": 1}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 33, 127], [152, 33, 127]]}
+{"t": 70000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "beat_jump", "index": 1}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 33, 0], [152, 33, 0]]}
+{"t": 71000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "sampler", "index": 1}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 49, 127], [152, 49, 127]]}
+{"t": 72000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "sampler", "index": 1}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 49, 0], [152, 49, 0]]}
+{"t": 73000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "keyboard", "index": 1}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 65, 127], [152, 65, 127]]}
+{"t": 74000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "keyboard", "index": 1}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 65, 0], [152, 65, 0]]}
+{"t": 75000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "pad_fx2", "index": 1}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 81, 127], [152, 81, 127]]}
+{"t": 76000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "pad_fx2", "index": 1}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 81, 0], [152, 81, 0]]}
+{"t": 77000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "beat_loop", "index": 1}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 97, 127], [152, 97, 127]]}
+{"t": 78000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "beat_loop", "index": 1}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 97, 0], [152, 97, 0]]}
+{"t": 79000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "key_shift", "index": 1}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 113, 127], [152, 113, 127]]}
+{"t": 80000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "key_shift", "index": 1}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 113, 0], [152, 113, 0]]}
+{"t": 81000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "hot_cue", "index": 1}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 1, 127], [154, 1, 127]]}
+{"t": 82000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "hot_cue", "index": 1}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 1, 0], [154, 1, 0]]}
+{"t": 83000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "pad_fx1", "index": 1}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 17, 127], [154, 17, 127]]}
+{"t": 84000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "pad_fx1", "index": 1}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 17, 0], [154, 17, 0]]}
+{"t": 85000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "beat_jump", "index": 1}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 33, 127], [154, 33, 127]]}
+{"t": 86000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "beat_jump", "index": 1}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 33, 0], [154, 33, 0]]}
+{"t": 87000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "sampler", "index": 1}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 49, 127], [154, 49, 127]]}
+{"t": 88000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "sampler", "index": 1}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 49, 0], [154, 49, 0]]}
+{"t": 89000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "keyboard", "index": 1}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 65, 127], [154, 65, 127]]}
+{"t": 90000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "keyboard", "index": 1}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 65, 0], [154, 65, 0]]}
+{"t": 91000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "pad_fx2", "index": 1}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 81, 127], [154, 81, 127]]}
+{"t": 92000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "pad_fx2", "index": 1}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 81, 0], [154, 81, 0]]}
+{"t": 93000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "beat_loop", "index": 1}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 97, 127], [154, 97, 127]]}
+{"t": 94000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "beat_loop", "index": 1}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 97, 0], [154, 97, 0]]}
+{"t": 95000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "key_shift", "index": 1}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 113, 127], [154, 113, 127]]}
+{"t": 96000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "key_shift", "index": 1}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 113, 0], [154, 113, 0]]}
+{"t": 97000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "hot_cue", "index": 2}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 2, 127], [152, 2, 127]]}
+{"t": 98000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "hot_cue", "index": 2}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 2, 0], [152, 2, 0]]}
+{"t": 99000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "pad_fx1", "index": 2}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 18, 127], [152, 18, 127]]}
+{"t": 100000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "pad_fx1", "index": 2}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 18, 0], [152, 18, 0]]}
+{"t": 101000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "beat_jump", "index": 2}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 34, 127], [152, 34, 127]]}
+{"t": 102000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "beat_jump", "index": 2}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 34, 0], [152, 34, 0]]}
+{"t": 103000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "sampler", "index": 2}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 50, 127], [152, 50, 127]]}
+{"t": 104000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "sampler", "index": 2}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 50, 0], [152, 50, 0]]}
+{"t": 105000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "keyboard", "index": 2}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 66, 127], [152, 66, 127]]}
+{"t": 106000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "keyboard", "index": 2}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 66, 0], [152, 66, 0]]}
+{"t": 107000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "pad_fx2", "index": 2}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 82, 127], [152, 82, 127]]}
+{"t": 108000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "pad_fx2", "index": 2}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 82, 0], [152, 82, 0]]}
+{"t": 109000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "beat_loop", "index": 2}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 98, 127], [152, 98, 127]]}
+{"t": 110000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "beat_loop", "index": 2}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 98, 0], [152, 98, 0]]}
+{"t": 111000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "key_shift", "index": 2}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 114, 127], [152, 114, 127]]}
+{"t": 112000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "key_shift", "index": 2}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 114, 0], [152, 114, 0]]}
+{"t": 113000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "hot_cue", "index": 2}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 2, 127], [154, 2, 127]]}
+{"t": 114000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "hot_cue", "index": 2}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 2, 0], [154, 2, 0]]}
+{"t": 115000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "pad_fx1", "index": 2}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 18, 127], [154, 18, 127]]}
+{"t": 116000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "pad_fx1", "index": 2}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 18, 0], [154, 18, 0]]}
+{"t": 117000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "beat_jump", "index": 2}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 34, 127], [154, 34, 127]]}
+{"t": 118000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "beat_jump", "index": 2}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 34, 0], [154, 34, 0]]}
+{"t": 119000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "sampler", "index": 2}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 50, 127], [154, 50, 127]]}
+{"t": 120000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "sampler", "index": 2}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 50, 0], [154, 50, 0]]}
+{"t": 121000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "keyboard", "index": 2}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 66, 127], [154, 66, 127]]}
+{"t": 122000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "keyboard", "index": 2}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 66, 0], [154, 66, 0]]}
+{"t": 123000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "pad_fx2", "index": 2}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 82, 127], [154, 82, 127]]}
+{"t": 124000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "pad_fx2", "index": 2}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 82, 0], [154, 82, 0]]}
+{"t": 125000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "beat_loop", "index": 2}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 98, 127], [154, 98, 127]]}
+{"t": 126000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "beat_loop", "index": 2}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 98, 0], [154, 98, 0]]}
+{"t": 127000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "key_shift", "index": 2}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 114, 127], [154, 114, 127]]}
+{"t": 128000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "key_shift", "index": 2}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 114, 0], [154, 114, 0]]}
+{"t": 129000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "hot_cue", "index": 3}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 3, 127], [152, 3, 127]]}
+{"t": 130000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "hot_cue", "index": 3}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 3, 0], [152, 3, 0]]}
+{"t": 131000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "pad_fx1", "index": 3}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 19, 127], [152, 19, 127]]}
+{"t": 132000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "pad_fx1", "index": 3}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 19, 0], [152, 19, 0]]}
+{"t": 133000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "beat_jump", "index": 3}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 35, 127], [152, 35, 127]]}
+{"t": 134000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "beat_jump", "index": 3}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 35, 0], [152, 35, 0]]}
+{"t": 135000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "sampler", "index": 3}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 51, 127], [152, 51, 127]]}
+{"t": 136000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "sampler", "index": 3}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 51, 0], [152, 51, 0]]}
+{"t": 137000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "keyboard", "index": 3}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 67, 127], [152, 67, 127]]}
+{"t": 138000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "keyboard", "index": 3}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 67, 0], [152, 67, 0]]}
+{"t": 139000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "pad_fx2", "index": 3}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 83, 127], [152, 83, 127]]}
+{"t": 140000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "pad_fx2", "index": 3}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 83, 0], [152, 83, 0]]}
+{"t": 141000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "beat_loop", "index": 3}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 99, 127], [152, 99, 127]]}
+{"t": 142000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "beat_loop", "index": 3}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 99, 0], [152, 99, 0]]}
+{"t": 143000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "key_shift", "index": 3}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 115, 127], [152, 115, 127]]}
+{"t": 144000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "key_shift", "index": 3}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 115, 0], [152, 115, 0]]}
+{"t": 145000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "hot_cue", "index": 3}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 3, 127], [154, 3, 127]]}
+{"t": 146000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "hot_cue", "index": 3}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 3, 0], [154, 3, 0]]}
+{"t": 147000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "pad_fx1", "index": 3}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 19, 127], [154, 19, 127]]}
+{"t": 148000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "pad_fx1", "index": 3}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 19, 0], [154, 19, 0]]}
+{"t": 149000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "beat_jump", "index": 3}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 35, 127], [154, 35, 127]]}
+{"t": 150000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "beat_jump", "index": 3}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 35, 0], [154, 35, 0]]}
+{"t": 151000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "sampler", "index": 3}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 51, 127], [154, 51, 127]]}
+{"t": 152000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "sampler", "index": 3}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 51, 0], [154, 51, 0]]}
+{"t": 153000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "keyboard", "index": 3}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 67, 127], [154, 67, 127]]}
+{"t": 154000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "keyboard", "index": 3}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 67, 0], [154, 67, 0]]}
+{"t": 155000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "pad_fx2", "index": 3}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 83, 127], [154, 83, 127]]}
+{"t": 156000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "pad_fx2", "index": 3}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 83, 0], [154, 83, 0]]}
+{"t": 157000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "beat_loop", "index": 3}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 99, 127], [154, 99, 127]]}
+{"t": 158000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "beat_loop", "index": 3}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 99, 0], [154, 99, 0]]}
+{"t": 159000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "key_shift", "index": 3}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 115, 127], [154, 115, 127]]}
+{"t": 160000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "key_shift", "index": 3}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 115, 0], [154, 115, 0]]}
+{"t": 161000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "hot_cue", "index": 4}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 4, 127], [152, 4, 127]]}
+{"t": 162000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "hot_cue", "index": 4}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 4, 0], [152, 4, 0]]}
+{"t": 163000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "pad_fx1", "index": 4}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 20, 127], [152, 20, 127]]}
+{"t": 164000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "pad_fx1", "index": 4}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 20, 0], [152, 20, 0]]}
+{"t": 165000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "beat_jump", "index": 4}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 36, 127], [152, 36, 127]]}
+{"t": 166000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "beat_jump", "index": 4}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 36, 0], [152, 36, 0]]}
+{"t": 167000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "sampler", "index": 4}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 52, 127], [152, 52, 127]]}
+{"t": 168000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "sampler", "index": 4}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 52, 0], [152, 52, 0]]}
+{"t": 169000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "keyboard", "index": 4}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 68, 127], [152, 68, 127]]}
+{"t": 170000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "keyboard", "index": 4}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 68, 0], [152, 68, 0]]}
+{"t": 171000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "pad_fx2", "index": 4}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 84, 127], [152, 84, 127]]}
+{"t": 172000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "pad_fx2", "index": 4}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 84, 0], [152, 84, 0]]}
+{"t": 173000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "beat_loop", "index": 4}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 100, 127], [152, 100, 127]]}
+{"t": 174000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "beat_loop", "index": 4}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 100, 0], [152, 100, 0]]}
+{"t": 175000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "key_shift", "index": 4}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 116, 127], [152, 116, 127]]}
+{"t": 176000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "key_shift", "index": 4}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 116, 0], [152, 116, 0]]}
+{"t": 177000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "hot_cue", "index": 4}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 4, 127], [154, 4, 127]]}
+{"t": 178000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "hot_cue", "index": 4}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 4, 0], [154, 4, 0]]}
+{"t": 179000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "pad_fx1", "index": 4}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 20, 127], [154, 20, 127]]}
+{"t": 180000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "pad_fx1", "index": 4}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 20, 0], [154, 20, 0]]}
+{"t": 181000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "beat_jump", "index": 4}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 36, 127], [154, 36, 127]]}
+{"t": 182000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "beat_jump", "index": 4}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 36, 0], [154, 36, 0]]}
+{"t": 183000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "sampler", "index": 4}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 52, 127], [154, 52, 127]]}
+{"t": 184000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "sampler", "index": 4}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 52, 0], [154, 52, 0]]}
+{"t": 185000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "keyboard", "index": 4}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 68, 127], [154, 68, 127]]}
+{"t": 186000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "keyboard", "index": 4}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 68, 0], [154, 68, 0]]}
+{"t": 187000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "pad_fx2", "index": 4}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 84, 127], [154, 84, 127]]}
+{"t": 188000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "pad_fx2", "index": 4}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 84, 0], [154, 84, 0]]}
+{"t": 189000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "beat_loop", "index": 4}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 100, 127], [154, 100, 127]]}
+{"t": 190000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "beat_loop", "index": 4}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 100, 0], [154, 100, 0]]}
+{"t": 191000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "key_shift", "index": 4}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 116, 127], [154, 116, 127]]}
+{"t": 192000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "key_shift", "index": 4}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 116, 0], [154, 116, 0]]}
+{"t": 193000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "hot_cue", "index": 5}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 5, 127], [152, 5, 127]]}
+{"t": 194000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "hot_cue", "index": 5}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 5, 0], [152, 5, 0]]}
+{"t": 195000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "pad_fx1", "index": 5}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 21, 127], [152, 21, 127]]}
+{"t": 196000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "pad_fx1", "index": 5}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 21, 0], [152, 21, 0]]}
+{"t": 197000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "beat_jump", "index": 5}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 37, 127], [152, 37, 127]]}
+{"t": 198000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "beat_jump", "index": 5}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 37, 0], [152, 37, 0]]}
+{"t": 199000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "sampler", "index": 5}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 53, 127], [152, 53, 127]]}
+{"t": 200000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "sampler", "index": 5}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 53, 0], [152, 53, 0]]}
+{"t": 201000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "keyboard", "index": 5}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 69, 127], [152, 69, 127]]}
+{"t": 202000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "keyboard", "index": 5}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 69, 0], [152, 69, 0]]}
+{"t": 203000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "pad_fx2", "index": 5}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 85, 127], [152, 85, 127]]}
+{"t": 204000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "pad_fx2", "index": 5}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 85, 0], [152, 85, 0]]}
+{"t": 205000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "beat_loop", "index": 5}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 101, 127], [152, 101, 127]]}
+{"t": 206000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "beat_loop", "index": 5}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 101, 0], [152, 101, 0]]}
+{"t": 207000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "key_shift", "index": 5}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 117, 127], [152, 117, 127]]}
+{"t": 208000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "key_shift", "index": 5}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 117, 0], [152, 117, 0]]}
+{"t": 209000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "hot_cue", "index": 5}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 5, 127], [154, 5, 127]]}
+{"t": 210000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "hot_cue", "index": 5}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 5, 0], [154, 5, 0]]}
+{"t": 211000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "pad_fx1", "index": 5}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 21, 127], [154, 21, 127]]}
+{"t": 212000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "pad_fx1", "index": 5}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 21, 0], [154, 21, 0]]}
+{"t": 213000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "beat_jump", "index": 5}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 37, 127], [154, 37, 127]]}
+{"t": 214000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "beat_jump", "index": 5}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 37, 0], [154, 37, 0]]}
+{"t": 215000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "sampler", "index": 5}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 53, 127], [154, 53, 127]]}
+{"t": 216000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "sampler", "index": 5}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 53, 0], [154, 53, 0]]}
+{"t": 217000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "keyboard", "index": 5}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 69, 127], [154, 69, 127]]}
+{"t": 218000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "keyboard", "index": 5}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 69, 0], [154, 69, 0]]}
+{"t": 219000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "pad_fx2", "index": 5}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 85, 127], [154, 85, 127]]}
+{"t": 220000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "pad_fx2", "index": 5}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 85, 0], [154, 85, 0]]}
+{"t": 221000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "beat_loop", "index": 5}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 101, 127], [154, 101, 127]]}
+{"t": 222000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "beat_loop", "index": 5}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 101, 0], [154, 101, 0]]}
+{"t": 223000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "key_shift", "index": 5}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 117, 127], [154, 117, 127]]}
+{"t": 224000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "key_shift", "index": 5}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 117, 0], [154, 117, 0]]}
+{"t": 225000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "hot_cue", "index": 6}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 6, 127], [152, 6, 127]]}
+{"t": 226000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "hot_cue", "index": 6}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 6, 0], [152, 6, 0]]}
+{"t": 227000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "pad_fx1", "index": 6}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 22, 127], [152, 22, 127]]}
+{"t": 228000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "pad_fx1", "index": 6}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 22, 0], [152, 22, 0]]}
+{"t": 229000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "beat_jump", "index": 6}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 38, 127], [152, 38, 127]]}
+{"t": 230000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "beat_jump", "index": 6}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 38, 0], [152, 38, 0]]}
+{"t": 231000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "sampler", "index": 6}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 54, 127], [152, 54, 127]]}
+{"t": 232000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "sampler", "index": 6}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 54, 0], [152, 54, 0]]}
+{"t": 233000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "keyboard", "index": 6}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 70, 127], [152, 70, 127]]}
+{"t": 234000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "keyboard", "index": 6}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 70, 0], [152, 70, 0]]}
+{"t": 235000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "pad_fx2", "index": 6}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 86, 127], [152, 86, 127]]}
+{"t": 236000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "pad_fx2", "index": 6}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 86, 0], [152, 86, 0]]}
+{"t": 237000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "beat_loop", "index": 6}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 102, 127], [152, 102, 127]]}
+{"t": 238000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "beat_loop", "index": 6}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 102, 0], [152, 102, 0]]}
+{"t": 239000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "key_shift", "index": 6}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 118, 127], [152, 118, 127]]}
+{"t": 240000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "key_shift", "index": 6}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 118, 0], [152, 118, 0]]}
+{"t": 241000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "hot_cue", "index": 6}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 6, 127], [154, 6, 127]]}
+{"t": 242000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "hot_cue", "index": 6}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 6, 0], [154, 6, 0]]}
+{"t": 243000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "pad_fx1", "index": 6}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 22, 127], [154, 22, 127]]}
+{"t": 244000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "pad_fx1", "index": 6}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 22, 0], [154, 22, 0]]}
+{"t": 245000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "beat_jump", "index": 6}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 38, 127], [154, 38, 127]]}
+{"t": 246000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "beat_jump", "index": 6}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 38, 0], [154, 38, 0]]}
+{"t": 247000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "sampler", "index": 6}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 54, 127], [154, 54, 127]]}
+{"t": 248000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "sampler", "index": 6}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 54, 0], [154, 54, 0]]}
+{"t": 249000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "keyboard", "index": 6}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 70, 127], [154, 70, 127]]}
+{"t": 250000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "keyboard", "index": 6}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 70, 0], [154, 70, 0]]}
+{"t": 251000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "pad_fx2", "index": 6}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 86, 127], [154, 86, 127]]}
+{"t": 252000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "pad_fx2", "index": 6}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 86, 0], [154, 86, 0]]}
+{"t": 253000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "beat_loop", "index": 6}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 102, 127], [154, 102, 127]]}
+{"t": 254000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "beat_loop", "index": 6}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 102, 0], [154, 102, 0]]}
+{"t": 255000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "key_shift", "index": 6}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 118, 127], [154, 118, 127]]}
+{"t": 256000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "key_shift", "index": 6}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 118, 0], [154, 118, 0]]}
+{"t": 257000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "hot_cue", "index": 7}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 7, 127], [152, 7, 127]]}
+{"t": 258000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "hot_cue", "index": 7}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 7, 0], [152, 7, 0]]}
+{"t": 259000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "pad_fx1", "index": 7}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 23, 127], [152, 23, 127]]}
+{"t": 260000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "pad_fx1", "index": 7}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 23, 0], [152, 23, 0]]}
+{"t": 261000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "beat_jump", "index": 7}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 39, 127], [152, 39, 127]]}
+{"t": 262000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "beat_jump", "index": 7}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 39, 0], [152, 39, 0]]}
+{"t": 263000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "sampler", "index": 7}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 55, 127], [152, 55, 127]]}
+{"t": 264000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "sampler", "index": 7}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 55, 0], [152, 55, 0]]}
+{"t": 265000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "keyboard", "index": 7}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 71, 127], [152, 71, 127]]}
+{"t": 266000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "keyboard", "index": 7}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 71, 0], [152, 71, 0]]}
+{"t": 267000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "pad_fx2", "index": 7}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 87, 127], [152, 87, 127]]}
+{"t": 268000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "pad_fx2", "index": 7}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 87, 0], [152, 87, 0]]}
+{"t": 269000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "beat_loop", "index": 7}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 103, 127], [152, 103, 127]]}
+{"t": 270000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "beat_loop", "index": 7}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 103, 0], [152, 103, 0]]}
+{"t": 271000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "key_shift", "index": 7}, "value": {"kind": "on"}}}
+{"expect_out": [[151, 119, 127], [152, 119, 127]]}
+{"t": 272000, "feedback": {"target": {"target": "pad", "deck": 0, "mode": "key_shift", "index": 7}, "value": {"kind": "off"}}}
+{"expect_out": [[151, 119, 0], [152, 119, 0]]}
+{"t": 273000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "hot_cue", "index": 7}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 7, 127], [154, 7, 127]]}
+{"t": 274000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "hot_cue", "index": 7}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 7, 0], [154, 7, 0]]}
+{"t": 275000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "pad_fx1", "index": 7}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 23, 127], [154, 23, 127]]}
+{"t": 276000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "pad_fx1", "index": 7}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 23, 0], [154, 23, 0]]}
+{"t": 277000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "beat_jump", "index": 7}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 39, 127], [154, 39, 127]]}
+{"t": 278000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "beat_jump", "index": 7}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 39, 0], [154, 39, 0]]}
+{"t": 279000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "sampler", "index": 7}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 55, 127], [154, 55, 127]]}
+{"t": 280000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "sampler", "index": 7}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 55, 0], [154, 55, 0]]}
+{"t": 281000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "keyboard", "index": 7}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 71, 127], [154, 71, 127]]}
+{"t": 282000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "keyboard", "index": 7}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 71, 0], [154, 71, 0]]}
+{"t": 283000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "pad_fx2", "index": 7}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 87, 127], [154, 87, 127]]}
+{"t": 284000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "pad_fx2", "index": 7}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 87, 0], [154, 87, 0]]}
+{"t": 285000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "beat_loop", "index": 7}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 103, 127], [154, 103, 127]]}
+{"t": 286000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "beat_loop", "index": 7}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 103, 0], [154, 103, 0]]}
+{"t": 287000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "key_shift", "index": 7}, "value": {"kind": "on"}}}
+{"expect_out": [[153, 119, 127], [154, 119, 127]]}
+{"t": 288000, "feedback": {"target": {"target": "pad", "deck": 1, "mode": "key_shift", "index": 7}, "value": {"kind": "off"}}}
+{"expect_out": [[153, 119, 0], [154, 119, 0]]}

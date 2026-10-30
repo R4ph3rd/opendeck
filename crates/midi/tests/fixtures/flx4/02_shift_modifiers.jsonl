@@ -1,0 +1,10 @@
+{"note": "1-3: the two SHIFT buttons are independent modifiers and produce no events"}
+{"t": 1000, "in": [144, 63, 127]}
+{"expect_modifiers": {"shift_deck1": true, "shift_deck2": false}}
+{"t": 2000, "in": [145, 63, 127]}
+{"expect_modifiers": {"shift_deck1": true, "shift_deck2": true}}
+{"t": 3000, "in": [144, 63, 0]}
+{"expect_modifiers": {"shift_deck1": false, "shift_deck2": true}}
+{"t": 4000, "in": [145, 63, 0]}
+{"expect_modifiers": {"shift_deck1": false, "shift_deck2": false}}
+{"expect": []}

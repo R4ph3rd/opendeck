@@ -1,0 +1,83 @@
+{"note": "1-5 to 1-10: IN, OUT, 4 BEAT/EXIT, CUE/LOOP CALL, BEAT SYNC (release message, long press, SHIFT) on both decks"}
+{"note": "deck 1"}
+{"t": 1000, "in": [144, 16, 127]}
+{"t": 2000, "in": [144, 16, 0]}
+{"expect": [{"action": {"action": "loop_in", "deck": 0}, "value": {"kind": "button", "value": true}}]}
+{"t": 3000, "in": [144, 17, 127]}
+{"t": 4000, "in": [144, 17, 0]}
+{"expect": [{"action": {"action": "loop_out", "deck": 0}, "value": {"kind": "button", "value": true}}]}
+{"t": 5000, "in": [144, 77, 127]}
+{"t": 6000, "in": [144, 77, 0]}
+{"expect": [{"action": {"action": "auto_loop", "deck": 0, "length": 4.0}, "value": {"kind": "button", "value": true}}]}
+{"t": 7000, "in": [144, 81, 127]}
+{"t": 8000, "in": [144, 81, 0]}
+{"expect": [{"action": {"action": "cue_loop_call_prev", "deck": 0}, "value": {"kind": "button", "value": true}}]}
+{"t": 9000, "in": [144, 83, 127]}
+{"t": 10000, "in": [144, 83, 0]}
+{"expect": [{"action": {"action": "cue_loop_call_next", "deck": 0}, "value": {"kind": "button", "value": true}}]}
+{"t": 11000, "in": [144, 78, 127]}
+{"t": 12000, "in": [144, 78, 0]}
+{"expect": [{"action": {"action": "vinyl_mode", "deck": 0}, "value": {"kind": "button", "value": true}}]}
+{"t": 13000, "in": [144, 80, 127]}
+{"t": 14000, "in": [144, 80, 0]}
+{"expect": [{"action": {"action": "loop_toggle", "deck": 0}, "value": {"kind": "button", "value": true}}]}
+{"t": 15000, "in": [144, 62, 127]}
+{"t": 16000, "in": [144, 62, 0]}
+{"expect": [{"action": {"action": "memory_cue_delete", "deck": 0}, "value": {"kind": "button", "value": true}}]}
+{"t": 17000, "in": [144, 61, 127]}
+{"t": 18000, "in": [144, 61, 0]}
+{"expect": [{"action": {"action": "memory_cue_add", "deck": 0}, "value": {"kind": "button", "value": true}}]}
+{"t": 19000, "in": [144, 88, 127]}
+{"t": 20000, "in": [144, 88, 0]}
+{"expect": [{"action": {"action": "sync", "deck": 0}, "value": {"kind": "button", "value": true}}]}
+{"t": 21000, "in": [144, 92, 127]}
+{"t": 22000, "in": [144, 92, 0]}
+{"expect": [{"action": {"action": "sync_leader", "deck": 0}, "value": {"kind": "button", "value": true}}]}
+{"t": 23000, "in": [144, 96, 127]}
+{"t": 24000, "in": [144, 96, 0]}
+{"expect": [{"action": {"action": "tempo_range_next", "deck": 0}, "value": {"kind": "button", "value": true}}]}
+{"note": "1-5 IN +SHIFT (0x4C) has no function"}
+{"t": 25000, "in": [144, 76, 127]}
+{"t": 26000, "in": [144, 76, 0]}
+{"expect": []}
+{"note": "deck 2"}
+{"t": 27000, "in": [145, 16, 127]}
+{"t": 28000, "in": [145, 16, 0]}
+{"expect": [{"action": {"action": "loop_in", "deck": 1}, "value": {"kind": "button", "value": true}}]}
+{"t": 29000, "in": [145, 17, 127]}
+{"t": 30000, "in": [145, 17, 0]}
+{"expect": [{"action": {"action": "loop_out", "deck": 1}, "value": {"kind": "button", "value": true}}]}
+{"t": 31000, "in": [145, 77, 127]}
+{"t": 32000, "in": [145, 77, 0]}
+{"expect": [{"action": {"action": "auto_loop", "deck": 1, "length": 4.0}, "value": {"kind": "button", "value": true}}]}
+{"t": 33000, "in": [145, 81, 127]}
+{"t": 34000, "in": [145, 81, 0]}
+{"expect": [{"action": {"action": "cue_loop_call_prev", "deck": 1}, "value": {"kind": "button", "value": true}}]}
+{"t": 35000, "in": [145, 83, 127]}
+{"t": 36000, "in": [145, 83, 0]}
+{"expect": [{"action": {"action": "cue_loop_call_next", "deck": 1}, "value": {"kind": "button", "value": true}}]}
+{"t": 37000, "in": [145, 78, 127]}
+{"t": 38000, "in": [145, 78, 0]}
+{"expect": [{"action": {"action": "vinyl_mode", "deck": 1}, "value": {"kind": "button", "value": true}}]}
+{"t": 39000, "in": [145, 80, 127]}
+{"t": 40000, "in": [145, 80, 0]}
+{"expect": [{"action": {"action": "loop_toggle", "deck": 1}, "value": {"kind": "button", "value": true}}]}
+{"t": 41000, "in": [145, 62, 127]}
+{"t": 42000, "in": [145, 62, 0]}
+{"expect": [{"action": {"action": "memory_cue_delete", "deck": 1}, "value": {"kind": "button", "value": true}}]}
+{"t": 43000, "in": [145, 61, 127]}
+{"t": 44000, "in": [145, 61, 0]}
+{"expect": [{"action": {"action": "memory_cue_add", "deck": 1}, "value": {"kind": "button", "value": true}}]}
+{"t": 45000, "in": [145, 88, 127]}
+{"t": 46000, "in": [145, 88, 0]}
+{"expect": [{"action": {"action": "sync", "deck": 1}, "value": {"kind": "button", "value": true}}]}
+{"t": 47000, "in": [145, 92, 127]}
+{"t": 48000, "in": [145, 92, 0]}
+{"expect": [{"action": {"action": "sync_leader", "deck": 1}, "value": {"kind": "button", "value": true}}]}
+{"t": 49000, "in": [145, 96, 127]}
+{"t": 50000, "in": [145, 96, 0]}
+{"expect": [{"action": {"action": "tempo_range_next", "deck": 1}, "value": {"kind": "button", "value": true}}]}
+{"note": "1-5 IN +SHIFT (0x4C) has no function"}
+{"t": 51000, "in": [145, 76, 127]}
+{"t": 52000, "in": [145, 76, 0]}
+{"expect": []}

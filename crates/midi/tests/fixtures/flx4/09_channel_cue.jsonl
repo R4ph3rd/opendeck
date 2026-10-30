@@ -1,0 +1,13 @@
+{"note": "3-6: CH CUE (headphone cue) and +SHIFT (tapping) on both decks"}
+{"t": 1000, "in": [144, 84, 127]}
+{"t": 2000, "in": [144, 84, 0]}
+{"expect": [{"action": {"action": "pfl", "deck": 0}, "value": {"kind": "button", "value": true}}]}
+{"t": 3000, "in": [144, 104, 127]}
+{"t": 4000, "in": [144, 104, 0]}
+{"expect": [{"action": {"action": "tap_tempo", "deck": 0}, "value": {"kind": "button", "value": true}}]}
+{"t": 5000, "in": [145, 84, 127]}
+{"t": 6000, "in": [145, 84, 0]}
+{"expect": [{"action": {"action": "pfl", "deck": 1}, "value": {"kind": "button", "value": true}}]}
+{"t": 7000, "in": [145, 104, 127]}
+{"t": 8000, "in": [145, 104, 0]}
+{"expect": [{"action": {"action": "tap_tempo", "deck": 1}, "value": {"kind": "button", "value": true}}]}
