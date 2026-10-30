@@ -1,9 +1,12 @@
-//! Settings persisted as JSON in the app config dir. Replaced by the SQLite
-//! `settings` table in milestone 3 (ADR 0005).
+//! Settings persisted in the library's SQLite `settings` table (ADR 0005).
+//! A store without a library falls back to `settings.json` in the app config
+//! dir. The JSON file is read once to migrate older installs: the first load
+//! with a library copies it into the table, which wins from then on.
 
 use std::path::{Path, PathBuf};
 
 use opendeck_contracts::settings::AudioSettings;
+use opendeck_library::Library;
 use serde::{Deserialize, Serialize};
 
 use crate::types::CoreError;
@@ -19,10 +22,15 @@ pub struct StoredSettings {
     pub audio: AudioSettings,
 }
 
-/// Reads and writes [`StoredSettings`]; a store without a path keeps nothing.
+/// Key of [`StoredSettings`] in the library's settings table.
+pub const SETTINGS_KEY: &str = "app.settings";
+
+/// Reads and writes [`StoredSettings`]; a store without a path or library
+/// keeps nothing.
 #[derive(Debug, Clone, Default)]
 pub struct SettingsStore {
     path: Option<PathBuf>,
+    library: Option<Library>,
 }
 
 impl SettingsStore {
@@ -30,7 +38,17 @@ impl SettingsStore {
     pub fn in_dir(dir: &Path) -> Self {
         Self {
             path: Some(dir.join(SETTINGS_FILE)),
+            library: None,
         }
+    }
+
+    /// Keeps settings in `library`'s settings table. A `settings.json` from
+    /// an older install (see [`in_dir`](Self::in_dir)) is migrated on the
+    /// first load.
+    #[must_use]
+    pub fn with_library(mut self, library: Library) -> Self {
+        self.library = Some(library);
+        self
     }
 
     /// Store that persists nothing (tests, first run without a config dir).
@@ -41,6 +59,28 @@ impl SettingsStore {
     /// Loads settings. A missing or unreadable file yields defaults, so a
     /// corrupt file never blocks startup.
     pub fn load(&self) -> StoredSettings {
+        if let Some(lib) = &self.library {
+            match lib.get_setting_json::<StoredSettings>(SETTINGS_KEY) {
+                Ok(Some(stored)) => return stored,
+                Ok(None) => {}
+                Err(err) => {
+                    tracing::warn!(%err, "stored settings are unreadable, using defaults");
+                    return StoredSettings::default();
+                }
+            }
+            // Nothing in the table yet: migrate the JSON file of an older install.
+            let migrated = self.load_file();
+            if self.path.as_ref().is_some_and(|p| p.is_file())
+                && let Err(err) = lib.set_setting_json(SETTINGS_KEY, &migrated)
+            {
+                tracing::warn!(%err, "could not migrate settings.json");
+            }
+            return migrated;
+        }
+        self.load_file()
+    }
+
+    fn load_file(&self) -> StoredSettings {
         let Some(path) = &self.path else {
             return StoredSettings::default();
         };
@@ -55,6 +95,11 @@ impl SettingsStore {
 
     /// Writes settings atomically (temp file, then rename).
     pub fn save(&self, settings: &StoredSettings) -> Result<(), CoreError> {
+        if let Some(lib) = &self.library {
+            return lib
+                .set_setting_json(SETTINGS_KEY, settings)
+                .map_err(|e| CoreError::Settings(e.to_string()));
+        }
         let Some(path) = &self.path else {
             return Ok(());
         };
@@ -104,6 +149,39 @@ mod tests {
         std::fs::write(d.join(SETTINGS_FILE), b"{not json").unwrap();
         assert_eq!(SettingsStore::in_dir(&d).load(), StoredSettings::default());
         let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn json_file_migrates_into_the_library_once() {
+        let d = dir("migrate");
+        let json_store = SettingsStore::in_dir(&d);
+        let mut s = StoredSettings::default();
+        s.audio.device = Some("Old Device".into());
+        json_store.save(&s).expect("save json");
+
+        let lib = Library::open_in_memory().expect("library");
+        let store = SettingsStore::in_dir(&d).with_library(lib.clone());
+        assert_eq!(store.load(), s);
+        assert!(lib.get_setting(SETTINGS_KEY).unwrap().is_some());
+
+        // The table wins from now on, even if the file changes.
+        let mut other = s.clone();
+        other.audio.device = Some("Edited File".into());
+        json_store.save(&other).expect("save json");
+        assert_eq!(store.load(), s);
+        let mut next = s.clone();
+        next.audio.buffer_frames = Some(128);
+        store.save(&next).expect("save db");
+        assert_eq!(store.load(), next);
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn library_store_without_a_file_uses_defaults() {
+        let lib = Library::open_in_memory().expect("library");
+        let store = SettingsStore::memory().with_library(lib.clone());
+        assert_eq!(store.load(), StoredSettings::default());
+        assert!(lib.get_setting(SETTINGS_KEY).unwrap().is_none());
     }
 
     #[test]
