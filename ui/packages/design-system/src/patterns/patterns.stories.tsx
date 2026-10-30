@@ -64,7 +64,7 @@ export const DensePanelHeader: Story = {
 };
 
 /** First run or empty list: icon, one sentence, one action. Flat, no decoration. */
-export const EmptyStateWithBackdrop: Story = {
+export const FlatEmptyState: Story = {
   render: () => (
     <Panel className="h-80 w-128">
       <PanelHeader title="Collection" />

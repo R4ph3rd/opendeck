@@ -15,12 +15,12 @@ const DJ = /^(deck-|cue-|wave-|beat-|playhead|loop-|meter-|sync-|master-)/;
 const groups: { title: string; note: string; names: string[] }[] = [
   {
     title: "Surfaces and borders",
-    note: "bg is the app canvas, surface holds panels, surface-raised holds menus and dialogs. Use border for hairlines.",
+    note: "bg is the app canvas, surface holds panels, surface-raised holds menus and dialogs. All surfaces are flat and opaque. Use border for hairlines.",
     names: pick(/^(bg|bg-subtle|surface|surface-raised|surface-hover|border|border-strong|overlay)$/),
   },
   {
     title: "Text",
-    note: "fg and fg-muted pass 4.5:1 on bg and surface. fg-subtle passes 3:1 only: placeholders, disabled hints, tertiary labels.",
+    note: "fg and fg-muted pass 4.5:1 on every surface step. fg-subtle passes 3:1 only: placeholders, disabled hints, tertiary labels.",
     names: pick(/^fg/),
   },
   {
@@ -110,7 +110,9 @@ function Tokens() {
       <p className="mb-6 max-w-2xl text-sm text-fg-muted">
         Tokens live in <code>src/tokens/tokens.css</code>. Dark is the default; use the toolbar to
         preview light. Use token classes (<code>bg-surface</code>, <code>text-fg-muted</code>) or{" "}
-        <code>var(--token)</code>. Raw hex and pixel values fail lint.
+        <code>var(--token)</code>. Raw hex and pixel values fail lint. The palette is flat slate with an
+        orange accent, approximated from general knowledge of a classic DAW dark theme and not sampled
+        (see <code>docs/design/palette-source.md</code>). No gradients, blur or translucent surfaces.
       </p>
 
       <Colors />

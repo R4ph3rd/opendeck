@@ -1,6 +1,6 @@
 # OpenDeck design system
 
-Package: `ui/packages/design-system` (`@opendeck/design-system`). Palette origin: [palette-source.md](palette-source.md).
+Package: `ui/packages/design-system` (`@opendeck/design-system`). Palette: flat slate with a warm orange accent, approximated from general knowledge of a classic DAW dark theme (not sampled; see [palette-source.md](palette-source.md)).
 
 Dark is the default theme. Light is set with `data-theme="light"` on `<html>` (or any wrapper).
 
@@ -64,6 +64,10 @@ Storybook "Patterns" section: dense panel header, empty state, settings page ske
 4. Export from `src/index.ts`.
 5. Add `<name>.stories.tsx` with the default state, variants and disabled/invalid states.
 
+## Flat rule
+
+No glass: no `backdrop-filter`, no `filter: blur`, no Tailwind `blur-*` or `backdrop-*` utilities, no gradients, no translucent panels, menus, dialogs or toasts. Stylelint (`property-disallowed-list`, `declaration-property-value-disallowed-list`) and the ESLint rule (`glass` message, also catches `backdropFilter` style keys) enforce it. The dim scrim `--overlay` is the one allowed alpha surface.
+
 ## Lint rules
 
 - Stylelint (`ui/stylelint.config.js`, `stylelint-declaration-strict-value`): color properties, spacing, gap, radius, font-size, box-shadow and z-index must use `var(--token)` or a neutral keyword. `tokens.css` is exempt.
@@ -73,7 +77,7 @@ Storybook "Patterns" section: dense panel header, empty state, settings page ske
 
 ## Contrast policy
 
-Tested in both themes: `fg`, `fg-muted` at 4.5:1 on `bg` and `surface`; `fg-subtle` at 3:1 (placeholders, disabled hints, tertiary labels only); `accent-fg` on `accent` at 4.5:1; `focus-ring` at 3:1 on `bg`, `surface`, `surface-raised`; deck, cue, waveform and meter colors at 3:1 on `bg`; backdrop mesh at peak alpha keeps `fg` and `fg-muted` at 4.5:1.
+Tested in both themes (`src/tokens/contrast.test.ts`): `fg` and `fg-muted` at 4.5:1 on `bg`, `bg-subtle`, `surface`, `surface-raised`, `surface-hover`; `fg-subtle` at 3:1; `accent-fg` on `accent` and `accent-hover`, `danger-fg` on `danger`, `cue-fg` on all eight cues at 4.5:1; `focus-ring` at 3:1 on every surface; status text (`info`, `success`, `warning`, `danger`) and `fg` on their solid `*-bg` fills at 4.5:1; accent text on `accent-muted` at 4.5:1; accent, deck, cue, waveform, meter and LED colors at 3:1 on `bg` and panel surfaces. A test also fails if any gradient, backdrop or blur token appears, or if a surface token is not an opaque hex.
 
 ## Commands (run from the repo root)
 
