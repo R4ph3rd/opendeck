@@ -12,18 +12,26 @@
 //! - [`mapping`]: the JSON mapping types, loading and validation.
 //! - [`input`] and [`feedback`]: the two engines, pure state machines driven
 //!   with explicit timestamps. [`pipeline::Pipeline`] wires them together.
+//! - [`backend`], [`controller`]: midir ports, hot-plug rescan and the worker
+//!   thread. The midir callback only copies bytes into a channel.
+//! - [`monitor`], [`learn`]: library API for the MIDI monitor and MIDI learn.
 //! - [`replay`]: the fixture runner behind the replay tests.
 //!
 //! The crate never touches the audio thread and never depends on the engine.
 
+pub mod backend;
+pub mod controller;
 pub mod error;
 pub mod feedback;
 pub mod input;
+pub mod learn;
 pub mod mapping;
 pub mod message;
+pub mod monitor;
 pub mod pipeline;
 pub mod replay;
 
+pub use controller::{Controller, ControllerConfig, ControllerStatus};
 pub use error::{MappingError, MidiError};
 pub use feedback::{FeedbackConfig, FeedbackEngine, OutMessage};
 pub use input::{Handled, MappingEngine};
