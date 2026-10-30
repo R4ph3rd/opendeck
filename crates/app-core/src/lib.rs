@@ -20,6 +20,9 @@ mod fx;
 mod fx_types;
 mod library_service;
 mod loader;
+mod midi_bridge;
+mod midi_service;
+mod midi_types;
 mod settings_store;
 mod types;
 
@@ -35,7 +38,7 @@ use opendeck_contracts::deck::DeckState;
 use opendeck_contracts::mixer::{CrossfaderAssign, CrossfaderCurve, EqBand, MixerState};
 use opendeck_contracts::settings::{AudioHostInfo, AudioHostKind, AudioSettings};
 use opendeck_contracts::tempo::{SyncMode, TempoRange};
-use opendeck_contracts::{Beats, DeckId, EngineCommand, Gain, MAX_DECKS, Seconds, pad::PadMode};
+use opendeck_contracts::{Beats, DeckId, EngineCommand, Gain, Seconds, pad::PadMode};
 use opendeck_engine::device;
 
 pub use crate::control::{Backend, LaunchOptions, TICK};
@@ -53,6 +56,15 @@ pub use crate::fx_types::{
     FxTarget, FxUnitRef, PAD_FX_COUNT, PADS_PER_LAYER, PadFxAssignDto, SendUnitDto,
 };
 pub use crate::library_service::{LibraryEvent, LibraryService, PROGRESS_INTERVAL};
+pub use crate::midi_bridge::{BridgeNotice, MidiBridge, PadModes, Takeover};
+pub use crate::midi_service::{
+    BackendMaker, MIDI_SETTINGS_KEY, MidiEvent, MidiService, MidiServiceOptions,
+};
+pub use crate::midi_types::{
+    BrowseContextDto, BrowseCursorDto, BrowseSourceDto, MidiBindingDto, MidiLearnResultDto,
+    MidiMappingRowDto, MidiMonitorDirection, MidiMonitorEntryDto, MidiMonitorLabelDto,
+    MidiOverrideDto, MidiPortDto, MidiSettingsDto, MidiStatusDto, PadModeChanged,
+};
 pub use crate::settings_store::{SETTINGS_FILE, SettingsStore, StoredSettings};
 pub use crate::types::{
     AudioDeviceInfo, AudioStatus, CoreError, CoreEvent, HotCues, OfflineAudio, TrackInfo,
@@ -352,6 +364,11 @@ impl AudioController {
         self.post(Msg::CallMemoryCue { deck, direction })
     }
 
+    /// Deletes the memory cue nearest to the playhead (within a second).
+    pub fn delete_memory_cue(&self, deck: DeckId) -> Result<(), CoreError> {
+        self.post(Msg::DeleteMemoryCue { deck })
+    }
+
     // ----- mixer -----
 
     /// Channel trim as linear gain.
@@ -631,7 +648,7 @@ impl AudioController {
 /// cloneable [`AudioController`] so the lock is never held while waiting.
 #[derive(Debug, Clone)]
 pub struct AppCore {
-    pad_modes: [PadMode; MAX_DECKS],
+    pad_modes: PadModes,
     audio: Option<AudioController>,
     library: Option<LibraryService>,
 }
@@ -646,7 +663,7 @@ impl AppCore {
     /// Fresh state without an audio engine: every deck in HOT CUE mode.
     pub fn new() -> Self {
         Self {
-            pad_modes: [PadMode::HotCue; MAX_DECKS],
+            pad_modes: PadModes::default(),
             audio: None,
             library: None,
         }
@@ -709,17 +726,20 @@ impl AppCore {
 
     /// Active pad mode of `deck`. Drives the pads and the middle UI panel.
     pub fn pad_mode(&self, deck: DeckId) -> PadMode {
-        self.pad_modes[deck.index()]
+        self.pad_modes.get(deck)
+    }
+
+    /// Shared handle to the pad modes, for the MIDI service: a mode button on
+    /// the controller and a UI click change the same state.
+    pub fn pad_modes(&self) -> PadModes {
+        self.pad_modes.clone()
     }
 
     /// Sets the pad mode of `deck` (from a MIDI mode button or a UI click).
     /// Returns true if it changed, so the caller emits a change event and LED
     /// feedback only when needed.
     pub fn set_pad_mode(&mut self, deck: DeckId, mode: PadMode) -> bool {
-        let slot = &mut self.pad_modes[deck.index()];
-        let changed = *slot != mode;
-        *slot = mode;
-        changed
+        self.pad_modes.set(deck, mode)
     }
 
     /// Control state of `deck`, with the pad mode this core owns.
