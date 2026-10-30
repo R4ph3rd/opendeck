@@ -286,3 +286,161 @@ fn transposed_stretcher_makes_no_heap_calls() {
         }
     }
 }
+
+/// The FX host on every path: inserts, sends, master, enable and disable
+/// (tails included), mix, beat division, parameters, effect swaps and
+/// clears. The control side builds and drops effects outside the counted
+/// region; the callback itself makes zero `malloc` or `free` calls.
+#[test]
+fn fx_host_makes_no_heap_calls() {
+    use crate::FxTempoSource;
+    use crate::tests_fx::{Kind, fx, gain_fx};
+    use opendeck_contracts::fx::ParamId;
+    use opendeck_contracts::{Beats, Bpm, FxSlotId, FxUnit, Gain};
+
+    let config = EngineConfig {
+        sample_rate: SampleRate(SR),
+        max_block_frames: 512,
+        deck_count: 2,
+        interpolation: Interpolation::Cubic,
+    };
+    let mut r = OfflineRenderer::new(config)
+        .expect("valid config")
+        .with_block_frames(333);
+    for d in 0..2u8 {
+        let track = TrackBuffer::from_vec(noise(SR as usize * 6)).expect("track");
+        r.handle()
+            .load_track(DeckId::new(d).expect("deck"), track, None)
+            .expect("hand-off ring has room");
+    }
+    let units = [
+        FxUnit::Deck(deck0()),
+        FxUnit::Deck(DeckId::new(1).expect("deck 1")),
+        FxUnit::Master,
+        FxUnit::Send(0),
+        FxUnit::Send(1),
+    ];
+    let slot = |unit: FxUnit, i: usize| FxSlotId::new(unit, i as u8).expect("slot");
+    let kinds = [Kind::Gain, Kind::Echo, Kind::Latency(64)];
+    for unit in units {
+        for (i, kind) in kinds.into_iter().enumerate() {
+            r.handle()
+                .install_effect(slot(unit, i), fx(kind).0)
+                .map_err(|_| ())
+                .expect("ring");
+            r.handle()
+                .send(EngineCommand::SetFxEnabled {
+                    slot: slot(unit, i),
+                    on: true,
+                })
+                .expect("ring");
+            r.render_into(&mut vec![0.0; 1024]);
+        }
+    }
+    for d in 0..2u8 {
+        let deck = DeckId::new(d).expect("deck");
+        r.handle()
+            .send(EngineCommand::SetPlaying {
+                deck,
+                playing: true,
+            })
+            .expect("ring");
+        for bus in 0..2 {
+            r.handle()
+                .send(EngineCommand::SetFxSend {
+                    deck,
+                    bus,
+                    level: Gain(0.7),
+                })
+                .expect("ring");
+        }
+    }
+    let mut buf = vec![0.0; 1000 * 2];
+    r.render_into(&mut buf);
+
+    let mut seed = 0xC0FF_EE11_u32;
+    let mut next = move || {
+        seed ^= seed << 13;
+        seed ^= seed >> 17;
+        seed ^= seed << 5;
+        seed
+    };
+    let mut heap_calls = 0;
+    let mut blocks = 0;
+    let mut audible = 0;
+    for _ in 0..400 {
+        let unit = units[(next() % 5) as usize];
+        let id = slot(unit, (next() % 3) as usize);
+        let command = match next() % 6 {
+            0 => EngineCommand::SetFxEnabled {
+                slot: id,
+                on: next() % 2 == 0,
+            },
+            1 => EngineCommand::SetFxMix {
+                slot: id,
+                wet: (next() % 1001) as f32 / 1000.0,
+            },
+            2 => EngineCommand::SetFxParam {
+                slot: id,
+                param: ParamId(next() % 2),
+                value: (next() % 1201) as f32 / 1000.0 - 0.1,
+            },
+            3 => EngineCommand::SetFxBeatDivision {
+                slot: id,
+                beats: Beats(f64::from(next() % 40) / 8.0),
+            },
+            4 => EngineCommand::SetFxSend {
+                deck: DeckId::new((next() % 2) as u8).expect("deck"),
+                bus: (next() % 2) as u8,
+                level: Gain((next() % 1001) as f32 / 500.0),
+            },
+            _ => EngineCommand::SetFxEnabled { slot: id, on: true },
+        };
+        r.handle().send(command).expect("ring");
+        match next() % 9 {
+            0 => {
+                let kind = kinds[(next() % 3) as usize];
+                let effect = if matches!(kind, Kind::Gain) {
+                    gain_fx(0.8).0
+                } else {
+                    fx(kind).0
+                };
+                let _ = r.handle().install_effect(id, effect);
+            }
+            1 => {
+                let _ = r.handle().clear_effect(id);
+            }
+            2 => {
+                let at = Frames(u64::from(next() % 400_000));
+                let _ = r
+                    .handle()
+                    .schedule_fx_enabled(id, next() % 2 == 0, at, next() % 2 == 0);
+            }
+            3 => {
+                let source = match next() % 3 {
+                    0 => FxTempoSource::Auto,
+                    1 => FxTempoSource::Deck(DeckId::new((next() % 2) as u8).expect("deck")),
+                    _ => FxTempoSource::Tap(Bpm(60.0 + f64::from(next() % 100))),
+                };
+                let _ = r.handle().set_fx_tempo_source(unit, source);
+            }
+            4 => {
+                let to = slot(unit, (next() % 3) as usize);
+                let at = Frames(u64::from(next() % 400_000));
+                let _ = r.handle().release_fx(id, to, at, Frames(2400));
+            }
+            _ => {}
+        }
+        let (_, calls) = count_heap_calls(|| r.render_into(&mut buf));
+        heap_calls += calls;
+        blocks += 1;
+        audible += usize::from(buf.iter().any(|s| s.abs() > 0.01));
+        r.handle().reclaim();
+        r.handle().poll_telemetry();
+    }
+    assert!(
+        audible > blocks / 2,
+        "only {audible} of {blocks} blocks played"
+    );
+    assert_eq!(heap_calls, 0, "{heap_calls} heap calls in {blocks} blocks");
+}
