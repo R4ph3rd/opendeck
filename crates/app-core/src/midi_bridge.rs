@@ -434,8 +434,19 @@ impl MidiBridge {
         }
     }
 
+    /// The mixer as last read.
+    pub fn mixer(&self) -> Option<&MixerState> {
+        self.view.mixer.as_ref()
+    }
+
+    /// The deck states as last read (pad mode filled in).
+    pub fn decks(&self) -> impl Iterator<Item = &DeckState> {
+        self.view.decks.iter().flatten()
+    }
+
     fn refresh_deck(&mut self, deck: DeckId) {
-        if let Ok(state) = self.audio.deck_state(deck) {
+        if let Ok(mut state) = self.audio.deck_state(deck) {
+            state.pad_mode = self.pad_modes.get(deck);
             let rate = f64::from(self.view.telemetry.sample_rate.0);
             self.view.cue_frames[deck.index()] = state
                 .cue_point

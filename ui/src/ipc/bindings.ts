@@ -221,19 +221,60 @@ export const commands = {
 	listDirectory: (path: string | null) => typedError<DirListing, CommandError>(__TAURI_INVOKE("list_directory", { path })),
 	/**  Shows a file in the system file manager. */
 	revealInExplorer: (path: string) => typedError<null, CommandError>(__TAURI_INVOKE("reveal_in_explorer", { path })),
+	/**  MIDI ports the system reports and which ones the mapping would use. */
+	midiListPorts: () => typedError<MidiPortDto[], CommandError>(__TAURI_INVOKE("midi_list_ports")),
+	/**  Connection state of the controller. */
+	midiGetStatus: () => typedError<MidiStatusDto, CommandError>(__TAURI_INVOKE("midi_get_status")),
+	/**  Starts the MIDI worker. `device` picks a port by name and is remembered; `None` follows the mapping's device patterns. */
+	midiConnect: (device: string | null) => typedError<MidiStatusDto, CommandError>(__TAURI_INVOKE("midi_connect", { device })),
+	/**  Stops the MIDI worker and closes the ports. */
+	midiDisconnect: () => typedError<MidiStatusDto, CommandError>(__TAURI_INVOKE("midi_disconnect")),
+	/**  Start the MIDI worker at launch. */
+	midiSetAutoConnect: (on: boolean) => typedError<MidiStatusDto, CommandError>(__TAURI_INVOKE("midi_set_auto_connect", { on })),
+	/**  Hardware fader start plays and pauses decks. */
+	midiSetFaderStart: (on: boolean) => typedError<MidiStatusDto, CommandError>(__TAURI_INVOKE("midi_set_fader_start", { on })),
+	/**  Starts or stops the `midi-monitor` stream. */
+	midiSetMonitor: (on: boolean) => typedError<null, CommandError>(__TAURI_INVOKE("midi_set_monitor", { on })),
+	/**  Arms MIDI learn for a control; the result arrives as `midi-learned`. */
+	midiLearnStart: (controlId: string) => typedError<null, CommandError>(__TAURI_INVOKE("midi_learn_start", { controlId })),
+	/**  Disarms MIDI learn. */
+	midiLearnCancel: () => typedError<null, CommandError>(__TAURI_INVOKE("midi_learn_cancel")),
+	/**  Rows of the mapping table, with the user's bindings applied. */
+	midiGetMapping: () => typedError<MidiMappingRowDto[], CommandError>(__TAURI_INVOKE("midi_get_mapping")),
+	/**  Binds a control to a MIDI input by hand. */
+	midiSetOverride: (controlId: string, binding: MidiBindingDto) => typedError<MidiMappingRowDto[], CommandError>(__TAURI_INVOKE("midi_set_override", { controlId, binding })),
+	/**  Restores one control to the shipped binding. */
+	midiClearOverride: (controlId: string) => typedError<MidiMappingRowDto[], CommandError>(__TAURI_INVOKE("midi_clear_override", { controlId })),
+	/**  Restores every control to the shipped bindings. */
+	midiResetOverrides: () => typedError<MidiMappingRowDto[], CommandError>(__TAURI_INVOKE("midi_reset_overrides")),
+	/**  Writes the effective mapping (shipped plus overrides) to a JSON file. */
+	midiExportMapping: (path: string) => typedError<null, CommandError>(__TAURI_INVOKE("midi_export_mapping", { path })),
+	/**  Reads a mapping JSON of the same mapping and stores its bindings as overrides. */
+	midiImportMapping: (path: string) => typedError<MidiMappingRowDto[], CommandError>(__TAURI_INVOKE("midi_import_mapping", { path })),
+	/**  The library pane tells the browse encoder which list is on screen. */
+	browseSetContext: (context: BrowseContextDto) => typedError<null, CommandError>(__TAURI_INVOKE("browse_set_context", { context })),
+	/**  The library pane selected a row. */
+	browseSelect: (index: number) => typedError<null, CommandError>(__TAURI_INVOKE("browse_select", { index })),
 };
 
 /** Events */
 export const events = {
 	analysisReady: makeEvent<AnalysisReadyEvent, AnalysisReadyEvent>("analysis-ready"),
 	audioDeviceChanged: makeEvent<AudioDeviceChangedEvent, AudioDeviceChangedEvent>("audio-device-changed"),
+	browseCursorMoved: makeEvent<BrowseCursorMovedEvent, BrowseCursorMovedEvent>("browse-cursor-moved"),
 	cuesChanged: makeEvent<CuesChangedEvent, CuesChangedEvent>("cues-changed"),
+	deckStateChanged: makeEvent<DeckStateChangedEvent, DeckStateChangedEvent>("deck-state-changed"),
 	engineEvent: makeEvent<EngineEventEvent, EngineEventEvent>("engine-event"),
 	engineTelemetry: makeEvent<EngineTelemetryEvent, EngineTelemetryEvent>("engine-telemetry"),
 	fxStateChanged: makeEvent<FxStateChangedEvent, FxStateChangedEvent>("fx-state-changed"),
 	hotCuesChanged: makeEvent<HotCuesChangedEvent, HotCuesChangedEvent>("hot-cues-changed"),
 	importProgress: makeEvent<ImportProgressEvent, ImportProgressEvent>("import-progress"),
 	libraryChanged: makeEvent<LibraryChangedEvent, LibraryChangedEvent>("library-changed"),
+	midiConnectionChanged: makeEvent<MidiConnectionChangedEvent, MidiConnectionChangedEvent>("midi-connection-changed"),
+	midiLearned: makeEvent<MidiLearnedEvent, MidiLearnedEvent>("midi-learned"),
+	midiMonitor: makeEvent<MidiMonitorEvent, MidiMonitorEvent>("midi-monitor"),
+	mixerStateChanged: makeEvent<MixerStateChangedEvent, MixerStateChangedEvent>("mixer-state-changed"),
+	padModeChanged: makeEvent<PadModeChangedEvent, PadModeChangedEvent>("pad-mode-changed"),
 	trackLoadFailed: makeEvent<TrackLoadFailedEvent, TrackLoadFailedEvent>("track-load-failed"),
 	trackLoaded: makeEvent<TrackLoadedEvent, TrackLoadedEvent>("track-loaded"),
 };
@@ -437,6 +478,36 @@ export type Beats = number | null;
 /**  Tempo in beats per minute. Valid values are finite and `> 0`. */
 export type Bpm = number | null;
 
+/**  What the library pane tells the browse cursor. */
+export type BrowseContextDto = {
+	/**  The list on screen. */
+	source: BrowseSourceDto,
+	/**  Selected row, `None` when nothing is selected. */
+	index: number | null,
+};
+
+/**  The browse cursor moved (encoder turn); the pane selects the row. */
+export type BrowseCursorDto = {
+	/**  Row in the current list. */
+	index: number,
+	/**  Track at that row. */
+	track: TrackId,
+};
+
+/**  The browse encoder moved; the library pane selects the row. */
+export type BrowseCursorMovedEvent = BrowseCursorDto;
+
+/**  Where the browse encoder moves. */
+export type BrowseSourceDto = 
+/**  The collection with the query the library pane shows. */
+{ kind: "collection"; 
+/**  Filter and sort; offset and limit are ignored. */
+query: TrackQueryDto } | 
+/**  A playlist in order. */
+{ kind: "playlist"; 
+/**  Playlist. */
+id: PlaylistId };
+
 /**  Sound Color FX of one channel. */
 export type CfxDto = {
 	/**  CFX type (one of `FxStateDto::cfx_kinds`). */
@@ -484,6 +555,259 @@ export type CommandError =
 { kind: "media"; message: string } | 
 /**  An argument is out of range, or the deck has no track for the action. */
 { kind: "invalid"; message: string };
+
+/**
+ *  What a control does, independent of the hardware. Each variant lists the
+ *  [`ControlValue`] kind it expects; other kinds are ignored by app-core.
+ */
+export type ControlAction = 
+/**  PLAY/PAUSE. Button. */
+{ action: "play_pause"; 
+/**  Deck. */
+deck: DeckId } | 
+/**  CUE. Button (press and release both matter). */
+{ action: "cue"; 
+/**  Deck. */
+deck: DeckId } | 
+/**  Return to the track start (SHIFT + CUE on many controllers). Button. */
+{ action: "return_to_start"; 
+/**  Deck. */
+deck: DeckId } | 
+/**  BEAT SYNC toggle. Button. */
+{ action: "sync"; 
+/**  Deck. */
+deck: DeckId } | 
+/**  Make this deck the sync leader (see `EngineCommand::SetLeader`). Button. */
+{ action: "sync_leader"; 
+/**  Deck. */
+deck: DeckId } | 
+/**  Load the selected browser track into this deck. Button. */
+{ action: "load"; 
+/**  Deck. */
+deck: DeckId } | 
+/**  Tempo fader. Absolute, 0 = slowest end, 1 = fastest end. */
+{ action: "tempo_fader"; 
+/**  Deck. */
+deck: DeckId } | 
+/**  Cycle the tempo range. Button. */
+{ action: "tempo_range_next"; 
+/**  Deck. */
+deck: DeckId } | 
+/**  Toggle key lock. Button. */
+{ action: "key_lock"; 
+/**  Deck. */
+deck: DeckId } | 
+/**  Pitch bend while held, `direction` +1 faster or -1 slower. Button. */
+{ action: "pitch_bend"; 
+/**  Deck. */
+deck: DeckId; 
+/**  +1 or -1. */
+direction: number } | 
+/**  Platter touch. Button. */
+{ action: "jog_touch"; 
+/**  Deck. */
+deck: DeckId } | 
+/**  Platter top rotation: scratch in vinyl mode, bend otherwise. Relative, revolutions. */
+{ action: "jog_top"; 
+/**  Deck. */
+deck: DeckId } | 
+/**  Jog wheel side rotation: pitch bend. Relative, revolutions. */
+{ action: "jog_side"; 
+/**  Deck. */
+deck: DeckId } | 
+/**  SHIFT + jog: fast search. Relative, revolutions. */
+{ action: "jog_search"; 
+/**  Deck. */
+deck: DeckId } | 
+/**  Toggle vinyl mode. Button. */
+{ action: "vinyl_mode"; 
+/**  Deck. */
+deck: DeckId } | 
+/**  Loop in. Button. */
+{ action: "loop_in"; 
+/**  Deck. */
+deck: DeckId } | 
+/**  Loop out. Button. */
+{ action: "loop_out"; 
+/**  Deck. */
+deck: DeckId } | 
+/**  Exit or re-enter the loop. Button. */
+{ action: "loop_toggle"; 
+/**  Deck. */
+deck: DeckId } | 
+/**  Auto beat loop of `length`. Button. */
+{ action: "auto_loop"; 
+/**  Deck. */
+deck: DeckId; 
+/**  Loop length. */
+length: Beats } | 
+/**  Halve the active loop. Button. */
+{ action: "loop_halve"; 
+/**  Deck. */
+deck: DeckId } | 
+/**  Double the active loop. Button. */
+{ action: "loop_double"; 
+/**  Deck. */
+deck: DeckId } | 
+/**  Beat jump by `beats` (signed). Button. */
+{ action: "beat_jump"; 
+/**  Deck. */
+deck: DeckId; 
+/**  Beats. */
+beats: Beats } | 
+/**  Previous memory cue or loop (CUE/LOOP CALL left). Button. */
+{ action: "cue_loop_call_prev"; 
+/**  Deck. */
+deck: DeckId } | 
+/**  Next memory cue or loop (CUE/LOOP CALL right). Button. */
+{ action: "cue_loop_call_next"; 
+/**  Deck. */
+deck: DeckId } | 
+/**  Add a memory cue at the playhead. Button. */
+{ action: "memory_cue_add"; 
+/**  Deck. */
+deck: DeckId } | 
+/**  Delete the memory cue or loop at the playhead (SHIFT + CUE/LOOP CALL left on the FLX4). Button. */
+{ action: "memory_cue_delete"; 
+/**  Deck. */
+deck: DeckId } | 
+/**  Tap the tempo of the deck while pressing (SHIFT + headphone CUE on the FLX4). Button. */
+{ action: "tap_tempo"; 
+/**  Deck. */
+deck: DeckId } | 
+/**  Toggle slip mode. Button. */
+{ action: "slip"; 
+/**  Deck. */
+deck: DeckId } | 
+/**  Toggle quantize. Button. */
+{ action: "quantize"; 
+/**  Deck. */
+deck: DeckId } | 
+/**  Select a pad mode. Button. */
+{ action: "pad_mode_select"; 
+/**  Deck. */
+deck: DeckId; 
+/**  Mode. */
+mode: PadMode } | 
+/**
+ *  Performance pad `index` in `mode`. app-core ignores the press if
+ *  `mode` is not the deck's active mode. Button.
+ */
+{ action: "pad"; 
+/**  Deck. */
+deck: DeckId; 
+/**  Mode the pad message belongs to. */
+mode: PadMode; 
+/**  Pad, `0..PADS_PER_DECK`. */
+index: number; 
+/**  SHIFT layer of the pad (second function, e.g. delete hot cue). */
+shifted: boolean } | 
+/**  Trigger or set a hot cue directly (keyboard shortcut, UI). Button. */
+{ action: "hot_cue"; 
+/**  Deck. */
+deck: DeckId; 
+/**  Slot. */
+index: HotCueIndex } | 
+/**  Delete a hot cue. Button. */
+{ action: "hot_cue_delete"; 
+/**  Deck. */
+deck: DeckId; 
+/**  Slot. */
+index: HotCueIndex } | 
+/**  Trim knob. Absolute. */
+{ action: "trim"; 
+/**  Channel. */
+deck: DeckId } | 
+/**  EQ knob. Absolute, 0.5 = unity. */
+{ action: "eq"; 
+/**  Channel. */
+deck: DeckId; 
+/**  Band. */
+band: EqBand } | 
+/**  Filter knob. Absolute, 0.5 = off. */
+{ action: "filter"; 
+/**  Channel. */
+deck: DeckId } | 
+/**  Channel fader. Absolute. */
+{ action: "channel_fader"; 
+/**  Channel. */
+deck: DeckId } | 
+/**  Fader start event from the hardware (fader left or reached the bottom). Button. */
+{ action: "channel_fader_start"; 
+/**  Channel. */
+deck: DeckId } | 
+/**  Headphone cue (PFL) toggle. Button. */
+{ action: "pfl"; 
+/**  Channel. */
+deck: DeckId } | 
+/**  Crossfader. Absolute, 0 = full A. */
+{ action: "crossfader" } | 
+/**  Master level. Absolute. */
+{ action: "master_level" } | 
+/**  Master to headphones (MASTER CUE) toggle. Button. */
+{ action: "master_cue" } | 
+/**  Headphone level. Absolute. */
+{ action: "headphone_level" } | 
+/**  Headphone cue/master mix. Absolute, 0 = cue. */
+{ action: "headphone_mix" } | 
+/**  Toggle an effect unit. Button. */
+{ action: "fx_toggle"; 
+/**  Unit. */
+unit: FxUnit } | 
+/**  Effect level/depth (wet/dry or main parameter). Absolute. */
+{ action: "fx_level"; 
+/**  Unit. */
+unit: FxUnit } | 
+/**  Next (+1) or previous (-1) effect type in the unit. Button. */
+{ action: "fx_select"; 
+/**  Unit. */
+unit: FxUnit; 
+/**  +1 or -1. */
+direction: number } | 
+/**  Next (+1) or previous (-1) beat division. Button. */
+{ action: "fx_beat"; 
+/**  Unit. */
+unit: FxUnit; 
+/**  +1 or -1. */
+direction: number } | 
+/**
+ *  Release FX: switch the effect off and play its release tail
+ *  (SHIFT + FX ON/OFF on the FLX4). Button, press and release both matter.
+ */
+{ action: "fx_release"; 
+/**  Unit. */
+unit: FxUnit } | 
+/**  Beat FX tempo source: follow the track BPM (SHIFT + BEAT left on the FLX4). Button. */
+{ action: "fx_bpm_auto"; 
+/**  Unit. */
+unit: FxUnit } | 
+/**
+ *  Beat FX tempo source: tapped BPM; each press is a tap
+ *  (SHIFT + BEAT right on the FLX4). Button.
+ */
+{ action: "fx_bpm_tap"; 
+/**  Unit. */
+unit: FxUnit } | 
+/**
+ *  Route the beat effect unit to `target` (FX CH SELECT). Button:
+ *  `true` sets the route to `target`, `false` clears it. Controllers whose
+ *  channel switch reports one flag per channel send one control per flag.
+ */
+{ action: "fx_assign"; 
+/**  Unit being routed. */
+unit: FxUnit; 
+/**  Target channel, or `None` for master. */
+target: DeckId | null } | 
+/**  Sampler slot pad. Button. */
+{ action: "sampler"; 
+/**  Slot. */
+slot: SamplerSlotId } | 
+/**  Browser scroll. Relative, list rows. */
+{ action: "browse_scroll" } | 
+/**  Browser encoder press (open folder / focus). Button. */
+{ action: "browse_press" } | 
+/**  Browser back (SHIFT + press on many controllers). Button. */
+{ action: "browse_back" };
 
 /**  Which crossfader side a channel is assigned to. */
 export type CrossfaderAssign = 
@@ -616,6 +940,9 @@ export type DeckState = {
 	/**  Pad mode shown by the pads and the middle UI panel. */
 	pad_mode: PadMode,
 };
+
+/**  A deck's control state changed on the controller. */
+export type DeckStateChangedEvent = DeckState;
 
 /**  Per-deck fast-moving state. RT-safe. */
 export type DeckTelemetry = {
@@ -1088,6 +1415,15 @@ export type FxTarget =
 /**  A send/return bus (`0..FX_SEND_BUSES`). */
 "send";
 
+/**  Where an effect chain sits in the signal flow (ADR 0006). RT-safe. */
+export type FxUnit = 
+/**  Insert chain on a deck channel, post-EQ, pre-fader. */
+{ kind: "deck"; index: DeckId } | 
+/**  Insert chain on the master bus, pre master level. */
+{ kind: "master" } | 
+/**  Send/return bus `0..FX_SEND_BUSES`; its return is summed into master. */
+{ kind: "send"; index: number };
+
 /**  A Beat FX unit or a send bus. */
 export type FxUnitRef = {
 	/**  Family. */
@@ -1268,6 +1604,168 @@ export type Loudness = {
 	true_peak_dbtp: number | null,
 };
 
+/**  A MIDI input, as the mapping files spell it. Channels are 1 to 16. */
+export type MidiBindingDto = 
+/**  A note. */
+{ type: "note"; 
+/**  Channel 1 to 16. */
+channel: number; 
+/**  Note number. */
+number: number } | 
+/**  A 7-bit control change. */
+{ type: "cc"; 
+/**  Channel 1 to 16. */
+channel: number; 
+/**  Controller number. */
+number: number } | 
+/**  A 14-bit control change pair. */
+{ type: "cc14"; 
+/**  Channel 1 to 16. */
+channel: number; 
+/**  MSB controller number. */
+msb: number; 
+/**  LSB controller number. */
+lsb: number };
+
+/**  The controller connected, disconnected or its settings changed. */
+export type MidiConnectionChangedEvent = MidiStatusDto;
+
+/**  Result of a MIDI learn gesture. */
+export type MidiLearnResultDto = {
+	/**  Control the gesture was learned for. */
+	control_id: string,
+	/**  The captured input, when one was captured and accepted. */
+	binding: MidiBindingDto | null,
+	/**  Readable form of the first captured message. */
+	description: string,
+	/**  Why it was not applied (input already used, nothing captured). */
+	error: string | null,
+};
+
+/**  A MIDI learn gesture finished. */
+export type MidiLearnedEvent = MidiLearnResultDto;
+
+/**  One row of the mapping table. */
+export type MidiMappingRowDto = {
+	/**  Control id. */
+	id: string,
+	/**  Name from the controller's message list. */
+	label: string | null,
+	/**  Row or figure id in the source document. */
+	source_ref: string | null,
+	/**  Current MIDI input (with the user's override applied). */
+	binding: MidiBindingDto,
+	/**  What the control does. */
+	action: ControlAction,
+	/**  Layer: `base` or the modifier that must be held (`shift_deck1`). */
+	layer: string,
+	/**  `button`, `absolute` or `relative`. */
+	value_kind: string,
+	/**  The `verify` note, when the entry is unconfirmed. */
+	verify: string | null,
+	/**  The binding differs from the shipped mapping. */
+	overridden: boolean,
+};
+
+/**  Direction of a monitored message. */
+export type MidiMonitorDirection = 
+/**  From the controller. */
+"in" | 
+/**  To the controller. */
+"out";
+
+/**  One line of the MIDI monitor. */
+export type MidiMonitorEntryDto = {
+	/**  Timestamp in microseconds on the worker clock. */
+	ts_us: number,
+	/**  In or out. */
+	direction: MidiMonitorDirection,
+	/**  Raw bytes. */
+	bytes: number[],
+	/**  Readable form, e.g. `Note On ch1 0x0B vel 127`. */
+	text: string,
+	/**  What the mapping made of it. */
+	label: MidiMonitorLabelDto,
+};
+
+/**  A batch of monitored MIDI messages (at most every 50 ms, monitor on only). */
+export type MidiMonitorEvent = MidiMonitorEntryDto[];
+
+/**  What the mapping made of a monitored message. */
+export type MidiMonitorLabelDto = 
+/**  Output message. */
+{ kind: "output" } | 
+/**  Matched a control. */
+{ kind: "control"; 
+/**  Control id. */
+id: string; 
+/**  Control name from the source document. */
+label: string | null; 
+/**  The action it triggers. */
+action: ControlAction | null; 
+/**  Unconfirmed value note. */
+verify: string | null } | 
+/**  Matched a modifier (SHIFT). */
+{ kind: "modifier"; 
+/**  Modifier id. */
+id: string; 
+/**  Unconfirmed value note. */
+verify: string | null } | 
+/**  Half of a 14-bit pair. */
+{ kind: "pending"; 
+/**  Control id. */
+id: string } | 
+/**  Listed in the source, deliberately not mapped. */
+{ kind: "known_unmapped"; 
+/**  Source row. */
+source_ref: string; 
+/**  Why. */
+reason: string } | 
+/**  Not in the mapping. */
+{ kind: "unmapped" } | 
+/**  Not a channel message the mapping covers. */
+{ kind: "ignored" };
+
+/**  A MIDI port the system reports. */
+export type MidiPortDto = {
+	/**  Port name; used to select the device. */
+	name: string,
+	/**  An input port with this name exists. */
+	has_input: boolean,
+	/**  An output port with this name exists (LED feedback). */
+	has_output: boolean,
+	/**  The active mapping's device patterns match this name. */
+	matches_mapping: boolean,
+};
+
+/**  Controller connection state, for the top bar and the settings page. */
+export type MidiStatusDto = {
+	/**  Id of the active mapping. */
+	mapping_id: string,
+	/**  Display name of the active mapping. */
+	mapping_name: string,
+	/**  The MIDI worker is running (it looks for the device every second). */
+	enabled: boolean,
+	/**  An input port is open. */
+	connected: boolean,
+	/**  Open input port. */
+	input: string | null,
+	/**  Open output port. */
+	output: string | null,
+	/**  Last open or send error. */
+	last_error: string | null,
+	/**  Start the worker at launch. */
+	auto_connect: boolean,
+	/**  Device chosen by hand; `None` follows the mapping's device patterns. */
+	device: string | null,
+	/**  Hardware fader start moves play and pause. */
+	fader_start: boolean,
+	/**  Input messages dropped (channel full or SysEx). */
+	dropped_input: number,
+	/**  `verify` markers left in the mapping. */
+	verify_count: number,
+};
+
 /**  Snapshot of the whole mixer, for the UI and session restore. */
 export type MixerState = {
 	/**  One strip per deck, indexed by [`DeckId::index`]. */
@@ -1285,6 +1783,9 @@ export type MixerState = {
 	/**  Split cue: cue bus summed to mono on the left ear, master mono on the right. */
 	split_cue: boolean,
 };
+
+/**  The mixer changed on the controller. */
+export type MixerStateChangedEvent = MixerState;
 
 /**
  *  A musical key: tonic pitch class plus mode. RT-safe.
@@ -1323,6 +1824,17 @@ export type PadMode =
 "beat_loop" | 
 /**  Pads shift the key by semitones (SHIFT + 5-4). */
 "key_shift";
+
+/**  A pad mode changed from the controller. */
+export type PadModeChanged = {
+	/**  Deck. */
+	deck: DeckId,
+	/**  New mode. */
+	mode: PadMode,
+};
+
+/**  A pad mode button on the controller changed a deck's mode. */
+export type PadModeChangedEvent = PadModeChanged;
 
 /**  How a normalized `[0, 1]` value maps to the plain range. */
 export type ParamCurve = 
@@ -1444,6 +1956,9 @@ export type PlaylistNodeDto = {
 
 /**  A sample rate in Hz. Invariant: `> 0` wherever it is used as a divisor. */
 export type SampleRate = number;
+
+/**  A sampler slot, `0..SAMPLER_SLOTS`. RT-safe; constructor validates the bound. */
+export type SamplerSlotId = number;
 
 /**  A saved set with its entries. */
 export type SavedSetDetailDto = {

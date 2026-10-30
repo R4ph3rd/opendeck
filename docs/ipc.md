@@ -145,17 +145,27 @@ The FX model sits on the engine FX units (ADR 0006): two FLX4-style Beat FX unit
 
 ### MIDI
 
+*shell* types live in `crates/app-core/src/midi_types.rs`. Without a MIDI service the commands return `invalid`.
+
 | Command | Args | Returns | M |
 |---|---|---|---|
-| `list_midi_ports` | | `MidiPorts` (inputs, outputs) | 6 |
-| `connect_midi` | `input: String, output: Option<String>, mapping: String` | `()` | 6 |
-| `disconnect_midi` | | `()` | 6 |
-| `list_mappings` | | `Vec<MappingInfo>` (id, version, name, verify count) | 6 |
-| `set_midi_monitor` | `on: bool` | `()`; streams `midi-message` | 6 |
-| `start_midi_learn` | `control_id: String` | `()`; next message emits `midi-learned` | 6 |
-| `cancel_midi_learn` | | `()` | 6 |
-| `set_mapping_override` | `mapping: String, control_id: String, binding: Option<Value>` | `()` | 6 |
-| `clear_mapping_overrides` | `mapping: String` | `()` | 6 |
+| `midi_list_ports` **done** | | `Vec<MidiPortDto>` (name, has input, has output, matches the mapping's device patterns) | 6 |
+| `midi_get_status` **done** | | `MidiStatusDto` (mapping, worker running, connected ports, last error, auto-connect, chosen device, fader start, dropped input, `verify` count) | 6 |
+| `midi_connect` **done** | `device: Option<String>` | `MidiStatusDto`; starts the worker. `Some(name)` selects a port by name and is remembered, `None` follows the mapping's patterns. The worker rescans every second, so a device plugged in later connects | 6 |
+| `midi_disconnect` **done** | | `MidiStatusDto`; stops the worker and closes the ports | 6 |
+| `midi_set_auto_connect` **done** | `on: bool` | `MidiStatusDto`; start the worker at launch (default on) | 6 |
+| `midi_set_fader_start` **done** | `on: bool` | `MidiStatusDto`; hardware fader start plays and pauses decks (default off) | 6 |
+| `midi_set_monitor` **done** | `on: bool` | `()`; streams `midi-monitor` | 6 |
+| `midi_learn_start` **done** | `control_id: String` | `()`; the next gesture on the controller becomes the control's input and emits `midi-learned` | 6 |
+| `midi_learn_cancel` **done** | | `()` | 6 |
+| `midi_get_mapping` **done** | | `Vec<MidiMappingRowDto>` (id, label, source ref, binding, `ControlAction`, layer, value kind, `verify`, overridden) | 6 |
+| `midi_set_override` **done** | `control_id: String, binding: MidiBindingDto` | `Vec<MidiMappingRowDto>`; refused with `invalid` when the input is used by another control. Stored in the library settings (key `midi.settings`) and applied with `Mapping::apply_input_overrides` | 6 |
+| `midi_clear_override` **done** | `control_id: String` | `Vec<MidiMappingRowDto>` | 6 |
+| `midi_reset_overrides` **done** | | `Vec<MidiMappingRowDto>` | 6 |
+| `midi_export_mapping` **done** | `path: String` | `()`; writes the effective mapping JSON | 6 |
+| `midi_import_mapping` **done** | `path: String` | `Vec<MidiMappingRowDto>`; same mapping id only, bindings that differ from the shipped file become overrides | 6 |
+| `browse_set_context` **done** | `context: BrowseContextDto` (collection query or playlist, selected row) | `()`; tells the browse encoder which list is on screen | 6 |
+| `browse_select` **done** | `index: u32` | `()`; the pane selected a row | 6 |
 
 ### Sampler and saved sets
 
@@ -178,19 +188,20 @@ The FX model sits on the engine FX units (ADR 0006): two FLX4-style Beat FX unit
 | `engine-event` **done** | `EngineEvent` (audio thread events plus `device_lost`, `device_changed`, `stream_error`) | on change | 1 |
 | `track-loaded` **done** | `TrackLoaded` *shell* (deck, `TrackInfo` with library id, BPM and key, frames) | once per load | 1 |
 | `track-load-failed` **done** | `TrackLoadFailed` *shell* (deck, path, message) | once per failed load | 1 |
-| `deck-state-changed` | `DeckState` | on change | 1 |
-| `mixer-state-changed` | `MixerState` | on change (MIDI-driven moves) | 2 |
+| `deck-state-changed` **done** | `DeckState` | when the controller changed it (read at 4 Hz and after button presses); UI-driven changes are read with `get_deck_state` | 6 |
+| `mixer-state-changed` **done** | `MixerState` | on change, MIDI-driven moves only (at most 4 Hz) | 6 |
 | `audio-device-changed` **done** | `AudioStatus` (running, device, rate, buffer, error) | on change | 1 |
 | `import-progress` **done** | `JobProgress` | <= 10 Hz per job; a state change is sent at once | 3 |
 | `library-changed` **done** | `LibraryChange` (`tracks`, `playlists`) | <= 10 Hz, coalesced; also after every library command that edits rows | 3 |
 | `analysis-ready` **done** | `TrackId` | once per track whose analysis was stored; a deck holding it already has the new grid | 3 |
 | `hot-cues-changed` **done** | `HotCues` *shell* (deck, 8 slots) | on change | 2 |
 | `cues-changed` **done** | `TrackId` | on every stored cue change | 3 |
-| `pad-mode-changed` | `{ deck: DeckId, mode: PadMode }` | on change | 7 |
+| `pad-mode-changed` **done** | `PadModeChanged` *shell* (deck, mode) | when a pad mode button on the controller changed it | 6 |
 | `fx-state-changed` **done** | `FxStateDto` | on every FX model change | 5 |
-| `midi-message` | `MidiMonitorEntry` (timestamp, bytes, decoded control id, action) | monitor on only, coalesced at 60 Hz | 6 |
-| `midi-learned` | `MidiLearnResult` (message, suggested binding) | once | 6 |
-| `midi-connection-changed` | `MidiStatus` | on change | 6 |
+| `midi-monitor` **done** | `Vec<MidiMonitorEntryDto>` (timestamp, direction, bytes, text, mapped control and action, `verify`) | monitor on only, batched every 50 ms | 6 |
+| `midi-learned` **done** | `MidiLearnResultDto` (control id, accepted binding or error, description) | once per gesture | 6 |
+| `midi-connection-changed` **done** | `MidiStatusDto` | on change | 6 |
+| `browse-cursor-moved` **done** | `BrowseCursorDto` (row index, track) | per encoder step | 6 |
 | `sampler-state-changed` | `SamplerState` | on change | 7 |
 
 Mixer values cross IPC as linear `Gain` (trim, EQ band, master, headphone) or normalised positions (`filter` in `[-1, 1]`, channel fader and headphone mix in `[0, 1]`, crossfader in `[-1, 1]`). The UI owns the knob-to-gain curves (`ui/src/lib/mixer.ts`, constants mirror `contracts::mixer`); app-core validates ranges and the engine clamps.

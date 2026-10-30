@@ -23,6 +23,8 @@ use std::time::{Duration, Instant};
 
 use crossbeam_channel::{Receiver, Sender, TrySendError, never, select};
 use opendeck_contracts::control::ControlAction;
+use opendeck_contracts::deck::DeckState;
+use opendeck_contracts::mixer::MixerState;
 use opendeck_library::Library;
 use opendeck_midi::controller::BackendFactory;
 use opendeck_midi::learn::{LearnCapture, LearnHint};
@@ -88,6 +90,10 @@ pub enum MidiEvent {
     Browse(BrowseCursorDto),
     /// A pad mode button changed a deck's mode.
     PadMode(PadModeChanged),
+    /// The mixer changed (a knob or fader on the controller moved).
+    Mixer(Box<MixerState>),
+    /// A deck's control state changed (tempo, sync, vinyl, ...).
+    Deck(Box<DeckState>),
 }
 
 type Job = Box<dyn FnOnce(&mut Worker) + Send>;
@@ -327,6 +333,8 @@ struct Worker {
     monitor_flushed: Instant,
     learning: Option<String>,
     last_status: Option<MidiStatusDto>,
+    last_mixer: Option<MixerState>,
+    last_decks: Vec<DeckState>,
     refreshed: Instant,
 }
 
@@ -361,6 +369,8 @@ impl Worker {
             monitor_flushed: Instant::now(),
             learning: None,
             last_status: None,
+            last_mixer: None,
+            last_decks: Vec::new(),
             refreshed: Instant::now(),
         };
         if worker.settings.auto_connect
@@ -404,6 +414,7 @@ impl Worker {
                             }
                         }
                         self.push_feedback();
+                        self.emit_state_changes();
                     }
                 },
                 recv(ctl_status) -> status => {
@@ -438,7 +449,30 @@ impl Worker {
             self.refreshed = Instant::now();
             self.bridge.refresh();
             self.push_feedback();
+            self.emit_state_changes();
         }
+    }
+
+    /// Tells the UI about mixer and deck changes the bridge noticed (moves on
+    /// the controller do not pass through the UI).
+    fn emit_state_changes(&mut self) {
+        if self.controller.is_none() {
+            return;
+        }
+        if let Some(mixer) = self.bridge.mixer().copied()
+            && self.last_mixer.as_ref() != Some(&mixer)
+        {
+            self.last_mixer = Some(mixer);
+            self.emit(&MidiEvent::Mixer(Box::new(mixer)));
+        }
+        let decks: Vec<DeckState> = self.bridge.decks().cloned().collect();
+        for state in &decks {
+            let known = self.last_decks.iter().find(|d| d.deck == state.deck);
+            if known != Some(state) {
+                self.emit(&MidiEvent::Deck(Box::new(state.clone())));
+            }
+        }
+        self.last_decks = decks;
     }
 
     // ----- controller -----

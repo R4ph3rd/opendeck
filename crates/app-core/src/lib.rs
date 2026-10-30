@@ -694,6 +694,25 @@ impl AppCore {
         })
     }
 
+    /// Starts the MIDI service with the shipped DDJ-FLX4 mapping. It connects
+    /// to the controller when it is present (hot-plug) unless auto-connect is
+    /// off in the stored settings. Overrides and settings persist in the
+    /// library when there is one.
+    pub fn start_midi(&self) -> Result<MidiService, CoreError> {
+        let mapping =
+            opendeck_midi::flx4_mapping().map_err(|e| CoreError::Invalid(e.to_string()))?;
+        MidiService::start(MidiServiceOptions {
+            mapping,
+            audio: self.audio()?,
+            library: self.library.clone(),
+            pad_modes: self.pad_modes(),
+            store: self.library.as_ref().map(LibraryService::library),
+            backend: None,
+            rescan_interval: None,
+        })
+        .map_err(|e| CoreError::Invalid(e.to_string()))
+    }
+
     /// The library, if the core was launched with one.
     pub fn library(&self) -> Result<LibraryService, CoreError> {
         self.library
