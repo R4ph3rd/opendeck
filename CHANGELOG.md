@@ -4,6 +4,20 @@ All notable changes are recorded here. Format follows [Keep a Changelog](https:/
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-30
+
+Milestone 4: waveforms, deck visual components, design system components, flat re-theme.
+
+### Added
+
+- Waveforms: zoomed and overview waveforms from analysis peaks (`get_track_peaks`) on Canvas 2D, with 3-band colours, beat grid, hot and memory cues, loops, a playhead extrapolated from telemetry, zoom from 2 to 64 s and scrub. Peak decoder and per-track cache.
+- Viz components: canvas knob, jog wheel (touch, turn, nudge ring, Shift search), performance pads and stereo level meter with peak hold and clip lamp, wired into the deck and mixer panels. Viz Storybook with synthetic tracks, a perf story and a two-deck layout story.
+- Design system: resizable, popover, command, number field, status dot, segmented control, settings layout, breadcrumb, callout, key-value, skeleton, progress bar and colour swatch picker, with stories and pattern docs; info, blink and sweep tokens with contrast tests.
+
+### Changed
+
+- FL-style flat re-theme on a slate palette. No glass: gradients, mesh backgrounds and backdrop blur are removed, and stylelint and ESLint reject `backdrop-filter` and blur.
+
 ## [0.3.0] - 2026-10-30
 
 Milestone 3: library, database, import pipeline, analysis, collection view.

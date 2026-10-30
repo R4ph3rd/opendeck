@@ -1,6 +1,6 @@
 # Status
 
-Current milestone: **4 (next)**. Milestone 3 landed as v0.3.0 on 2026-10-30 (milestone 2 as v0.2.0, milestone 1 as v0.1.0, milestone 0 as v0.0.0).
+Current milestone: **5 (next)**. Milestone 4 landed as v0.4.0 on 2026-10-30 (milestone 3 as v0.3.0, milestone 2 as v0.2.0, milestone 1 as v0.1.0, milestone 0 as v0.0.0).
 
 ## Milestones
 
@@ -10,8 +10,8 @@ Current milestone: **4 (next)**. Milestone 3 landed as v0.3.0 on 2026-10-30 (mil
 | 1 | Audio engine: one deck plays a file, device selection, offline render tests | done (v0.1.0) |
 | 2 | Two decks, mixer, routing with cue, sync, loops, hot cues | done (v0.2.0) |
 | 3 | Library, DB, import pipeline, analysis, collection view | done (v0.3.0) |
-| 4 | Waveforms and deck UI, design system components in Storybook | gate passed on `workbench` |
-| 5 | FX engine and FX UI with presets and chains | planned |
+| 4 | Waveforms and deck UI, design system components in Storybook | done (v0.4.0) |
+| 5 | FX engine and FX UI with presets and chains | next |
 | 6 | MIDI layer, DDJ-FLX4 mapping, LED feedback, MIDI monitor, replay harness | planned |
 | 7 | Pad modes with the dynamic middle panel, sampler | planned |
 | 8 | Hardening: latency, error handling, settings, installer, first-run | planned |
