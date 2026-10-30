@@ -39,4 +39,3 @@ SQLite collection: schema and migrations, track queries for the collection view,
 - Variable-tempo rekordbox tracks keep only the first `TEMPO` segment until contracts gets a tempo map (grid blob version 2).
 - `TODO(verify)` against the Pioneer rekordbox XML Format List: `POSITION_MARK` type codes and `Num`, rating scale (0 to 255 step 51), `Battito`.
 - Memory: a decode for analysis holds the whole file as stereo f32, about 210 MB per ten-minute track at 44.1 kHz, once per worker (so up to about 840 MB with the default 4 workers). Streamed or mono analysis would cut it.
-- ADR 0005 needs a v2 addendum (architect): the schema changes above and the `Library` ownership of all SQL.

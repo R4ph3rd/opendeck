@@ -52,3 +52,15 @@ Beat grid and peak blobs carry their own format version, so their layout can evo
 - Library code owns all SQL; other crates see contracts types only.
 - Peaks are stored in exactly the wire format, so serving them is a single `SELECT` and a byte copy.
 - Pinning `rusqlite` 0.40 is a deviation from ADR 0001 (which listed 0.41).
+
+## Addendum: schema v2 (M3, 2026-10-30)
+
+`crates/library/migrations/0002_playlist_order_fts.sql`. Status: accepted.
+
+- `playlist_tracks` gets its own `entry_id` primary key. `position` is no longer unique; order is `(position, entry_id)`. One `UPDATE` shifts any range, and a track may appear twice in a playlist.
+- Folder guard: tracks cannot be inserted into or moved (`UPDATE`) into a folder, and a playlist that holds tracks cannot become a folder.
+- Only folders contain playlists, on insert and on update; a folder with children cannot become a playlist.
+- FTS5 table `tracks_fts` over title, artist, album, genre and comment, kept in sync by triggers.
+- `bpm`, `musical_key` and `key_sort` are denormalised onto `tracks` by triggers on `analysis` (never written by callers), with one index per sort column, so a collection page is an index walk.
+- Upgrade: the file is checkpointed and copied to `<file>.bak-v<old>` before migrating, as above. A newer schema is refused with an error and left untouched (stricter than the read-only open described above).
+- `Library` owns all SQL; callers use its API and `import::ImportManager`.
