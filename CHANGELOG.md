@@ -4,6 +4,23 @@ All notable changes are recorded here. Format follows [Keep a Changelog](https:/
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-30
+
+Milestone 3: library, database, import pipeline, analysis, collection view.
+
+### Added
+
+- `analysis`: tempo and beat grid (spectral-flux onsets, comb filter, octave correction), key detection (chroma + Krumhansl-Schmuckler, Camelot), 3-band waveform peaks at several zoom levels, EBU R128 loudness. stratum-dsp was evaluated and rejected on accuracy.
+- `library`: SQLite schema v2 (playlist entries with their own ids, folder guards, FTS5 search, indexed sort columns, backup on upgrade); tracks, analysis, cues, playlists, folders, saved sets, settings.
+- Import pipeline: folder, files, M3U/M3U8 and rekordbox XML; dedupe by path and content fingerprint; background workers with progress, pause, cancel and resume after restart.
+- Collection view: virtualized table with sorting, filters, search, multi-select, context menu and drag to deck; playlists and folders tree, saved sets, in-app file explorer; import progress panel.
+- Decks load from the library with beat grid, BPM and key; cues persist in the database.
+
+### Fixed
+
+- Windows CI: app manifest embedded in test binaries, LF checkouts, platform-neutral path tests.
+- Licence check allows BSD-1-Clause (allocation guard used in tests).
+
 ## [0.2.0] - 2026-10-29
 
 Milestone 2: two decks and the mixer, with cue routing, sync, loops and hot cues.
