@@ -296,6 +296,11 @@ impl LibraryService {
         }
     }
 
+    /// Peak blob (`contracts::peaks` layout) of one zoom level, if analysed.
+    pub fn peaks(&self, track: TrackId, level: u32) -> Result<Option<Vec<u8>>, CoreError> {
+        Ok(self.inner.lib.get_peaks(track, level)?)
+    }
+
     /// Stored analysis of a track.
     pub fn get_analysis(&self, track: TrackId) -> Result<Option<TrackAnalysisDto>, CoreError> {
         Ok(self.inner.lib.get_analysis(track)?.map(Into::into))
