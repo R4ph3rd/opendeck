@@ -58,6 +58,18 @@ Done: two decks with jog scratch and nudge, tempo and beat sync with leader elec
 | M6 midi | Feedback entries lack `when` for shift-layer LEDs |
 | M6 midi | Drift test only checks schema to contracts |
 
+## Open questions
+
+MIDI questions live in `docs/midi-open-questions.md`. Others:
+
+| Area | Question | Status |
+|---|---|---|
+| M3 library | rekordbox XML `POSITION_MARK` `Type` codes as read (0 cue, 1 fade-in, 2 fade-out, 3 load, 4 loop) | TODO(verify) against the Pioneer rekordbox XML Format List |
+| M3 library | rekordbox XML `POSITION_MARK` `Num` as read (-1 memory cue, 0 and up hot cue slot) | TODO(verify) |
+| M3 library | rekordbox XML `Rating` scale as read (0 to 255 in steps of 51, mapped to 0 to 5) | TODO(verify) |
+| M3 library | rekordbox XML `TEMPO` `Battito` as the beat number (1 to 4) of the marker in its bar | TODO(verify) |
+| M3 library | Tracks with several `TEMPO` segments keep only the first until contracts has a tempo map (grid blob version 2) | known limit |
+
 ## Doc follow-ups
 
 - Agent definitions in `.claude/agents` load only in new Claude Code sessions.
