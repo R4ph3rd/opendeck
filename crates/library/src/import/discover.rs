@@ -97,12 +97,19 @@ mod tests {
         )
         .expect("write");
         let got = parse_m3u(&file).expect("parse");
+        // Rooted paths without a drive resolve onto the playlist's drive on Windows;
+        // on Unix `push` of an absolute path replaces the base.
+        let rooted = |p: &str| {
+            let mut b = dir.clone();
+            b.push(p);
+            b
+        };
         assert_eq!(
             got,
             vec![
                 dir.join("sub/a.wav"),
-                PathBuf::from("/abs/b.flac"),
-                PathBuf::from("/c d/e.mp3")
+                rooted("/abs/b.flac"),
+                rooted("/c d/e.mp3")
             ]
         );
     }

@@ -37,7 +37,9 @@ mod tests {
     #[test]
     fn cleans_dots() {
         let p = normalize_path(Path::new("/music/./a/../b/song.mp3"));
-        assert_eq!(p, Path::new("/music/b/song.mp3"));
+        // `absolute` adds the current drive on Windows, so build the expectation the same way.
+        let expected = std::path::absolute(Path::new("/music/b/song.mp3")).expect("absolute");
+        assert_eq!(p, expected);
     }
 
     #[test]
