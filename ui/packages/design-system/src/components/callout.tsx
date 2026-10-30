@@ -3,13 +3,13 @@ import { AlertTriangle, CheckCircle2, Info, OctagonAlert } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
 import { cn } from "../lib/cn";
 
-const callout = cva("flex gap-3 rounded-md border border-l-2 p-3 text-sm text-fg", {
+const callout = cva("flex gap-3 rounded-md border border-l-4 p-3 text-sm text-fg", {
   variants: {
     variant: {
-      info: "border-info/40 border-l-info bg-info/10",
-      success: "border-success/40 border-l-success bg-success/10",
-      warning: "border-warning/40 border-l-warning bg-warning/10",
-      danger: "border-danger/40 border-l-danger bg-danger/10",
+      info: "border-border border-l-info bg-info-bg",
+      success: "border-border border-l-success bg-success-bg",
+      warning: "border-border border-l-warning bg-warning-bg",
+      danger: "border-border border-l-danger bg-danger-bg",
     },
   },
   defaultVariants: { variant: "info" },

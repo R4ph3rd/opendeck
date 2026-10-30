@@ -16,7 +16,7 @@ function ratio(theme: Theme, fg: string, bg: string): number {
 
 describe.each(themes)("contrast (%s)", (theme) => {
   describe("text", () => {
-    for (const bg of ["bg", "surface"]) {
+    for (const bg of ["bg", "bg-subtle", "surface", "surface-raised", "surface-hover"]) {
       for (const fg of ["fg", "fg-muted"]) {
         it(`${fg} on ${bg} >= 4.5`, () => {
           expect(ratio(theme, fg, bg)).toBeGreaterThanOrEqual(4.5);
@@ -44,13 +44,32 @@ describe.each(themes)("contrast (%s)", (theme) => {
   });
 
   describe("essential UI", () => {
-    for (const bg of ["bg", "surface", "surface-raised"]) {
+    for (const bg of ["bg", "bg-subtle", "surface", "surface-raised", "surface-hover"]) {
       it(`focus-ring visible on ${bg} >= 3`, () => {
         expect(ratio(theme, "focus-ring", bg)).toBeGreaterThanOrEqual(3);
       });
     }
-    it("accent on bg >= 3", () => {
-      expect(ratio(theme, "accent", "bg")).toBeGreaterThanOrEqual(3);
+    for (const bg of ["bg", "surface", "surface-raised"]) {
+      it(`accent on ${bg} >= 3`, () => {
+        expect(ratio(theme, "accent", bg)).toBeGreaterThanOrEqual(3);
+      });
+    }
+    for (const bg of ["bg", "surface", "surface-raised"]) {
+      it(`border-strong on ${bg} >= 1.4 (control outline, decorative)`, () => {
+        expect(ratio(theme, "border-strong", bg)).toBeGreaterThanOrEqual(1.4);
+      });
+    }
+    for (const c of ["sync-on", "master-on", "led-on", "loop-edge"]) {
+      it(`${c} on surface-hover >= 3`, () => {
+        expect(ratio(theme, c, "surface-hover")).toBeGreaterThanOrEqual(3);
+      });
+    }
+    it("lit LED differs from meter-off >= 2 (on vs off)", () => {
+      expect(ratio(theme, "led-on", "meter-off")).toBeGreaterThanOrEqual(2);
+    });
+    it("deck-a and deck-b are told apart >= 1.2 in luminance and differ in hue", () => {
+      const t = resolvedTokens(css, theme);
+      expect(t["deck-a"]).not.toBe(t["deck-b"]);
     });
     for (const deck of ["a", "b", "c", "d"]) {
       it(`deck-${deck} on bg >= 3`, () => {
@@ -97,29 +116,46 @@ describe.each(themes)("contrast (%s)", (theme) => {
     });
   });
 
-  describe("backdrop mesh", () => {
-    const cases = [
-      ["subtle", "surface"],
-      ["page", "bg"],
-    ] as const;
-    for (const [strength, base] of cases) {
-      for (const end of ["red", "blue"]) {
-        for (const fg of ["fg", "fg-muted"]) {
-          it(`${fg} on ${base} under backdrop-${end} (${strength}) >= 4.5`, () => {
-            const t = resolvedTokens(css, theme);
-            const value = (name: string): string => {
-              const v = t[name];
-              if (v === undefined) throw new Error(`missing token ${name}`);
-              return v;
-            };
-            const wave = parseColor(value(`backdrop-${end}`));
-            const alpha = Number(value(`backdrop-alpha-${strength}`));
-            const stacked = over({ ...wave, a: alpha }, parseColor(value(base)));
-            expect(contrast(parseColor(value(fg)), stacked)).toBeGreaterThanOrEqual(4.5);
-          });
-        }
+  describe("flat surfaces", () => {
+    it("has no gradient, backdrop or blur tokens", () => {
+      const names = Object.keys(resolvedTokens(css, theme));
+      expect(names.filter((n) => /gradient|backdrop|mesh|blur/.test(n))).toEqual([]);
+    });
+    it("panel and menu surfaces are opaque", () => {
+      const t = resolvedTokens(css, theme);
+      for (const n of ["bg", "bg-subtle", "surface", "surface-raised", "surface-hover", "toolbar-bg", "tabbar-bg", "accent-muted", "danger-bg", "success-bg", "warning-bg", "info-bg"]) {
+        expect(t[n], n).toMatch(/^#[0-9a-f]{6}$/i);
       }
+    });
+    it("surface steps are monotonic: bg < bg-subtle < surface < surface-raised", () => {
+      const lum = (n: string): number => {
+        const c = parseColor(resolvedTokens(css, theme)[n] ?? "#000000");
+        return c.r + c.g + c.b;
+      };
+      const order = ["bg", "bg-subtle", "surface", "surface-raised"].map(lum);
+      const sorted = [...order].sort((x, y) => x - y);
+      expect(order).toEqual(sorted);
+    });
+  });
+
+  describe("status fills", () => {
+    for (const c of ["info", "success", "warning", "danger"]) {
+      it(`${c} text on ${c}-bg >= 4.5`, () => {
+        expect(ratio(theme, c, `${c}-bg`)).toBeGreaterThanOrEqual(4.5);
+      });
+      it(`fg on ${c}-bg >= 4.5`, () => {
+        expect(ratio(theme, "fg", `${c}-bg`)).toBeGreaterThanOrEqual(4.5);
+      });
+      it(`fg-muted on ${c}-bg >= 4.5`, () => {
+        expect(ratio(theme, "fg-muted", `${c}-bg`)).toBeGreaterThanOrEqual(4.5);
+      });
     }
+    it("accent text on accent-muted >= 4.5 (toggle on state)", () => {
+      expect(ratio(theme, "accent", "accent-muted")).toBeGreaterThanOrEqual(4.5);
+    });
+    it("fg on accent-muted >= 4.5", () => {
+      expect(ratio(theme, "fg", "accent-muted")).toBeGreaterThanOrEqual(4.5);
+    });
   });
 
   describe("completeness", () => {

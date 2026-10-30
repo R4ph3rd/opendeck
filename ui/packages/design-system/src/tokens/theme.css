@@ -58,6 +58,11 @@
   --color-loop-region: var(--loop-region);
   --color-loop-edge: var(--loop-edge);
   --color-info: var(--info);
+  --color-danger-bg: var(--danger-bg);
+  --color-success-bg: var(--success-bg);
+  --color-warning-bg: var(--warning-bg);
+  --color-info-bg: var(--info-bg);
+  --color-led-on: var(--led-on);
   --color-sync-on: var(--sync-on);
   --color-master-on: var(--master-on);
 
@@ -79,16 +84,4 @@
   --text-2xl: var(--text-2xl);
 
   --ease-standard: var(--ease-standard);
-}
-
-@utility bg-chrome {
-  background: var(--gradient-chrome);
-}
-
-@utility bg-mesh {
-  background: var(--gradient-mesh);
-}
-
-@utility bg-mesh-page {
-  background: var(--gradient-mesh-page);
 }
