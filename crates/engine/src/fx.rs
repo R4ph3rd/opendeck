@@ -291,8 +291,9 @@ pub(crate) struct FxEvent {
     pub(crate) fast: bool,
 }
 
-/// Timed events held on the audio thread at once.
-const MAX_EVENTS: usize = 16;
+/// Timed events held on the audio thread at once: an engage and a release
+/// for every deck slot.
+const MAX_EVENTS: usize = 2 * MAX_DECKS * FX_SLOTS_PER_UNIT;
 
 /// A switch inside the current block.
 #[derive(Debug, Clone, Copy, Default)]

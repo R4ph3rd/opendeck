@@ -7,17 +7,18 @@
 //!
 //! # Engine slot layout (project choice)
 //!
-//! A deck's chain has `FX_SLOTS_PER_UNIT` (3) slots, and several features need
-//! one. The layout, per deck:
+//! A deck's chain has `FX_SLOTS_PER_UNIT` (6) slots, one per feature, in
+//! processing order:
 //!
-//! - slots 0 and 1: Beat FX effects of the unit assigned to that channel;
-//! - slot 2 (the *utility slot*): Beat FX effect 3 when a Multi unit uses it,
-//!   otherwise Sound Color FX, which pad FX and Release FX take over for a
-//!   moment (the Sound Color FX returns when they finish).
+//! - slots 0 to 2: Beat FX effects of the unit assigned to that channel
+//!   (`FX_CHAIN_SLOTS`; Single mode uses slot 0 only);
+//! - slot 3: Sound Color FX;
+//! - slot 4: pad FX (momentary, engaged on the press);
+//! - slot 5: Release FX (Beat FX SHIFT+ON/OFF and release pads).
 //!
-//! A Multi unit with a third effect therefore blocks Sound Color FX, pad FX and
-//! Release FX on its decks ([`FxStateDto::utility_blocked`]). Raising
-//! `FX_SLOTS_PER_UNIT` (a contract change) would lift the limit.
+//! No feature takes another one's slot, so a Multi unit with three effects
+//! leaves Sound Color FX, pad FX and Release FX usable. Send units use slots 0
+//! to 2 only.
 //!
 //! Beat FX units are assigned to channel 1, 2 or 1&2. A channel has one chain,
 //! so assigning a unit to a channel takes it from the other unit. 1&2 mirrors
@@ -38,16 +39,25 @@ use opendeck_engine::{EngineHandle, FxTempoSource, SendTap};
 use opendeck_library::{Library, StoredFxPreset};
 
 use crate::fx_types::{
-    BEAT_FX_UNITS, BeatFxUnitDto, CfxDto, FxAssign, FxBpmSource, FxChainPresetDto, FxChainSlotDto,
-    FxEffectDto, FxMode, FxOp, FxPresetsDto, FxSlotDto, FxSlotRef, FxStateDto, FxTarget, FxUnitRef,
-    PAD_FX_COUNT, PadFxAssignDto, SendUnitDto,
+    BEAT_FX_UNITS, BeatFxUnitDto, CfxDto, FX_CHAIN_SLOTS, FxAssign, FxBpmSource, FxChainPresetDto,
+    FxChainSlotDto, FxEffectDto, FxMode, FxOp, FxPresetsDto, FxSlotDto, FxSlotRef, FxStateDto,
+    FxTarget, FxUnitRef, PAD_FX_COUNT, PadFxAssignDto, SendUnitDto,
 };
 use crate::types::CoreError;
 
 /// Wait between disabling a slot and swapping its effect (the bypass crossfade).
 pub(crate) const SWAP_WAIT: Duration = Duration::from_millis(10);
-/// Utility slot index (see the module docs).
-const UTIL: u8 = (FX_SLOTS_PER_UNIT - 1) as u8;
+/// Deck chain slot of the Sound Color FX (see the module docs).
+const CFX_SLOT: u8 = 3;
+/// Deck chain slot of the pad FX.
+const PAD_SLOT: u8 = 4;
+/// Deck chain slot of the Release FX.
+const RELEASE_SLOT: u8 = 5;
+const _: () = {
+    assert!(FX_CHAIN_SLOTS == CFX_SLOT as usize);
+    assert!(PAD_SLOT == CFX_SLOT + 1 && RELEASE_SLOT == PAD_SLOT + 1);
+    assert!(RELEASE_SLOT as usize + 1 == FX_SLOTS_PER_UNIT);
+};
 /// Settings key of the persisted [`FxStateDto`].
 pub(crate) const STATE_KEY: &str = "fx.state";
 /// Settings key of the user chain presets.
@@ -56,7 +66,8 @@ pub(crate) const CHAINS_KEY: &str = "fx.chains";
 const PERSIST_DELAY: Duration = Duration::from_millis(600);
 /// CFX knob values closer to the centre than this are neutral (effect off).
 const CFX_DEAD_ZONE: f32 = 0.02;
-/// A pad effect keeps the utility slot this long after release, for tails.
+/// A pad or release effect stays installed and tracked this long after it
+/// stops, for tails.
 const PAD_TAIL: Duration = Duration::from_millis(400);
 /// Same for effects with a tail (echo, reverb).
 const PAD_TAIL_LONG: Duration = Duration::from_millis(3000);
@@ -161,9 +172,9 @@ impl Addr {
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum Then {
     Nothing,
-    /// Engage the utility slot at a frame.
+    /// Engage the pad slot at a frame.
     Engage(Frames),
-    /// Release FX: `from` (a Beat FX slot) hands over to the utility slot.
+    /// Release FX: `from` (a Beat FX slot) hands over to the release slot.
     Release {
         from: Option<Addr>,
         hold: Frames,
@@ -176,7 +187,7 @@ struct Pending {
     then: Then,
 }
 
-/// A pad or release effect that has the utility slot.
+/// The effect a pad or release slot runs.
 #[derive(Debug, Clone)]
 struct Override {
     key: EffectKey,
@@ -185,7 +196,7 @@ struct Override {
     division: f64,
     /// Pad index while held; `None` for a release.
     held_by: Option<u8>,
-    /// When the slot goes back to the Sound Color FX; `None` while held.
+    /// When the slot is switched off for good; `None` while held.
     expires: Option<Instant>,
 }
 
@@ -211,7 +222,10 @@ pub(crate) struct FxController {
     installed_deck: [[Option<EffectKey>; FX_SLOTS_PER_UNIT]; MAX_DECKS],
     installed_send: [[Option<EffectKey>; FX_SLOTS_PER_UNIT]; FX_SEND_BUSES],
     pending: Vec<Pending>,
-    overrides: [Option<Override>; MAX_DECKS],
+    /// Pad FX per deck (slot [`PAD_SLOT`]).
+    pad_fx: [Option<Override>; MAX_DECKS],
+    /// Release FX per deck (slot [`RELEASE_SLOT`]).
+    release_fx: [Option<Override>; MAX_DECKS],
     taps: [Vec<f64>; BEAT_FX_UNITS],
     epoch: Instant,
     last_leader: Option<DeckId>,
@@ -401,14 +415,14 @@ impl FxController {
                 sends: Vec::new(),
                 send_levels: Vec::new(),
                 pads: Vec::new(),
-                utility_blocked: vec![false; MVP_DECKS],
             },
             chains: Vec::new(),
             user_presets: Vec::new(),
             installed_deck: Default::default(),
             installed_send: Default::default(),
             pending: Vec::new(),
-            overrides: Default::default(),
+            pad_fx: Default::default(),
+            release_fx: Default::default(),
             taps: Default::default(),
             epoch: Instant::now(),
             last_leader: None,
@@ -447,7 +461,7 @@ impl FxController {
 
     fn default_state(&self) -> FxStateDto {
         let slots = |first: Option<(&str, bool)>| -> Vec<FxSlotDto> {
-            let mut v = vec![FxSlotDto::empty(true); FX_SLOTS_PER_UNIT];
+            let mut v = vec![FxSlotDto::empty(true); FX_CHAIN_SLOTS];
             if let Some((id, send)) = first {
                 v[0] = self.default_slot(&builtin(id), send);
             }
@@ -491,7 +505,6 @@ impl FxController {
                     release: *release,
                 })
                 .collect(),
-            utility_blocked: vec![false; MVP_DECKS],
         }
     }
 
@@ -550,8 +563,8 @@ impl FxController {
         }
         let effects = &self.effects;
         let fix_slots = |slots: &mut Vec<FxSlotDto>| {
-            slots.truncate(FX_SLOTS_PER_UNIT);
-            while slots.len() < FX_SLOTS_PER_UNIT {
+            slots.truncate(FX_CHAIN_SLOTS);
+            while slots.len() < FX_CHAIN_SLOTS {
                 slots.push(FxSlotDto::empty(true));
             }
             for slot in slots {
@@ -626,14 +639,6 @@ impl FxController {
             }
             unit.assign = assign_of(decks);
         }
-        self.refresh_blocked();
-    }
-
-    fn refresh_blocked(&mut self) {
-        for d in 0..MVP_DECKS {
-            self.state.utility_blocked[d] =
-                self.owner(d).is_some_and(|u| self.slot_in_use(u, UTIL));
-        }
     }
 
     // ----- queries -----
@@ -695,7 +700,12 @@ impl FxController {
     fn desired(&self, a: Addr) -> Option<Desired> {
         match a {
             Addr::Send(bus, slot) => {
-                let s = &self.state.sends[usize::from(bus)].slots[usize::from(slot)];
+                let s = self
+                    .state
+                    .sends
+                    .get(usize::from(bus))?
+                    .slots
+                    .get(usize::from(slot))?;
                 Some(Desired {
                     key: s.effect.clone()?,
                     params: s.params.clone(),
@@ -706,43 +716,46 @@ impl FxController {
             }
             Addr::Deck(deck, slot) => {
                 let d = deck.index();
-                if slot == UTIL
-                    && let Some(o) = &self.overrides[d]
-                {
-                    return Some(Desired {
+                let held = |o: &Option<Override>| {
+                    o.as_ref().map(|o| Desired {
                         key: o.key.clone(),
                         params: o.params.clone(),
                         wet: o.wet,
                         division: o.division,
                         on: None,
-                    });
+                    })
+                };
+                match slot {
+                    CFX_SLOT => {
+                        let cfx = self.state.cfx.get(d)?;
+                        let info = self.effects.get(&cfx.kind)?;
+                        let (params, wet, on) = cfx_mapping(info, cfx.amount);
+                        Some(Desired {
+                            key: cfx.kind.clone(),
+                            params,
+                            wet,
+                            division: 1.0,
+                            on: Some(on),
+                        })
+                    }
+                    PAD_SLOT => held(self.pad_fx.get(d)?),
+                    RELEASE_SLOT => held(self.release_fx.get(d)?),
+                    _ => {
+                        let u = self.owner(d)?;
+                        if !self.slot_in_use(u, slot) {
+                            return None;
+                        }
+                        let unit = &self.state.units[u];
+                        let s = &unit.slots[usize::from(slot)];
+                        Some(Desired {
+                            key: s.effect.clone()?,
+                            params: s.params.clone(),
+                            wet: s.wet,
+                            division: s.division,
+                            on: Some(unit.on && s.enabled),
+                        })
+                    }
                 }
-                if let Some(u) = self.owner(d)
-                    && self.slot_in_use(u, slot)
-                {
-                    let unit = &self.state.units[u];
-                    let s = &unit.slots[usize::from(slot)];
-                    return Some(Desired {
-                        key: s.effect.clone()?,
-                        params: s.params.clone(),
-                        wet: s.wet,
-                        division: s.division,
-                        on: Some(unit.on && s.enabled),
-                    });
-                }
-                if slot == UTIL {
-                    let cfx = &self.state.cfx[d];
-                    let info = self.effects.get(&cfx.kind)?;
-                    let (params, wet, on) = cfx_mapping(info, cfx.amount);
-                    return Some(Desired {
-                        key: cfx.kind.clone(),
-                        params,
-                        wet,
-                        division: 1.0,
-                        on: Some(on),
-                    });
-                }
-                None
             }
         }
     }
@@ -842,14 +855,13 @@ impl FxController {
     }
 
     fn reconcile_all(&mut self, env: &mut FxEnv) {
-        self.refresh_blocked();
         for d in 0..MVP_DECKS {
             if let Some(deck) = DeckId::new(d as u8) {
                 self.reconcile_deck(env, deck);
             }
         }
         for b in 0..FX_SEND_BUSES as u8 {
-            for s in 0..FX_SLOTS_PER_UNIT as u8 {
+            for s in 0..FX_CHAIN_SLOTS as u8 {
                 self.reconcile(env, Addr::Send(b, s));
             }
         }
@@ -963,15 +975,22 @@ impl FxController {
     /// follow-up for mirrored units.
     pub(crate) fn tick(&mut self, env: &mut FxEnv) {
         self.run_pending(env);
+        let now = env.now;
+        let expired = |o: &Option<Override>| {
+            o.as_ref()
+                .is_some_and(|o| o.expires.is_some_and(|t| t <= now))
+        };
         for d in 0..MVP_DECKS {
-            let expired = self.overrides[d]
-                .as_ref()
-                .is_some_and(|o| o.expires.is_some_and(|t| t <= env.now));
-            if expired {
-                self.overrides[d] = None;
-                if let Some(deck) = DeckId::new(d as u8) {
-                    self.reconcile(env, Addr::Deck(deck, UTIL));
-                }
+            let Some(deck) = DeckId::new(d as u8) else {
+                continue;
+            };
+            if expired(&self.pad_fx[d]) {
+                self.pad_fx[d] = None;
+                self.reconcile(env, Addr::Deck(deck, PAD_SLOT));
+            }
+            if expired(&self.release_fx[d]) {
+                self.release_fx[d] = None;
+                self.reconcile(env, Addr::Deck(deck, RELEASE_SLOT));
             }
         }
         if env.leader != self.last_leader {
@@ -1060,7 +1079,7 @@ impl FxController {
 
     fn slot_mut(&mut self, r: FxSlotRef) -> Result<&mut FxSlotDto, CoreError> {
         let slot = usize::from(r.slot);
-        if slot >= FX_SLOTS_PER_UNIT {
+        if slot >= FX_CHAIN_SLOTS {
             return Err(invalid("effect slot out of range"));
         }
         let unit = usize::from(r.unit.unit);
@@ -1119,7 +1138,6 @@ impl FxController {
 
     /// Re-syncs the engine slots behind a unit.
     fn refresh_unit(&mut self, env: &mut FxEnv, u: FxUnitRef) {
-        self.refresh_blocked();
         match u.target {
             FxTarget::Beat => {
                 for d in self.decks_for(u) {
@@ -1127,7 +1145,7 @@ impl FxController {
                 }
             }
             FxTarget::Send => {
-                for s in 0..FX_SLOTS_PER_UNIT as u8 {
+                for s in 0..FX_CHAIN_SLOTS as u8 {
                     self.reconcile(env, Addr::Send(u.unit, s));
                 }
             }
@@ -1229,7 +1247,7 @@ impl FxController {
             }
             FxOp::StepDivision { unit, direction } => {
                 self.check_unit(unit)?;
-                for s in 0..FX_SLOTS_PER_UNIT as u8 {
+                for s in 0..FX_CHAIN_SLOTS as u8 {
                     let r = FxSlotRef { unit, slot: s };
                     let Some(key) = self.slot_mut(r)?.effect.clone() else {
                         continue;
@@ -1301,7 +1319,7 @@ impl FxController {
                 }
                 self.state.cfx[deck.index()].kind = effect;
                 if deck.index() < MVP_DECKS {
-                    self.reconcile(env, Addr::Deck(deck, UTIL));
+                    self.reconcile(env, Addr::Deck(deck, CFX_SLOT));
                 }
             }
             FxOp::SetCfx { deck, amount } => {
@@ -1388,10 +1406,8 @@ impl FxController {
     }
 
     fn push_cfx(&mut self, env: &mut FxEnv, deck: DeckId) {
-        let a = Addr::Deck(deck, UTIL);
-        let usable =
-            self.overrides[deck.index()].is_none() && !self.state.utility_blocked[deck.index()];
-        let Some(d) = self.desired(a).filter(|_| usable) else {
+        let a = Addr::Deck(deck, CFX_SLOT);
+        let Some(d) = self.desired(a) else {
             return;
         };
         if self.has_pending(a) || self.installed(a).as_ref() != Some(&d.key) {
@@ -1456,7 +1472,7 @@ impl FxController {
         unit: FxUnitRef,
         chain: &FxChainPresetDto,
     ) -> Result<(), CoreError> {
-        if chain.slots.len() > FX_SLOTS_PER_UNIT {
+        if chain.slots.len() > FX_CHAIN_SLOTS {
             return Err(invalid("the chain has too many effects"));
         }
         for (i, cs) in chain.slots.iter().enumerate() {
@@ -1475,7 +1491,7 @@ impl FxController {
             self.apply_preset(env, r, &preset)?;
             self.slot_mut(r)?.enabled = cs.enabled;
         }
-        for i in chain.slots.len()..FX_SLOTS_PER_UNIT {
+        for i in chain.slots.len()..FX_CHAIN_SLOTS {
             *self.slot_mut(FxSlotRef {
                 unit,
                 slot: i as u8,
@@ -1537,12 +1553,19 @@ impl FxController {
             (u.release_effect.clone(), u.release_hold_ms)
         };
         let division = self.state.units[unit].slots[0].division;
-        let from_slot = (0..UTIL).rev().find(|s| self.slot_in_use(unit, *s));
+        let from_slot = self.last_in_use(unit);
         self.state.units[unit].on = false;
         for deck in self.unit_decks(unit) {
             self.release_on_deck(env, deck, effect.as_ref(), division, hold_ms, from_slot);
         }
-        self.refresh_blocked();
+    }
+
+    /// Last Beat FX slot of `unit` that runs an effect: the one Release FX
+    /// hands over from.
+    fn last_in_use(&self, unit: usize) -> Option<u8> {
+        (0..FX_CHAIN_SLOTS as u8)
+            .rev()
+            .find(|s| self.slot_in_use(unit, *s))
     }
 
     fn release_on_deck(
@@ -1555,13 +1578,13 @@ impl FxController {
         from_slot: Option<u8>,
     ) {
         let d = deck.index();
-        let util = Addr::Deck(deck, UTIL);
+        let release = Addr::Deck(deck, RELEASE_SLOT);
         let at = Self::now_frames(env);
         let rate = env.tel.map_or(48_000, |t| t.sample_rate.0);
         let hold = Frames(u64::from(hold_ms) * u64::from(rate) / 1000);
         // The other Beat FX slots of the deck switch off with the unit.
         let from = from_slot.map(|s| Addr::Deck(deck, s));
-        for s in 0..UTIL {
+        for s in 0..FX_CHAIN_SLOTS as u8 {
             if Some(s) != from_slot
                 && let Some(id) = Addr::Deck(deck, s).id()
                 && let Some(h) = env.handle.as_deref_mut()
@@ -1569,9 +1592,8 @@ impl FxController {
                 h.schedule_fx_enabled(id, false, at, false);
             }
         }
-        let blocked = self.state.utility_blocked[d];
-        let Some(key) = effect.filter(|_| !blocked) else {
-            // No release effect or no free slot: plain off.
+        let Some(key) = effect else {
+            // No release effect: plain off.
             if let Some(id) = from.and_then(Addr::id)
                 && let Some(h) = env.handle.as_deref_mut()
             {
@@ -1588,18 +1610,18 @@ impl FxController {
                 + Duration::from_millis(u64::from(hold_ms))
                 + if tail { PAD_TAIL_LONG } else { PAD_TAIL },
         );
-        self.overrides[d] = Some(o);
+        self.release_fx[d] = Some(o);
         let then = Then::Release { from, hold };
-        if !self.has_pending(util) && self.installed(util).as_ref() == Some(key) {
-            let desired = self.desired(util);
+        if !self.has_pending(release) && self.installed(release).as_ref() == Some(key) {
+            let desired = self.desired(release);
             if let Some(desired) = desired {
-                self.push_full(env, util, &desired);
+                self.push_full(env, release, &desired);
             }
-            if let Some(slot) = util.id() {
+            if let Some(slot) = release.id() {
                 self.do_release(env, from, slot, hold);
             }
         } else {
-            self.begin_swap(env, util, then);
+            self.begin_swap(env, release, then);
         }
     }
 
@@ -1615,31 +1637,31 @@ impl FxController {
             return Err(invalid("pad or deck out of range"));
         }
         let d = deck.index();
-        let util = Addr::Deck(deck, UTIL);
+        let pad = Addr::Deck(deck, PAD_SLOT);
         let tag = index as u8;
         if !pressed {
-            let held = self.overrides[d]
+            let held = self.pad_fx[d]
                 .as_ref()
                 .is_some_and(|o| o.held_by == Some(tag));
             if held {
                 let now = Self::now_frames(env);
-                if let Some(id) = util.id()
+                if let Some(id) = pad.id()
                     && let Some(h) = env.handle.as_deref_mut()
                 {
                     h.schedule_fx_enabled(id, false, now, true);
                 }
-                let tail = self.overrides[d]
+                let tail = self.pad_fx[d]
                     .as_ref()
                     .and_then(|o| self.effects.get(&o.key))
                     .is_some_and(|i| i.has_tail);
                 let waiting = self
                     .pending
                     .iter()
-                    .any(|p| p.addr == util && matches!(p.then, Then::Engage(_)));
+                    .any(|p| p.addr == pad && matches!(p.then, Then::Engage(_)));
                 if waiting {
-                    self.pending.retain(|p| p.addr != util);
+                    self.pending.retain(|p| p.addr != pad);
                 }
-                if let Some(o) = self.overrides[d].as_mut() {
+                if let Some(o) = self.pad_fx[d].as_mut() {
                     o.expires = Some(env.now + if tail { PAD_TAIL_LONG } else { PAD_TAIL });
                 }
             }
@@ -1649,15 +1671,9 @@ impl FxController {
         let Some(key) = assign.effect.clone() else {
             return Ok(());
         };
-        if self.state.utility_blocked[d] {
-            return Ok(());
-        }
         if assign.release {
             let (hold_ms, from_slot) = match self.owner(d) {
-                Some(u) => (
-                    self.state.units[u].release_hold_ms,
-                    (0..UTIL).rev().find(|s| self.slot_in_use(u, *s)),
-                ),
+                Some(u) => (self.state.units[u].release_hold_ms, self.last_in_use(u)),
                 None => (2000, None),
             };
             if let Some(u) = self.owner(d) {
@@ -1671,18 +1687,18 @@ impl FxController {
             return Err(invalid("pad effect is unknown"));
         };
         let at = self.quantized_frame(env, deck);
-        self.overrides[d] = Some(o);
-        if !self.has_pending(util) && self.installed(util).as_ref() == Some(&key) {
-            if let Some(desired) = self.desired(util) {
-                self.push_full(env, util, &desired);
+        self.pad_fx[d] = Some(o);
+        if !self.has_pending(pad) && self.installed(pad).as_ref() == Some(&key) {
+            if let Some(desired) = self.desired(pad) {
+                self.push_full(env, pad, &desired);
             }
-            if let Some(id) = util.id()
+            if let Some(id) = pad.id()
                 && let Some(h) = env.handle.as_deref_mut()
             {
                 h.schedule_fx_enabled(id, true, at, true);
             }
         } else {
-            self.begin_swap(env, util, Then::Engage(at));
+            self.begin_swap(env, pad, Then::Engage(at));
         }
         self.run_pending(env);
         Ok(())
@@ -1763,7 +1779,7 @@ impl FxController {
             return Err(invalid("the chain needs a name"));
         }
         let mut slots = Vec::new();
-        for s in 0..FX_SLOTS_PER_UNIT as u8 {
+        for s in 0..FX_CHAIN_SLOTS as u8 {
             let r = FxSlotRef { unit, slot: s };
             let slot = self.slot_mut(r)?.clone();
             if let Some(effect) = slot.effect {
@@ -1911,5 +1927,105 @@ mod tests {
         assert_eq!(echo.params.len(), c.effects[&builtin("echo")].params.len());
         assert!(c.effects[&builtin("vinyl_brake")].release);
         assert_eq!(c.effects[&builtin("echo")].primary, Some(ParamId(1)));
+        assert!(s.units.iter().all(|u| u.slots.len() == FX_CHAIN_SLOTS));
+        assert!(s.sends.iter().all(|u| u.slots.len() == FX_CHAIN_SLOTS));
+    }
+
+    fn offline_env() -> FxEnv<'static> {
+        FxEnv {
+            handle: None,
+            tel: None,
+            quantize: [false; MAX_DECKS],
+            leader: None,
+            library: None,
+            now: Instant::now(),
+        }
+    }
+
+    #[test]
+    fn a_three_effect_multi_unit_leaves_cfx_pad_and_release_usable() {
+        let mut c = FxController::new(None);
+        let mut env = offline_env();
+        let a = DeckId::new(0).unwrap();
+        let beat = ["echo", "flanger", "reverb"];
+        for (i, id) in beat.iter().enumerate() {
+            c.apply(
+                &mut env,
+                FxOp::SetEffect {
+                    slot: FxSlotRef {
+                        unit: unit_ref(FxTarget::Beat, 0),
+                        slot: i as u8,
+                    },
+                    effect: Some(builtin(id)),
+                },
+            )
+            .unwrap();
+        }
+        c.apply(
+            &mut env,
+            FxOp::SetMode {
+                unit: 0,
+                mode: FxMode::Multi,
+            },
+        )
+        .unwrap();
+        c.apply(&mut env, FxOp::SetUnitOn { unit: 0, on: true })
+            .unwrap();
+        c.apply(
+            &mut env,
+            FxOp::SetCfx {
+                deck: a,
+                amount: -0.8,
+            },
+        )
+        .unwrap();
+        for (i, id) in beat.iter().enumerate() {
+            let d = c.desired(Addr::Deck(a, i as u8)).unwrap();
+            assert_eq!(d.key, builtin(id), "Beat FX slot {i}");
+            assert_eq!(d.on, Some(true), "Beat FX slot {i}");
+        }
+        let cfx = |c: &FxController| c.desired(Addr::Deck(a, CFX_SLOT)).unwrap();
+        assert_eq!(cfx(&c).key, builtin("colour_filter"));
+        assert_eq!(cfx(&c).on, Some(true));
+
+        c.pad(&mut env, a, 0, true).unwrap();
+        let pad = c.desired(Addr::Deck(a, PAD_SLOT)).unwrap();
+        assert_eq!(pad.key, builtin(DEFAULT_PADS[0].0));
+
+        c.apply(&mut env, FxOp::Release { unit: 0 }).unwrap();
+        let release = c.desired(Addr::Deck(a, RELEASE_SLOT)).unwrap();
+        assert_eq!(release.key, builtin("vinyl_brake"));
+
+        // Neither the pad nor the release took the Sound Color FX slot.
+        assert_eq!(cfx(&c).key, builtin("colour_filter"));
+        assert_eq!(cfx(&c).on, Some(true));
+        assert_eq!(
+            c.desired(Addr::Deck(a, PAD_SLOT)).unwrap().key,
+            builtin(DEFAULT_PADS[0].0)
+        );
+    }
+
+    #[test]
+    fn pad_and_release_slots_empty_after_their_tails() {
+        let mut c = FxController::new(None);
+        let mut env = offline_env();
+        let a = DeckId::new(0).unwrap();
+        c.pad(&mut env, a, 0, true).unwrap();
+        c.pad(&mut env, a, 0, false).unwrap();
+        c.apply(&mut env, FxOp::Release { unit: 0 }).unwrap();
+        env.now += PAD_TAIL_LONG + Duration::from_secs(11);
+        c.tick(&mut env);
+        assert!(c.desired(Addr::Deck(a, PAD_SLOT)).is_none());
+        assert!(c.desired(Addr::Deck(a, RELEASE_SLOT)).is_none());
+        assert!(c.desired(Addr::Deck(a, CFX_SLOT)).is_some());
+    }
+
+    #[test]
+    fn state_stored_before_dedicated_slots_still_loads() {
+        let c = FxController::new(None);
+        let mut json = serde_json::to_value(c.state()).unwrap();
+        json["utility_blocked"] = serde_json::json!([true, false]);
+        let back: FxStateDto = serde_json::from_value(json).unwrap();
+        assert_eq!(&back, c.state());
     }
 }

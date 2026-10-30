@@ -6,9 +6,11 @@ use std::time::{Duration, Instant};
 
 use crossbeam_channel::Receiver;
 use opendeck_app_core::{
-    AppCore, AudioController, Backend, CoreEvent, FxAssign, FxOp, LaunchOptions, SettingsStore,
+    AppCore, AudioController, Backend, CoreEvent, FxAssign, FxMode, FxOp, FxSlotRef, FxTarget,
+    FxUnitRef, LaunchOptions, SettingsStore,
 };
 use opendeck_contracts::DeckId;
+use opendeck_contracts::fx::EffectKey;
 use opendeck_contracts::mixer::CrossfaderAssign;
 
 const RATE: u32 = 48_000;
@@ -85,9 +87,10 @@ fn level(audio: &AudioController) -> f64 {
         .master)
 }
 
-#[test]
-fn sound_color_fx_on_deck_a_leaves_deck_b_alone() {
-    let dir = std::env::temp_dir().join(format!("opendeck-fxaudio-{}", std::process::id()));
+/// Two decks playing a 5 kHz sine through the crossfader. Returns the
+/// controller and the temp dir to remove.
+fn two_sines(tag: &str) -> (AudioController, std::path::PathBuf) {
+    let dir = std::env::temp_dir().join(format!("opendeck-fxaudio-{tag}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("dir");
     let (a, b) = (dir.join("a.wav"), dir.join("b.wav"));
@@ -104,6 +107,12 @@ fn sound_color_fx_on_deck_a_leaves_deck_b_alone() {
         .expect("thru");
     audio.set_playing(deck(0), true).expect("play");
     audio.set_playing(deck(1), true).expect("play");
+    (audio, dir)
+}
+
+#[test]
+fn sound_color_fx_on_deck_a_leaves_deck_b_alone() {
+    let (audio, dir) = two_sines("cfx");
     let both = level(&audio);
     assert!(both > 0.2, "{both}");
 
@@ -148,5 +157,54 @@ fn sound_color_fx_on_deck_a_leaves_deck_b_alone() {
     assert!(all < b_filtered * 0.5, "both filtered: {all}");
     // Beat FX assignment is untouched by CFX use.
     assert_eq!(audio.fx_state().unwrap().units[0].assign, FxAssign::Ch1);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn sound_color_fx_works_beside_a_three_effect_multi_unit() {
+    let (audio, dir) = two_sines("multi");
+    let both = level(&audio);
+    assert!(both > 0.2, "{both}");
+    // Unit 2 (channel 2) holds three effects in Multi mode, switched off.
+    for (i, id) in ["echo", "flanger", "phaser"].iter().enumerate() {
+        audio
+            .fx_apply(FxOp::SetEffect {
+                slot: FxSlotRef {
+                    unit: FxUnitRef {
+                        target: FxTarget::Beat,
+                        unit: 1,
+                    },
+                    slot: i as u8,
+                },
+                effect: Some(EffectKey {
+                    provider: "builtin".to_owned(),
+                    id: (*id).to_owned(),
+                }),
+            })
+            .unwrap();
+    }
+    audio
+        .fx_apply(FxOp::SetMode {
+            unit: 1,
+            mode: FxMode::Multi,
+        })
+        .unwrap();
+    let unchanged = level(&audio);
+    assert!(
+        (unchanged - both).abs() < both * 0.05,
+        "unit off leaves the sound: {unchanged} vs {both}"
+    );
+    // The Sound Color FX of channel 2 still filters deck B.
+    audio
+        .fx_apply(FxOp::SetCfx {
+            deck: deck(1),
+            amount: -1.0,
+        })
+        .unwrap();
+    let filtered = level(&audio);
+    assert!(
+        filtered < both * 0.75,
+        "deck B filtered beside a full Multi unit: {filtered} vs {both}"
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }

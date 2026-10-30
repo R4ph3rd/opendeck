@@ -123,7 +123,11 @@ impl From<DeckId> for u8 {
 ///
 /// Product decision for the MVP, not a hardware spec. Changing it is a
 /// contract change because engine arrays are sized by it.
-pub const FX_SLOTS_PER_UNIT: usize = 3;
+///
+/// Six so a deck unit has dedicated slots for every FLX4-style feature:
+/// 0 to 2 Beat FX (Multi mode), 3 Sound Color FX, 4 pad FX, 5 Release FX.
+/// Master and send units use the same size.
+pub const FX_SLOTS_PER_UNIT: usize = 6;
 
 /// Number of send/return effect buses.
 pub const FX_SEND_BUSES: usize = 2;

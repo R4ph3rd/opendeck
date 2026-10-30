@@ -6,12 +6,13 @@ use std::sync::atomic::AtomicU32;
 
 use opendeck_contracts::beatgrid::BeatGrid;
 use opendeck_contracts::fx::Effect;
+use opendeck_contracts::ids::FX_SLOTS_PER_UNIT;
 use opendeck_contracts::telemetry::{EngineEvent, EngineTelemetry};
 use opendeck_contracts::{DeckId, EngineCommand, Frames, FxSlotId, FxUnit, SampleRate};
 use rtrb::{Consumer, Producer, RingBuffer};
 
 use crate::audio::{CoreRings, EngineCore};
-use crate::fx::{FxEvent, FxHandoff, FxHost, FxTempoSource, SendTap, SlotRt};
+use crate::fx::{FX_UNITS, FxEvent, FxHandoff, FxHost, FxTempoSource, SendTap, SlotRt};
 use crate::track::{Handoff, TrackBuffer};
 use crate::{ConfigError, EngineConfig};
 
@@ -21,10 +22,11 @@ pub const COMMAND_RING: usize = 1024;
 pub const HANDOFF_RING: usize = 16;
 /// Capacity of the return ring for replaced buffers.
 pub const RETURN_RING: usize = 64;
-/// Capacity of the FX hand-off ring (effects and send taps).
-pub const FX_HANDOFF_RING: usize = 16;
-/// Capacity of the FX return ring for replaced effects.
-pub const FX_RETURN_RING: usize = 32;
+/// Capacity of the FX hand-off ring (effects, timed events, tempo and send
+/// taps): one install for every slot of every unit fits at once.
+pub const FX_HANDOFF_RING: usize = FX_UNITS * FX_SLOTS_PER_UNIT;
+/// Capacity of the FX return ring for replaced effects: two per slot.
+pub const FX_RETURN_RING: usize = 2 * FX_UNITS * FX_SLOTS_PER_UNIT;
 /// Capacity of the telemetry ring.
 pub const TELEMETRY_RING: usize = 4;
 /// Capacity of the event ring.
@@ -239,8 +241,9 @@ impl EngineHandle {
     /// `EngineTelemetry::engine_time` clock), sample accurate: the slot starts
     /// its ramp on exactly that frame. `fast` uses a 1 ms ramp (pad FX engage
     /// and release) instead of the 10 ms bypass crossfade. A time already
-    /// past acts on the first frame of the next block. Up to 16 timed events
-    /// wait at once (more act immediately). Returns `false` when the ring is
+    /// past acts on the first frame of the next block. Up to 48 timed events
+    /// (`2 * MAX_DECKS * FX_SLOTS_PER_UNIT`) wait at once (more act
+    /// immediately). Returns `false` when the ring is
     /// full; retry on the next tick.
     pub fn schedule_fx_enabled(
         &mut self,

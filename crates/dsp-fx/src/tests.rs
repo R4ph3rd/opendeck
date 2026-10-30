@@ -9,6 +9,7 @@ use crate::{BuiltinFactory, PROVIDER_ID};
 use opendeck_contracts::fx::{
     Effect, EffectFactory, EffectKey, EffectRegistry, ParamId, ProcessContext, StereoBufferMut,
 };
+use opendeck_contracts::ids::FX_SLOTS_PER_UNIT;
 use opendeck_contracts::units::{Beats, Bpm, SampleRate};
 
 #[cfg(debug_assertions)]
@@ -280,7 +281,9 @@ fn chain_preset_roundtrip_and_validation() {
     assert_eq!(ChainPreset::from_json(&json).expect("parse"), chain);
 
     let mut too_many = chain.clone();
-    too_many.slots.push(too_many.slots[0].clone());
+    while too_many.slots.len() <= FX_SLOTS_PER_UNIT {
+        too_many.slots.push(too_many.slots[0].clone());
+    }
     assert!(too_many.validate().is_err());
     let mut bad = chain;
     bad.slots[1].wet = 1.5;

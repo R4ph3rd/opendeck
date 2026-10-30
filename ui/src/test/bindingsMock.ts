@@ -140,7 +140,6 @@ export const neutralFxState = () => ({
     division: 0.5,
     release: false,
   })),
-  utility_blocked: [false, false],
 });
 
 /** Deck state as the backend reports it before anything is touched. */

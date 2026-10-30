@@ -48,9 +48,9 @@ pub use crate::dto::{
 };
 pub use crate::fs_browser::list_directory;
 pub use crate::fx_types::{
-    BEAT_FX_UNITS, BeatFxUnitDto, CfxDto, FxAssign, FxBpmSource, FxChainPresetDto, FxChainSlotDto,
-    FxEffectDto, FxMode, FxOp, FxPresetsDto, FxSlotDto, FxSlotRef, FxStateDto, FxTarget, FxUnitRef,
-    PAD_FX_COUNT, PADS_PER_LAYER, PadFxAssignDto, SendUnitDto,
+    BEAT_FX_UNITS, BeatFxUnitDto, CfxDto, FX_CHAIN_SLOTS, FxAssign, FxBpmSource, FxChainPresetDto,
+    FxChainSlotDto, FxEffectDto, FxMode, FxOp, FxPresetsDto, FxSlotDto, FxSlotRef, FxStateDto,
+    FxTarget, FxUnitRef, PAD_FX_COUNT, PADS_PER_LAYER, PadFxAssignDto, SendUnitDto,
 };
 pub use crate::library_service::{LibraryEvent, LibraryService, PROGRESS_INTERVAL};
 pub use crate::settings_store::{SETTINGS_FILE, SettingsStore, StoredSettings};

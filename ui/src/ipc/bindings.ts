@@ -391,7 +391,7 @@ export type BeatFxUnitDto = {
 	assign: FxAssign,
 	/**  Multi or Single. */
 	mode: FxMode,
-	/**  `FX_SLOTS_PER_UNIT` slots. Single mode uses slot 0 only. */
+	/**  `FX_CHAIN_SLOTS` slots. Single mode uses slot 0 only. */
 	slots: FxSlotDto[],
 	/**  ON/OFF. */
 	on: boolean,
@@ -822,7 +822,7 @@ export type FxBpmSource =
 export type FxChainPresetDto = {
 	/**  Unique name. */
 	name: string,
-	/**  At most `FX_SLOTS_PER_UNIT` slots. */
+	/**  At most `FX_CHAIN_SLOTS` slots. */
 	slots: FxChainSlotDto[],
 };
 
@@ -1058,7 +1058,7 @@ export type FxSlotDto = {
 export type FxSlotRef = {
 	/**  Owner. */
 	unit: FxUnitRef,
-	/**  Position `0..FX_SLOTS_PER_UNIT`. */
+	/**  Position `0..FX_CHAIN_SLOTS`. */
 	slot: number,
 };
 
@@ -1079,11 +1079,6 @@ export type FxStateDto = {
 	send_levels: ((number | null)[])[],
 	/**  `PAD_FX_COUNT` pad effects, index `bank * 16 + shift * 8 + pad`. */
 	pads: PadFxAssignDto[],
-	/**
-	 *  A deck whose third chain slot holds a Multi effect cannot run its
-	 *  Sound Color FX, pad FX or Release FX (they share that slot).
-	 */
-	utility_blocked: boolean[],
 };
 
 /**  Which family of engine units a reference points at. */
@@ -1501,7 +1496,7 @@ export type Seconds = number | null;
 
 /**  A send/return bus. */
 export type SendUnitDto = {
-	/**  `FX_SLOTS_PER_UNIT` slots. */
+	/**  `FX_CHAIN_SLOTS` slots. */
 	slots: FxSlotDto[],
 	/**  Send tapped after the channel fader (default) or before it. */
 	post_fader: boolean,

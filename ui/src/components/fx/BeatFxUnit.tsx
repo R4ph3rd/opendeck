@@ -37,7 +37,6 @@ interface BeatFxUnitProps {
 /** One FLX4-style Beat FX unit: channel, effects, beat, level, ON/OFF, release, BPM. */
 export function BeatFxUnit({ index }: BeatFxUnitProps) {
   const unit = useFxStore((s) => s.state?.units[index]);
-  const blocked = useFxStore((s) => s.state?.utility_blocked);
   const effects = useFxStore((s) => s.effects);
   const decks = unit ? assignedDecks(unit.assign) : [];
   // Lit from the engine: the chain on an assigned channel really runs.
@@ -67,7 +66,6 @@ export function BeatFxUnit({ index }: BeatFxUnitProps) {
   const lead = unit.slots[0];
   const synced = unit.slots.some((s) => findEffect(effects, s.effect)?.beat_synced);
   const on = hasTelemetry ? running : unit.on;
-  const thirdBlocksUtility = !single && unit.slots[2]?.effect !== null;
   const uref = unitRef("beat", index);
   const bpmText =
     unit.bpm_source === "tap"
@@ -231,12 +229,6 @@ export function BeatFxUnit({ index }: BeatFxUnitProps) {
           );
         })}
       </ul>
-      {thirdBlocksUtility || blocked?.[index] ? (
-        <p className="text-xs text-fg-subtle">
-          Slot 3 shares the Sound Color FX slot: while it holds an effect, CFX, pad FX and Release
-          FX are off on this channel.
-        </p>
-      ) : null}
     </section>
   );
 }

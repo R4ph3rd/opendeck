@@ -15,7 +15,6 @@ interface ChannelFxProps {
 export function CfxControl({ deck }: ChannelFxProps) {
   const cfx = useFxStore((s) => s.state?.cfx[deck]);
   const effects = useFxStore((s) => s.effects);
-  const blocked = useFxStore((s) => s.state?.utility_blocked[deck] ?? false);
   const kinds = useFxStore((s) => s.state?.cfx_kinds);
   if (!cfx) {
     return null;
@@ -32,7 +31,6 @@ export function CfxControl({ deck }: ChannelFxProps) {
         min={-1}
         max={1}
         bipolar
-        disabled={blocked}
         format={formatCfx}
         onChange={(amount) => applyFx({ kind: "set_cfx", deck, amount })}
       />

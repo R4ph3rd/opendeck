@@ -875,7 +875,7 @@ fn deck_opt(i: u8) -> Option<opendeck_contracts::DeckId> {
 // ----- CPU -----
 
 #[test]
-fn cpu_two_decks_three_slots_plus_master_three_slots() {
+fn cpu_two_decks_six_slots_plus_master_six_slots() {
     let mut r = OfflineRenderer::new(crate::tests_support::config(2)).expect("config");
     for d in 0..2u8 {
         r.handle()
@@ -919,9 +919,10 @@ fn cpu_two_decks_three_slots_plus_master_three_slots() {
     s.total -= before.total;
     let fraction = s.realtime_fraction(SR);
     eprintln!(
-        "fx cpu: 2 decks x 3 + master x 3 slots: {:.2} % of realtime, worst block {:?}",
+        "fx cpu: 2 decks x {n} + master x {n} slots: {:.2} % of realtime, worst block {:?}",
         fraction * 100.0,
-        s.worst_block
+        s.worst_block,
+        n = FX_SLOTS_PER_UNIT
     );
     if !cfg!(debug_assertions) {
         assert!(fraction < 0.25, "{fraction}");

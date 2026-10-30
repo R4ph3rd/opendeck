@@ -12,6 +12,10 @@ use serde::{Deserialize, Serialize};
 
 /// Number of hardware-style Beat FX units.
 pub const BEAT_FX_UNITS: usize = 2;
+/// Effect slots of a Beat FX unit or a send unit (Multi mode runs three).
+/// Deck chains keep their other `FX_SLOTS_PER_UNIT` slots for Sound Color FX,
+/// pad FX and Release FX.
+pub const FX_CHAIN_SLOTS: usize = 3;
 /// Pad effects: 2 banks x 2 shift layers x 8 pads.
 pub const PAD_FX_COUNT: usize = 32;
 /// Pads per bank layer.
@@ -81,7 +85,7 @@ pub struct FxUnitRef {
 pub struct FxSlotRef {
     /// Owner.
     pub unit: FxUnitRef,
-    /// Position `0..FX_SLOTS_PER_UNIT`.
+    /// Position `0..FX_CHAIN_SLOTS`.
     pub slot: u8,
 }
 
@@ -123,7 +127,7 @@ pub struct BeatFxUnitDto {
     pub assign: FxAssign,
     /// Multi or Single.
     pub mode: FxMode,
-    /// `FX_SLOTS_PER_UNIT` slots. Single mode uses slot 0 only.
+    /// `FX_CHAIN_SLOTS` slots. Single mode uses slot 0 only.
     pub slots: Vec<FxSlotDto>,
     /// ON/OFF.
     pub on: bool,
@@ -151,7 +155,7 @@ pub struct CfxDto {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct SendUnitDto {
-    /// `FX_SLOTS_PER_UNIT` slots.
+    /// `FX_CHAIN_SLOTS` slots.
     pub slots: Vec<FxSlotDto>,
     /// Send tapped after the channel fader (default) or before it.
     pub post_fader: bool,
@@ -185,9 +189,6 @@ pub struct FxStateDto {
     pub send_levels: Vec<Vec<f32>>,
     /// `PAD_FX_COUNT` pad effects, index `bank * 16 + shift * 8 + pad`.
     pub pads: Vec<PadFxAssignDto>,
-    /// A deck whose third chain slot holds a Multi effect cannot run its
-    /// Sound Color FX, pad FX or Release FX (they share that slot).
-    pub utility_blocked: Vec<bool>,
 }
 
 /// One effect for the UI: contract info plus catalog flags.
@@ -236,7 +237,7 @@ pub struct FxChainSlotDto {
 pub struct FxChainPresetDto {
     /// Unique name.
     pub name: String,
-    /// At most `FX_SLOTS_PER_UNIT` slots.
+    /// At most `FX_CHAIN_SLOTS` slots.
     pub slots: Vec<FxChainSlotDto>,
 }
 
@@ -412,5 +413,5 @@ pub enum FxOp {
 const _: () = {
     assert!(MVP_DECKS == 2);
     assert!(FX_SEND_BUSES == 2);
-    assert!(FX_SLOTS_PER_UNIT == 3);
+    assert!(FX_CHAIN_SLOTS + 3 == FX_SLOTS_PER_UNIT);
 };

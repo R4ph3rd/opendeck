@@ -248,12 +248,17 @@ describe("channel strip FX", () => {
     expect(screen.getByRole("combobox", { name: "Sound Color FX type B" })).toBeTruthy();
   });
 
-  it("greys out the Sound Color FX knob when a Multi effect holds its slot", () => {
+  it("keeps the Sound Color FX knob live beside a three-effect Multi unit", () => {
     const state = neutralFxState();
-    state.utility_blocked = [true, false];
+    const unit = state.units[0];
+    const lead = unit?.slots[0];
+    if (unit && lead) {
+      unit.mode = "multi";
+      unit.slots = unit.slots.map(() => ({ ...lead }));
+    }
     useFxStore.getState().setState(state as never);
     render(<ChannelStrip deck={0} />);
-    expect((slider("Sound Color FX A") as HTMLInputElement).disabled).toBe(true);
+    expect((slider("Sound Color FX A") as HTMLInputElement).disabled).toBe(false);
   });
 
   it("renders without FX state", () => {
