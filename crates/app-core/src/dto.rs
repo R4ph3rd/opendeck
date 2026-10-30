@@ -194,8 +194,8 @@ pub struct TrackRowDto {
 }
 
 impl TrackRowDto {
-    /// Converts a library row; `comment` is not part of the lightweight row.
-    pub fn from_row(r: lib::TrackRow, comment: Option<String>) -> Self {
+    /// Converts a library row.
+    pub fn from_row(r: lib::TrackRow) -> Self {
         let key_musical = r
             .key
             .as_deref()
@@ -209,7 +209,7 @@ impl TrackRowDto {
             album: r.album,
             genre: r.genre,
             year: r.year,
-            comment,
+            comment: r.comment,
             duration_secs: r.duration_secs,
             bitrate_kbps: r.bitrate_kbps,
             bpm: r.bpm,

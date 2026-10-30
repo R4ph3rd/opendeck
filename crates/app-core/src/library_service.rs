@@ -245,25 +245,9 @@ impl LibraryService {
     pub fn query_tracks(&self, query: TrackQueryDto) -> Result<TrackPageDto, CoreError> {
         let page = self.inner.lib.query_tracks(&query.into())?;
         Ok(TrackPageDto {
-            rows: self.rows(page.rows),
+            rows: page.rows.into_iter().map(TrackRowDto::from_row).collect(),
             total: page.total,
         })
-    }
-
-    /// Adds the comment tag to library rows (the row type leaves it out).
-    fn rows(&self, rows: Vec<opendeck_library::TrackRow>) -> Vec<TrackRowDto> {
-        rows.into_iter()
-            .map(|row| {
-                let comment = self
-                    .inner
-                    .lib
-                    .get_track(row.id)
-                    .ok()
-                    .flatten()
-                    .and_then(|t| t.meta.comment);
-                TrackRowDto::from_row(row, comment)
-            })
-            .collect()
     }
 
     /// Full row of a track.
@@ -474,19 +458,10 @@ impl LibraryService {
         let entries = self.inner.lib.playlist_entries(playlist)?;
         Ok(entries
             .into_iter()
-            .map(|e| {
-                let comment = self
-                    .inner
-                    .lib
-                    .get_track(e.track.id)
-                    .ok()
-                    .flatten()
-                    .and_then(|t| t.meta.comment);
-                PlaylistEntryDto {
-                    entry_id: e.entry_id,
-                    position: e.position,
-                    track: TrackRowDto::from_row(e.track, comment),
-                }
+            .map(|e| PlaylistEntryDto {
+                entry_id: e.entry_id,
+                position: e.position,
+                track: TrackRowDto::from_row(e.track),
             })
             .collect())
     }
