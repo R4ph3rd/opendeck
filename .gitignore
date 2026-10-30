@@ -31,3 +31,5 @@ Thumbs.db
 # Claude local
 .claude/settings.local.json
 .claude/worktrees/
+docs/sources/*.md
+!docs/sources/README.md
