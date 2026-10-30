@@ -52,8 +52,6 @@ Done: two decks with jog scratch and nudge, tempo and beat sync with leader elec
 | M6 engine | Jog nudge sensitivity, `MAX_PITCH_BEND` and the linear channel fader law are product guesses, `TODO(verify)` |
 | M8 engine | A quantized hot cue waits for the next beat; confirm against user tests |
 | M8 engine | Heap-count test (`tests_heap`) runs on Linux only |
-| M3 library | `playlist_tracks` reorder hits `UNIQUE(playlist_id, position)` on bulk shift |
-| M3 library | Folder-guard trigger only fires on INSERT |
 | M6 midi | `on_connect` raw messages are capped at 3 bytes, so no SysEx |
 | M6 midi | Feedback entries lack `when` for shift-layer LEDs |
 | M6 midi | Drift test only checks schema to contracts |
