@@ -123,6 +123,27 @@ export const commands = {
 	setHeadphoneMix: (mix: number | null) => typedError<null, CommandError>(__TAURI_INVOKE("set_headphone_mix", { mix })),
 	/**  Split cue on or off. */
 	setSplitCue: (on: boolean) => typedError<null, CommandError>(__TAURI_INVOKE("set_split_cue", { on })),
+	/**  The FX model: Beat FX units, Sound Color FX, sends, pad effects. */
+	fxGetState: () => typedError<FxStateDto, CommandError>(__TAURI_INVOKE("fx_get_state")),
+	/**
+	 *  Every effect with its parameters, primary parameter, release flag and
+	 *  accepted beat divisions.
+	 */
+	fxListEffects: () => typedError<FxEffectDto[], CommandError>(__TAURI_INVOKE("fx_list_effects")),
+	/**  Factory presets, user presets and chain presets. */
+	fxGetPresets: () => typedError<FxPresetsDto, CommandError>(__TAURI_INVOKE("fx_get_presets")),
+	/**  Applies one change to the FX model; the new state arrives as `fx-state-changed`. */
+	fxApply: (op: FxOp) => typedError<null, CommandError>(__TAURI_INVOKE("fx_apply", { op })),
+	/**  Pad FX edge: `bank` 0 or 1, `shift` layer, `pad` 0 to 7. */
+	fxPad: (deck: DeckId, bank: number, shift: boolean, pad: number, pressed: boolean) => typedError<null, CommandError>(__TAURI_INVOKE("fx_pad", { deck, bank, shift, pad, pressed })),
+	/**  Stores the effect in a slot as a user preset (same name replaces). */
+	fxSavePreset: (slot: FxSlotRef, name: string) => typedError<FxPresetsDto, CommandError>(__TAURI_INVOKE("fx_save_preset", { slot, name })),
+	/**  Deletes a user preset. */
+	fxDeletePreset: (effect: EffectKey, name: string) => typedError<FxPresetsDto, CommandError>(__TAURI_INVOKE("fx_delete_preset", { effect, name })),
+	/**  Stores the effects of a unit as a chain preset. */
+	fxSaveChain: (unit: FxUnitRef, name: string) => typedError<FxPresetsDto, CommandError>(__TAURI_INVOKE("fx_save_chain", { unit, name })),
+	/**  Deletes a chain preset. */
+	fxDeleteChain: (name: string) => typedError<FxPresetsDto, CommandError>(__TAURI_INVOKE("fx_delete_chain", { name })),
 	/**  One sorted, filtered page of the collection. */
 	queryTracks: (query: TrackQueryDto) => typedError<TrackPageDto, CommandError>(__TAURI_INVOKE("query_tracks", { query })),
 	/**  Full row of a track. */
@@ -209,6 +230,7 @@ export const events = {
 	cuesChanged: makeEvent<CuesChangedEvent, CuesChangedEvent>("cues-changed"),
 	engineEvent: makeEvent<EngineEventEvent, EngineEventEvent>("engine-event"),
 	engineTelemetry: makeEvent<EngineTelemetryEvent, EngineTelemetryEvent>("engine-telemetry"),
+	fxStateChanged: makeEvent<FxStateChangedEvent, FxStateChangedEvent>("fx-state-changed"),
 	hotCuesChanged: makeEvent<HotCuesChangedEvent, HotCuesChangedEvent>("hot-cues-changed"),
 	importProgress: makeEvent<ImportProgressEvent, ImportProgressEvent>("import-progress"),
 	libraryChanged: makeEvent<LibraryChangedEvent, LibraryChangedEvent>("library-changed"),
@@ -363,6 +385,26 @@ export type AudioStatus = {
 	error: string | null,
 };
 
+/**  A Beat FX unit. */
+export type BeatFxUnitDto = {
+	/**  Channel assignment. */
+	assign: FxAssign,
+	/**  Multi or Single. */
+	mode: FxMode,
+	/**  `FX_SLOTS_PER_UNIT` slots. Single mode uses slot 0 only. */
+	slots: FxSlotDto[],
+	/**  ON/OFF. */
+	on: boolean,
+	/**  BPM Auto or Tap. */
+	bpm_source: FxBpmSource,
+	/**  Last tapped tempo. */
+	tap_bpm: number | null,
+	/**  Effect played by Release FX. */
+	release_effect: EffectKey | null,
+	/**  How long the release effect runs, milliseconds. */
+	release_hold_ms: number,
+};
+
 /**
  *  A constant-tempo beat grid. RT-safe.
  * 
@@ -394,6 +436,14 @@ export type Beats = number | null;
 
 /**  Tempo in beats per minute. Valid values are finite and `> 0`. */
 export type Bpm = number | null;
+
+/**  Sound Color FX of one channel. */
+export type CfxDto = {
+	/**  CFX type (one of `FxStateDto::cfx_kinds`). */
+	kind: EffectKey,
+	/**  Knob position `[-1, 1]`, 0 is neutral. */
+	amount: number | null,
+};
 
 /**  A pair of output channels (zero-based) on the output device. */
 export type ChannelPair = {
@@ -618,6 +668,17 @@ export type DirListing = {
 	entries: FsEntry[],
 };
 
+/**
+ *  Globally unique effect type: provider plus the provider's effect id.
+ *  Persisted in presets as `"provider:id"`-like pairs; both parts are stable.
+ */
+export type EffectKey = {
+	/**  Factory provider id (`"builtin"`, later `"clap"`, `"vst3"`). */
+	provider: string,
+	/**  Effect id inside the provider (built-ins: snake_case name; plugins: plugin id). */
+	id: string,
+};
+
 /**  A discrete notification from the audio thread. RT-safe. */
 export type EngineEvent = 
 /**  A hot cue was stored from the playhead; app-core persists it. */
@@ -738,6 +799,307 @@ export type FsEntryKind =
 "audio" | 
 /**  A playlist or collection file the importers read (`m3u`, `m3u8`, `xml`). */
 "playlist";
+
+/**  Channel a Beat FX unit is assigned to (BEAT FX CH SELECT). */
+export type FxAssign = 
+/**  Not assigned (another unit took the channel). */
+"none" | 
+/**  Channel 1 (deck A). */
+"ch1" | 
+/**  Channel 2 (deck B). */
+"ch2" | 
+/**  Both channels, mirrored (1&2). */
+"both";
+
+/**  Tempo source of a Beat FX unit. */
+export type FxBpmSource = 
+/**  Track BPM. */
+"auto" | 
+/**  Tapped BPM. */
+"tap";
+
+/**  A stored chain: the effects of one unit. */
+export type FxChainPresetDto = {
+	/**  Unique name. */
+	name: string,
+	/**  At most `FX_SLOTS_PER_UNIT` slots. */
+	slots: FxChainSlotDto[],
+};
+
+/**  One effect of a stored chain. */
+export type FxChainSlotDto = {
+	/**  Effect. */
+	effect: EffectKey,
+	/**  Normalized parameters by id. */
+	params: ([ParamId, number | null])[],
+	/**  Wet/dry. */
+	wet: number | null,
+	/**  Beat division. */
+	division: number | null,
+	/**  Slot enabled. */
+	enabled: boolean,
+};
+
+/**  One effect for the UI: contract info plus catalog flags. */
+export type FxEffectDto = {
+	/**  Unique key. */
+	key: EffectKey,
+	/**  Display name. */
+	name: string,
+	/**  Intended routing. */
+	routing: FxRouting,
+	/**  Reads the beat division. */
+	beat_synced: boolean,
+	/**  Output continues after input stops. */
+	has_tail: boolean,
+	/**  Parameters in display order. */
+	params: ParamDescriptor[],
+	/**  Parameter the LEVEL/DEPTH control drives. */
+	primary: ParamId | null,
+	/**  Release-category effect. */
+	release: boolean,
+	/**  Beat divisions the effect accepts, ascending; empty if not synced. */
+	divisions: (number | null)[],
+};
+
+/**  Multi or Single mode of a Beat FX unit. */
+export type FxMode = 
+/**  Up to three effects, one primary parameter each. */
+"multi" | 
+/**  One effect, every parameter editable. */
+"single";
+
+/**  One change to the FX model. */
+export type FxOp = 
+/**  Assigns a Beat FX unit to channel 1, 2 or 1&2. */
+{ kind: "set_assign"; 
+/**  Unit. */
+unit: number; 
+/**  Assignment. */
+assign: FxAssign } | 
+/**  Multi or Single mode. */
+{ kind: "set_mode"; 
+/**  Unit. */
+unit: number; 
+/**  Mode. */
+mode: FxMode } | 
+/**  Chooses the effect of a slot (`None` empties it). */
+{ kind: "set_effect"; 
+/**  Slot. */
+slot: FxSlotRef; 
+/**  Effect. */
+effect: EffectKey | null } | 
+/**  Sets one parameter, normalized. */
+{ kind: "set_param"; 
+/**  Slot. */
+slot: FxSlotRef; 
+/**  Parameter. */
+param: ParamId; 
+/**  Normalized value. */
+value: number | null } | 
+/**  LEVEL/DEPTH: sets the effect's primary parameter, normalized. */
+{ kind: "set_level"; 
+/**  Slot. */
+slot: FxSlotRef; 
+/**  Normalized value. */
+value: number | null } | 
+/**  Wet/dry. */
+{ kind: "set_wet"; 
+/**  Slot. */
+slot: FxSlotRef; 
+/**  `[0, 1]`. */
+wet: number | null } | 
+/**  Beat division of one slot. */
+{ kind: "set_division"; 
+/**  Slot. */
+slot: FxSlotRef; 
+/**  Beats. */
+beats: number | null } | 
+/**
+ *  BEAT left (`-1`) or right (`1`): steps every slot of the unit through
+ *  its effect's division list.
+ */
+{ kind: "step_division"; 
+/**  Unit. */
+unit: FxUnitRef; 
+/**  Direction, sign only. */
+direction: number } | 
+/**  Slot takes part (Beat FX) or is on (send). */
+{ kind: "set_slot_enabled"; 
+/**  Slot. */
+slot: FxSlotRef; 
+/**  State. */
+on: boolean } | 
+/**  ON/OFF of a Beat FX unit. */
+{ kind: "set_unit_on"; 
+/**  Unit. */
+unit: number; 
+/**  State. */
+on: boolean } | 
+/**  Release FX (SHIFT+ON/OFF). */
+{ kind: "release"; 
+/**  Unit. */
+unit: number } | 
+/**  BPM Auto or Tap. */
+{ kind: "set_bpm_source"; 
+/**  Unit. */
+unit: number; 
+/**  Source. */
+source: FxBpmSource } | 
+/**  One tap of the tap tempo; switches the unit to Tap. */
+{ kind: "tap"; 
+/**  Unit. */
+unit: number } | 
+/**  Release effect and hold time of a unit. */
+{ kind: "set_release_effect"; 
+/**  Unit. */
+unit: number; 
+/**  Effect. */
+effect: EffectKey | null; 
+/**  Hold, milliseconds. */
+hold_ms: number } | 
+/**  CFX type of a channel. */
+{ kind: "set_cfx_kind"; 
+/**  Channel deck. */
+deck: DeckId; 
+/**  Effect (must be in `cfx_kinds`). */
+effect: EffectKey } | 
+/**  CFX knob. */
+{ kind: "set_cfx"; 
+/**  Channel deck. */
+deck: DeckId; 
+/**  `[-1, 1]`. */
+amount: number | null } | 
+/**  Send level of a channel to a bus. */
+{ kind: "set_send_level"; 
+/**  Channel deck. */
+deck: DeckId; 
+/**  Bus. */
+bus: number; 
+/**  Linear `[0, 1]`. */
+level: number | null } | 
+/**  Send tap point. */
+{ kind: "set_send_tap"; 
+/**  Bus. */
+bus: number; 
+/**  Post-fader when true. */
+post_fader: boolean } | 
+/**  Loads a stored effect preset into a slot. */
+{ kind: "apply_preset"; 
+/**  Slot. */
+slot: FxSlotRef; 
+/**  Preset (effect must match or the slot switches to it). */
+preset: FxPreset } | 
+/**  Loads a stored chain into a unit. */
+{ kind: "apply_chain"; 
+/**  Unit. */
+unit: FxUnitRef; 
+/**  Chain name. */
+name: string } | 
+/**  Assigns a pad effect. */
+{ kind: "set_pad"; 
+/**  Index `0..PAD_FX_COUNT`. */
+index: number; 
+/**  Assignment. */
+pad: PadFxAssignDto };
+
+/**
+ *  A saved effect setting (`fx_presets` table). Values are normalized, keyed
+ *  by [`ParamId`]; ids the effect no longer has are ignored on recall.
+ */
+export type FxPreset = {
+	/**  Effect type. */
+	effect: EffectKey,
+	/**  Preset name, unique per effect type. */
+	name: string,
+	/**  Normalized parameter values. */
+	params: ([ParamId, number | null])[],
+	/**  Wet/dry mix, `[0, 1]`. */
+	wet: number | null,
+	/**  Beat division, for beat-synced effects. */
+	beat_division: Beats,
+};
+
+/**  Presets for the browser. */
+export type FxPresetsDto = {
+	/**  Factory effect presets (read-only). */
+	factory: FxPreset[],
+	/**  User effect presets (`fx_presets` table). */
+	user: FxPreset[],
+	/**  User chain presets. */
+	chains: FxChainPresetDto[],
+};
+
+/**  Where an effect is meant to sit. */
+export type FxRouting = 
+/**  In series in a channel or master chain. */
+"insert" | 
+/**  On a send/return bus (reverbs, delays fed by sends). */
+"send_return";
+
+/**
+ *  One effect slot of a unit. `params` are normalized values in the effect's
+ *  descriptor order.
+ */
+export type FxSlotDto = {
+	/**  Effect, `None` for an empty slot. */
+	effect: EffectKey | null,
+	/**  Normalized parameters, descriptor order. */
+	params: (number | null)[],
+	/**  Wet/dry `[0, 1]`. */
+	wet: number | null,
+	/**  Beat division in beats. */
+	division: number | null,
+	/**  Beat units: slot takes part when the unit is on. Send units: slot on. */
+	enabled: boolean,
+};
+
+/**  One slot of a [`FxUnitRef`]. */
+export type FxSlotRef = {
+	/**  Owner. */
+	unit: FxUnitRef,
+	/**  Position `0..FX_SLOTS_PER_UNIT`. */
+	slot: number,
+};
+
+/**  The FX model changed (assignment, effects, parameters, pads). */
+export type FxStateChangedEvent = FxStateDto;
+
+/**  Everything the UI shows of the FX model. */
+export type FxStateDto = {
+	/**  `BEAT_FX_UNITS` Beat FX units. */
+	units: BeatFxUnitDto[],
+	/**  One CFX per channel (`MVP_DECKS`). */
+	cfx: CfxDto[],
+	/**  Effect types the CFX selector offers. */
+	cfx_kinds: EffectKey[],
+	/**  `FX_SEND_BUSES` send units. */
+	sends: SendUnitDto[],
+	/**  Send levels `[deck][bus]`, linear `[0, 1]`. */
+	send_levels: ((number | null)[])[],
+	/**  `PAD_FX_COUNT` pad effects, index `bank * 16 + shift * 8 + pad`. */
+	pads: PadFxAssignDto[],
+	/**
+	 *  A deck whose third chain slot holds a Multi effect cannot run its
+	 *  Sound Color FX, pad FX or Release FX (they share that slot).
+	 */
+	utility_blocked: boolean[],
+};
+
+/**  Which family of engine units a reference points at. */
+export type FxTarget = 
+/**  A Beat FX unit (`0..BEAT_FX_UNITS`). */
+"beat" | 
+/**  A send/return bus (`0..FX_SEND_BUSES`). */
+"send";
+
+/**  A Beat FX unit or a send bus. */
+export type FxUnitRef = {
+	/**  Family. */
+	target: FxTarget,
+	/**  Index inside the family. */
+	unit: number,
+};
 
 /**  State of one FX unit (a chain of slots) over the last block. RT-safe. */
 export type FxUnitTelemetry = {
@@ -938,6 +1300,16 @@ export type MixerState = {
  */
 export type MusicalKey = string;
 
+/**  What a pad does when held. */
+export type PadFxAssignDto = {
+	/**  Effect, `None` for an empty pad. */
+	effect: EffectKey | null,
+	/**  Beat division in beats. */
+	division: number | null,
+	/**  Release FX pad: press fires the release effect instead of holding it. */
+	release: boolean,
+};
+
 /**  One of the eight pad modes. RT-safe (plain enum). */
 export type PadMode = 
 /**  Pads trigger or set hot cues 1-8 (button 5-1). */
@@ -956,6 +1328,68 @@ export type PadMode =
 "beat_loop" | 
 /**  Pads shift the key by semitones (SHIFT + 5-4). */
 "key_shift";
+
+/**  How a normalized `[0, 1]` value maps to the plain range. */
+export type ParamCurve = 
+/**  `plain = min + n * (max - min)`. */
+{ kind: "linear" } | 
+/**  `plain = min * (max / min)^n`. Requires `min > 0` (frequencies, times). */
+{ kind: "logarithmic" } | 
+/**
+ *  `steps` evenly spaced values from `min` to `max`, `steps >= 2`
+ *  (switches, beat divisions).
+ */
+{ kind: "stepped"; 
+/**  Number of distinct values. */
+steps: number };
+
+/**
+ *  Static description of one parameter. Built on the control thread.
+ * 
+ *  Invariants: `min < max`; `min <= default <= max`; for `Logarithmic`,
+ *  `min > 0`; for `Stepped`, `steps >= 2`. Values crossing the engine
+ *  boundary are normalized `[0, 1]`; [`ParamDescriptor::to_plain`] and
+ *  [`ParamDescriptor::to_normalized`] convert, RT-safe.
+ */
+export type ParamDescriptor = {
+	/**  Stable id. */
+	id: ParamId,
+	/**  Display name. */
+	name: string,
+	/**  Display unit. */
+	unit: ParamUnit,
+	/**  Lowest plain value. */
+	min: number | null,
+	/**  Highest plain value. */
+	max: number | null,
+	/**  Default plain value. */
+	default: number | null,
+	/**  Mapping from normalized to plain. */
+	curve: ParamCurve,
+};
+
+/**
+ *  Parameter identifier, unique within one effect. Stable across versions of
+ *  that effect because presets store it. `u32` to fit CLAP and VST3 ids.
+ */
+export type ParamId = number;
+
+/**  Unit shown next to a parameter value. */
+export type ParamUnit = 
+/**  Plain number. */
+"none" | 
+/**  Percent, 0..100. */
+"percent" | 
+/**  Decibels. */
+"decibels" | 
+/**  Hertz. */
+"hertz" | 
+/**  Milliseconds. */
+"milliseconds" | 
+/**  Beats (beat-synced time). */
+"beats" | 
+/**  Semitones. */
+"semitones";
 
 /**
  *  Raw peak blob (`contracts::peaks` v1). A binary payload on the wire, typed
@@ -1064,6 +1498,14 @@ export type SavedSetEntryDto = {
  *  negative only where documented (beat grid anchors before the first frame).
  */
 export type Seconds = number | null;
+
+/**  A send/return bus. */
+export type SendUnitDto = {
+	/**  `FX_SLOTS_PER_UNIT` slots. */
+	slots: FxSlotDto[],
+	/**  Send tapped after the channel fader (default) or before it. */
+	post_fader: boolean,
+};
 
 /**  Collection sort column. */
 export type SortColumnDto = 
