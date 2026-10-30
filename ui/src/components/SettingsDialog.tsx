@@ -11,11 +11,11 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
+  SettingsLayout,
+  SettingsNav,
+  type SettingsNavItem,
 } from "@opendeck/design-system";
+import { AudioLines, Piano } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   commands,
@@ -35,27 +35,45 @@ import { bufferLatencyMs } from "../lib/format";
 import { errorMessage, report } from "../state/actions";
 import { useAppStore } from "../state/app";
 import { notifyError, notifySuccess } from "../state/notify";
+import { MidiSettings } from "./MidiSettings";
 
 const DEFAULT = "default";
 const OFF = "off";
 
-/** Settings dialog. Audio is the only page in milestone 1. */
+const PAGES: SettingsNavItem[] = [
+  { id: "audio", label: "Audio", icon: <AudioLines aria-hidden /> },
+  { id: "midi", label: "MIDI", icon: <Piano aria-hidden /> },
+];
+
+/** Settings dialog: a page list on the left, the page on the right. */
 export function SettingsDialog() {
   const open = useAppStore((s) => s.settingsOpen);
   const setOpen = useAppStore((s) => s.setSettingsOpen);
+  const page = useAppStore((s) => s.settingsPage);
+  const setPage = useAppStore((s) => s.setSettingsPage);
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
+      <DialogContent className="flex h-[70vh] flex-col gap-0 p-0 sm:max-w-4xl">
+        <DialogHeader className="border-b border-border p-4">
           <DialogTitle>Settings</DialogTitle>
-          <DialogDescription>Changes to audio restart the output.</DialogDescription>
+          <DialogDescription>
+            Changes to audio restart the output. MIDI changes apply at once.
+          </DialogDescription>
         </DialogHeader>
-        <Tabs defaultValue="audio">
-          <TabsList>
-            <TabsTrigger value="audio">Audio</TabsTrigger>
-          </TabsList>
-          <TabsContent value="audio">{open ? <AudioPage onClose={() => setOpen(false)} /> : null}</TabsContent>
-        </Tabs>
+        <div className="min-h-0 flex-1">
+          <SettingsLayout
+            sidebar={
+              <SettingsNav
+                items={PAGES}
+                value={page}
+                onValueChange={(id) => setPage(id === "midi" ? "midi" : "audio")}
+              />
+            }
+          >
+            {open && page === "audio" ? <AudioPage onClose={() => setOpen(false)} /> : null}
+            {open && page === "midi" ? <MidiSettings /> : null}
+          </SettingsLayout>
+        </div>
       </DialogContent>
     </Dialog>
   );

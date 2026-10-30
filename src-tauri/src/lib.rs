@@ -10,12 +10,14 @@ use std::path::Path;
 use std::sync::Mutex;
 
 use opendeck_app_core::{
-    AppCore, AudioController, AudioDeviceInfo, AudioStatus, Backend, CoreError, CoreEvent,
-    DirListing, FxEffectDto, FxOp, FxPresetsDto, FxSlotRef, FxStateDto, FxUnitRef, HotCues,
-    ImportOptionsDto, JobInfo, LaunchOptions, LibraryChange, LibraryEvent, LibraryService,
-    PlaylistEntryDto, PlaylistNodeDto, SavedSetDetailDto, SavedSetDto, SettingsStore,
-    TrackAnalysisDto, TrackDetailDto, TrackInfo, TrackLoadFailed, TrackLoaded, TrackMetaDto,
-    TrackPageDto, TrackQueryDto,
+    AppCore, AudioController, AudioDeviceInfo, AudioStatus, Backend, BrowseContextDto,
+    BrowseCursorDto, CoreError, CoreEvent, DirListing, FxEffectDto, FxOp, FxPresetsDto, FxSlotRef,
+    FxStateDto, FxUnitRef, HotCues, ImportOptionsDto, JobInfo, LaunchOptions, LibraryChange,
+    LibraryEvent, LibraryService, MidiBindingDto, MidiEvent, MidiLearnResultDto, MidiMappingRowDto,
+    MidiMonitorEntryDto, MidiPortDto, MidiService, MidiStatusDto, PadModeChanged, PlaylistEntryDto,
+    PlaylistNodeDto, SavedSetDetailDto, SavedSetDto, SettingsStore, TrackAnalysisDto,
+    TrackDetailDto, TrackInfo, TrackLoadFailed, TrackLoaded, TrackMetaDto, TrackPageDto,
+    TrackQueryDto,
 };
 use opendeck_contracts::analysis::AnalysisFeatures;
 use opendeck_contracts::beatgrid::BeatGrid;
@@ -99,6 +101,7 @@ impl From<CoreError> for CommandError {
 /// Shared application state managed by Tauri.
 pub struct AppState {
     core: Mutex<AppCore>,
+    midi: Mutex<Option<MidiService>>,
 }
 
 impl AppState {
@@ -106,7 +109,23 @@ impl AppState {
     pub fn new(core: AppCore) -> Self {
         Self {
             core: Mutex::new(core),
+            midi: Mutex::new(None),
         }
+    }
+
+    /// Registers the MIDI service the MIDI commands talk to.
+    pub fn set_midi(&self, service: MidiService) {
+        if let Ok(mut slot) = self.midi.lock() {
+            *slot = Some(service);
+        }
+    }
+
+    fn midi(&self) -> Result<MidiService, CommandError> {
+        self.midi
+            .lock()
+            .map_err(|e| CommandError::Internal(e.to_string()))?
+            .clone()
+            .ok_or_else(|| CommandError::Invalid("MIDI is not running".to_owned()))
     }
 
     /// Clone of the core; the lock is not held while a command waits.
@@ -1210,6 +1229,178 @@ async fn fx_delete_chain(
     blocking(move || audio.fx_delete_chain(name)).await
 }
 
+// ----- MIDI (milestone 6) -----
+
+/// MIDI ports the system reports and which ones the mapping would use.
+#[tauri::command]
+#[specta::specta]
+async fn midi_list_ports(
+    state: tauri::State<'_, AppState>,
+) -> Result<Vec<MidiPortDto>, CommandError> {
+    let midi = state.midi()?;
+    blocking(move || midi.list_ports()).await
+}
+
+/// Connection state of the controller.
+#[tauri::command]
+#[specta::specta]
+async fn midi_get_status(state: tauri::State<'_, AppState>) -> Result<MidiStatusDto, CommandError> {
+    let midi = state.midi()?;
+    blocking(move || midi.status()).await
+}
+
+/// Starts the MIDI worker. `device` picks a port by name and is remembered; `None` follows the mapping's device patterns.
+#[tauri::command]
+#[specta::specta]
+async fn midi_connect(
+    state: tauri::State<'_, AppState>,
+    device: Option<String>,
+) -> Result<MidiStatusDto, CommandError> {
+    let midi = state.midi()?;
+    blocking(move || midi.connect(device)).await
+}
+
+/// Stops the MIDI worker and closes the ports.
+#[tauri::command]
+#[specta::specta]
+async fn midi_disconnect(state: tauri::State<'_, AppState>) -> Result<MidiStatusDto, CommandError> {
+    let midi = state.midi()?;
+    blocking(move || midi.disconnect()).await
+}
+
+/// Start the MIDI worker at launch.
+#[tauri::command]
+#[specta::specta]
+async fn midi_set_auto_connect(
+    state: tauri::State<'_, AppState>,
+    on: bool,
+) -> Result<MidiStatusDto, CommandError> {
+    let midi = state.midi()?;
+    blocking(move || midi.set_auto_connect(on)).await
+}
+
+/// Hardware fader start plays and pauses decks.
+#[tauri::command]
+#[specta::specta]
+async fn midi_set_fader_start(
+    state: tauri::State<'_, AppState>,
+    on: bool,
+) -> Result<MidiStatusDto, CommandError> {
+    let midi = state.midi()?;
+    blocking(move || midi.set_fader_start(on)).await
+}
+
+/// Starts or stops the `midi-monitor` stream.
+#[tauri::command]
+#[specta::specta]
+async fn midi_set_monitor(state: tauri::State<'_, AppState>, on: bool) -> Result<(), CommandError> {
+    let midi = state.midi()?;
+    blocking(move || midi.set_monitor(on)).await
+}
+
+/// Arms MIDI learn for a control; the result arrives as `midi-learned`.
+#[tauri::command]
+#[specta::specta]
+async fn midi_learn_start(
+    state: tauri::State<'_, AppState>,
+    control_id: String,
+) -> Result<(), CommandError> {
+    let midi = state.midi()?;
+    blocking(move || midi.learn_start(control_id)).await
+}
+
+/// Disarms MIDI learn.
+#[tauri::command]
+#[specta::specta]
+async fn midi_learn_cancel(state: tauri::State<'_, AppState>) -> Result<(), CommandError> {
+    let midi = state.midi()?;
+    blocking(move || midi.learn_cancel()).await
+}
+
+/// Rows of the mapping table, with the user's bindings applied.
+#[tauri::command]
+#[specta::specta]
+async fn midi_get_mapping(
+    state: tauri::State<'_, AppState>,
+) -> Result<Vec<MidiMappingRowDto>, CommandError> {
+    let midi = state.midi()?;
+    blocking(move || midi.mapping_rows()).await
+}
+
+/// Binds a control to a MIDI input by hand.
+#[tauri::command]
+#[specta::specta]
+async fn midi_set_override(
+    state: tauri::State<'_, AppState>,
+    control_id: String,
+    binding: MidiBindingDto,
+) -> Result<Vec<MidiMappingRowDto>, CommandError> {
+    let midi = state.midi()?;
+    blocking(move || midi.set_override(control_id, binding)).await
+}
+
+/// Restores one control to the shipped binding.
+#[tauri::command]
+#[specta::specta]
+async fn midi_clear_override(
+    state: tauri::State<'_, AppState>,
+    control_id: String,
+) -> Result<Vec<MidiMappingRowDto>, CommandError> {
+    let midi = state.midi()?;
+    blocking(move || midi.clear_override(control_id)).await
+}
+
+/// Restores every control to the shipped bindings.
+#[tauri::command]
+#[specta::specta]
+async fn midi_reset_overrides(
+    state: tauri::State<'_, AppState>,
+) -> Result<Vec<MidiMappingRowDto>, CommandError> {
+    let midi = state.midi()?;
+    blocking(move || midi.reset_overrides()).await
+}
+
+/// Writes the effective mapping (shipped plus overrides) to a JSON file.
+#[tauri::command]
+#[specta::specta]
+async fn midi_export_mapping(
+    state: tauri::State<'_, AppState>,
+    path: String,
+) -> Result<(), CommandError> {
+    let midi = state.midi()?;
+    blocking(move || midi.export_mapping(path)).await
+}
+
+/// Reads a mapping JSON of the same mapping and stores its bindings as overrides.
+#[tauri::command]
+#[specta::specta]
+async fn midi_import_mapping(
+    state: tauri::State<'_, AppState>,
+    path: String,
+) -> Result<Vec<MidiMappingRowDto>, CommandError> {
+    let midi = state.midi()?;
+    blocking(move || midi.import_mapping(path)).await
+}
+
+/// The library pane tells the browse encoder which list is on screen.
+#[tauri::command]
+#[specta::specta]
+async fn browse_set_context(
+    state: tauri::State<'_, AppState>,
+    context: BrowseContextDto,
+) -> Result<(), CommandError> {
+    let midi = state.midi()?;
+    blocking(move || midi.set_browse_context(context)).await
+}
+
+/// The library pane selected a row.
+#[tauri::command]
+#[specta::specta]
+async fn browse_select(state: tauri::State<'_, AppState>, index: u32) -> Result<(), CommandError> {
+    let midi = state.midi()?;
+    blocking(move || midi.browse_select(index)).await
+}
+
 /// Engine snapshot pushed to the UI at ~60 Hz (ADR 0003, ADR 0004).
 #[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
 #[tauri_specta(event_name = "engine-telemetry")]
@@ -1264,6 +1455,41 @@ pub struct CuesChangedEvent(pub TrackId);
 #[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
 #[tauri_specta(event_name = "fx-state-changed")]
 pub struct FxStateChangedEvent(pub FxStateDto);
+
+/// The controller connected, disconnected or its settings changed.
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+#[tauri_specta(event_name = "midi-connection-changed")]
+pub struct MidiConnectionChangedEvent(pub MidiStatusDto);
+
+/// A batch of monitored MIDI messages (at most every 50 ms, monitor on only).
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+#[tauri_specta(event_name = "midi-monitor")]
+pub struct MidiMonitorEvent(pub Vec<MidiMonitorEntryDto>);
+
+/// A MIDI learn gesture finished.
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+#[tauri_specta(event_name = "midi-learned")]
+pub struct MidiLearnedEvent(pub MidiLearnResultDto);
+
+/// The browse encoder moved; the library pane selects the row.
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+#[tauri_specta(event_name = "browse-cursor-moved")]
+pub struct BrowseCursorMovedEvent(pub BrowseCursorDto);
+
+/// A pad mode button on the controller changed a deck's mode.
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+#[tauri_specta(event_name = "pad-mode-changed")]
+pub struct PadModeChangedEvent(pub PadModeChanged);
+
+/// The mixer changed on the controller.
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+#[tauri_specta(event_name = "mixer-state-changed")]
+pub struct MixerStateChangedEvent(pub MixerState);
+
+/// A deck's control state changed on the controller.
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+#[tauri_specta(event_name = "deck-state-changed")]
+pub struct DeckStateChangedEvent(pub DeckState);
 
 /// The tauri-specta builder holding every command and event. Used by the app
 /// and by the bindings exporter, so both always agree.
@@ -1367,6 +1593,23 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             delete_saved_set,
             list_directory,
             reveal_in_explorer,
+            midi_list_ports,
+            midi_get_status,
+            midi_connect,
+            midi_disconnect,
+            midi_set_auto_connect,
+            midi_set_fader_start,
+            midi_set_monitor,
+            midi_learn_start,
+            midi_learn_cancel,
+            midi_get_mapping,
+            midi_set_override,
+            midi_clear_override,
+            midi_reset_overrides,
+            midi_export_mapping,
+            midi_import_mapping,
+            browse_set_context,
+            browse_select,
         ])
         .events(collect_events![
             EngineTelemetryEvent,
@@ -1379,7 +1622,14 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             LibraryChangedEvent,
             AnalysisReadyEvent,
             CuesChangedEvent,
-            FxStateChangedEvent
+            FxStateChangedEvent,
+            MidiConnectionChangedEvent,
+            MidiMonitorEvent,
+            MidiLearnedEvent,
+            BrowseCursorMovedEvent,
+            PadModeChangedEvent,
+            MixerStateChangedEvent,
+            DeckStateChangedEvent
         ])
         // IDs (SQLite rowids) and frame counts are u64/i64 but stay far below
         // 2^53, so they are exported as `number` (ADR 0004).
@@ -1423,6 +1673,24 @@ fn forward_library_events(
             LibraryEvent::LibraryChanged(c) => LibraryChangedEvent(c).emit(&app),
             LibraryEvent::AnalysisReady(t) => AnalysisReadyEvent(t).emit(&app),
             LibraryEvent::CuesChanged(t) => CuesChangedEvent(t).emit(&app),
+        };
+        if let Err(err) = result {
+            eprintln!("could not emit event: {err}");
+        }
+    }
+}
+
+/// Forwards MIDI service events to the webview until the service stops.
+fn forward_midi_events(app: tauri::AppHandle, events: crossbeam_channel::Receiver<MidiEvent>) {
+    for event in events {
+        let result = match event {
+            MidiEvent::Status(s) => MidiConnectionChangedEvent(s).emit(&app),
+            MidiEvent::Monitor(batch) => MidiMonitorEvent(batch).emit(&app),
+            MidiEvent::Learn(r) => MidiLearnedEvent(r).emit(&app),
+            MidiEvent::Browse(c) => BrowseCursorMovedEvent(c).emit(&app),
+            MidiEvent::PadMode(p) => PadModeChangedEvent(p).emit(&app),
+            MidiEvent::Mixer(m) => MixerStateChangedEvent(*m).emit(&app),
+            MidiEvent::Deck(d) => DeckStateChangedEvent(*d).emit(&app),
         };
         if let Err(err) = result {
             eprintln!("could not emit event: {err}");
@@ -1488,7 +1756,22 @@ pub fn run() {
             std::thread::Builder::new()
                 .name("opendeck-library-events".into())
                 .spawn(move || forward_library_events(handle, library_events))?;
-            app.manage(AppState::new(core));
+            let state = AppState::new(core.clone());
+            match core
+                .start_midi()
+                .and_then(|midi| Ok((midi.subscribe()?, midi)))
+            {
+                Ok((events, midi)) => {
+                    let handle = app.handle().clone();
+                    std::thread::Builder::new()
+                        .name("opendeck-midi-events".into())
+                        .spawn(move || forward_midi_events(handle, events))?;
+                    state.set_midi(midi);
+                }
+                // The decks work without MIDI; the settings page shows the state.
+                Err(err) => eprintln!("MIDI is unavailable: {err}"),
+            }
+            app.manage(state);
             Ok(())
         })
         .run(tauri::generate_context!())
@@ -2022,5 +2305,61 @@ mod tests {
             tauri::async_runtime::block_on(list_directory(Some("/nonexistent/opendeck".into())))
                 .is_err()
         );
+    }
+
+    #[test]
+    fn midi_commands_fail_cleanly_without_a_service() {
+        let app = mock_app(AppCore::new());
+        assert!(matches!(
+            tauri::async_runtime::block_on(midi_get_status(app.state())),
+            Err(CommandError::Invalid(_))
+        ));
+        assert!(matches!(
+            tauri::async_runtime::block_on(midi_get_mapping(app.state())),
+            Err(CommandError::Invalid(_))
+        ));
+    }
+
+    #[test]
+    fn midi_commands_report_mapping_and_state_on_a_running_service() {
+        let app = offline_app();
+        let core = app.state::<AppState>().snapshot().expect("core");
+        app.state::<AppState>()
+            .set_midi(core.start_midi().expect("MIDI service"));
+
+        let status = tauri::async_runtime::block_on(midi_get_status(app.state())).expect("status");
+        assert_eq!(status.mapping_id, "pioneer-ddj-flx4");
+        assert!(status.auto_connect && status.verify_count > 0);
+
+        let rows = tauri::async_runtime::block_on(midi_get_mapping(app.state())).expect("rows");
+        assert!(rows.iter().any(|r| r.id == "deck1.play" && !r.overridden));
+
+        // Binding a control to an input another control uses is refused.
+        let clash = tauri::async_runtime::block_on(midi_set_override(
+            app.state(),
+            "deck1.play".into(),
+            MidiBindingDto::Note {
+                channel: 1,
+                number: 12,
+            },
+        ));
+        assert!(matches!(clash, Err(CommandError::Invalid(_))));
+
+        let rows = tauri::async_runtime::block_on(midi_set_override(
+            app.state(),
+            "deck1.play".into(),
+            MidiBindingDto::Note {
+                channel: 1,
+                number: 20,
+            },
+        ))
+        .expect("override");
+        assert!(rows.iter().any(|r| r.id == "deck1.play" && r.overridden));
+        let rows =
+            tauri::async_runtime::block_on(midi_reset_overrides(app.state())).expect("reset");
+        assert!(rows.iter().all(|r| !r.overridden));
+
+        let status = tauri::async_runtime::block_on(midi_disconnect(app.state())).expect("stop");
+        assert!(!status.enabled);
     }
 }

@@ -36,6 +36,10 @@ use crate::types::{
 /// Control tick: telemetry is forwarded at this period (~60 Hz).
 pub const TICK: Duration = Duration::from_millis(16);
 
+/// How far from the playhead a memory cue may be and still be deleted by
+/// `delete_memory_cue`, in seconds.
+const MEMORY_CUE_DELETE_REACH: f64 = 1.0;
+
 /// Capacity of each subscriber queue. A stalled subscriber loses events
 /// rather than growing memory.
 const SUBSCRIBER_QUEUE: usize = 1024;
@@ -126,6 +130,10 @@ pub(crate) enum Msg {
     CallMemoryCue {
         deck: DeckId,
         direction: i8,
+    },
+    /// Deletes the memory cue nearest to the playhead (within a second).
+    DeleteMemoryCue {
+        deck: DeckId,
     },
     GetHotCues(DeckId, Sender<HotCues>),
     GetMixer(Sender<MixerState>),
@@ -423,6 +431,7 @@ impl Control {
                 let _ = reply.send(self.add_memory_cue(deck));
             }
             Msg::CallMemoryCue { deck, direction } => self.call_memory_cue(deck, direction),
+            Msg::DeleteMemoryCue { deck } => self.delete_memory_cue(deck),
             Msg::GetHotCues(deck, reply) => {
                 let _ = reply.send(self.hot_cue_snapshot(deck));
             }
@@ -671,6 +680,44 @@ impl Control {
             self.cues_changed(deck);
         }
         Ok(cue)
+    }
+
+    /// Removes the memory cue closest to the playhead, if one is within
+    /// [`MEMORY_CUE_DELETE_REACH`] seconds, from memory and from the library.
+    fn delete_memory_cue(&mut self, deck: DeckId) {
+        let Ok(now) = self.playhead(deck) else {
+            return;
+        };
+        let cues = &self.memory_cues[deck.index()];
+        let Some((at, start)) = cues
+            .iter()
+            .copied()
+            .enumerate()
+            .map(|(i, c)| (i, c, (c.0 - now.0).abs()))
+            .filter(|(_, _, d)| *d <= MEMORY_CUE_DELETE_REACH)
+            .min_by(|a, b| a.2.total_cmp(&b.2))
+            .map(|(i, c, _)| (i, c))
+        else {
+            return;
+        };
+        self.memory_cues[deck.index()].remove(at);
+        if let Some((lib, track)) = self.cue_target(deck) {
+            match lib.cues(track) {
+                Ok(stored) => {
+                    for cue in stored {
+                        if cue.kind == CueKind::Memory
+                            && (cue.start.0 - start.0).abs() < 1e-6
+                            && let Some(id) = cue.id
+                            && let Err(err) = lib.delete_cue(id)
+                        {
+                            tracing::warn!(%err, "could not delete memory cue");
+                        }
+                    }
+                }
+                Err(err) => tracing::warn!(%err, "could not read cues"),
+            }
+        }
+        self.cues_changed(deck);
     }
 
     fn call_memory_cue(&mut self, deck: DeckId, direction: i8) {

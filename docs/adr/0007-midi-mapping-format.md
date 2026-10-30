@@ -104,3 +104,16 @@ Five additive `ControlAction` variants for FLX4 controls that had no action: `Me
 - **Fader start**: note 0x66 reports `ChannelFaderStart` `Button(true)` (leaves the bottom), note 0x52 reports `Button(false)` (reaches the bottom). The crossfader start rows use the same bytes (Q08).
 - **Beat FX**: `FxUnit::Deck(n)` means "the section as seen on MIDI channel 5 + n"; see `docs/midi-open-questions.md` for the CH SELECT flags and how app-core resolves the target unit.
 - **LED values**: lights send 0x7F on and 0x00 off. `Blink` on PLAY is a software timer (500 ms). The channel meter is linear 0-127 over the level app-core publishes. `FxOn` sends 0x7F for on, which the device shows as a blink (note *4, Q10).
+
+## Addendum: M6 wave 6b, app-core bridge and UI (2026-10-30)
+
+Status: accepted.
+
+- `MidiBridge` (app-core) translates `ControlEvent`s into app actions and derives LED states; `MidiService` runs it on one thread next to the controller worker. The replay tests drive the bridge with the midi crate's `Pipeline` and a headless `AppCore`, so the FLX4 fixtures also exercise app-core.
+- **Beat FX section**: CH SELECT only records the two flags. Section controls (on, release, level, select, beat, BPM) apply to the Beat FX unit(s) that own the selected channel(s) in the FX model, so the model's own assignment is never rewritten by the hardware. Level/depth is the wet amount of the unit's slots in use. FX ON/OFF is lit (blinking) when the unit owning that channel is on.
+- **Soft takeover** (tempo fader): the hardware value is ignored until it is within 0.02 of the software position or crosses it; a deck load, a range change, tap tempo or a UI move of the fader starts the wait again.
+- **CFX knob**: the FLX4 knob (`filter` action) sets the channel's Sound Color FX amount, not the mixer filter. SMART CFX stays unmapped.
+- **Placeholders** (project choices, `TODO(verify)`): beat jump distances and beat loop lengths per pad (`midi_bridge.rs`), SHIFT + jog search at 32 beats per revolution (Q02), LED meter curve 36 dB below full scale (Q04). Sampler, keyboard and key shift pads, and MASTER CUE, have no application action yet and are dropped.
+- **Fader start** is off by default (setting). **Overrides** are stored as JSON in the library settings (`midi.settings`), not in the `midi_mapping_overrides` table, which has no API in the library crate. A learned input that another control already uses is refused.
+- Controller-side changes the UI cannot see otherwise are pushed as `mixer-state-changed` and `deck-state-changed` (mixer and deck state are re-read at 4 Hz and after button presses).
+
