@@ -14,6 +14,9 @@
 //! and none touches the audio thread.
 
 mod control;
+mod dto;
+mod fs_browser;
+mod library_service;
 mod loader;
 mod settings_store;
 mod types;
@@ -35,11 +38,21 @@ use opendeck_engine::device;
 
 use crate::control::Msg;
 pub use crate::control::{Backend, LaunchOptions, TICK};
+pub use crate::dto::{
+    AnalysisStatusDto, DirListing, FsEntry, FsEntryKind, ImportOptionsDto, JobInfo, LibraryChange,
+    PlaylistEntryDto, PlaylistKindDto, PlaylistNodeDto, SavedSetDetailDto, SavedSetDto,
+    SavedSetEntryDto, SortColumnDto, TrackAnalysisDto, TrackDetailDto, TrackMetaDto, TrackPageDto,
+    TrackQueryDto, TrackRowDto,
+};
+pub use crate::fs_browser::list_directory;
+pub use crate::library_service::{LibraryEvent, LibraryService, PROGRESS_INTERVAL};
 pub use crate::settings_store::{SETTINGS_FILE, SettingsStore, StoredSettings};
 pub use crate::types::{
     AudioDeviceInfo, AudioStatus, CoreError, CoreEvent, HotCues, OfflineAudio, TrackInfo,
     TrackLoadFailed, TrackLoaded,
 };
+pub use opendeck_library::DATABASE_FILE_NAME;
+pub use opendeck_library::import::ImportConfig;
 
 /// How long a call waits for the control thread before giving up.
 const REPLY_TIMEOUT: Duration = Duration::from_secs(10);
@@ -440,16 +453,49 @@ impl AudioController {
         path: &Path,
         grid: Option<BeatGrid>,
     ) -> Result<TrackInfo, CoreError> {
+        self.load_prepared(deck, path, None, grid)
+    }
+
+    /// Like [`load_track_with_grid`](Self::load_track_with_grid) for a track
+    /// whose details are already known (the library): `info` is what the deck
+    /// shows, and its `id` ties cue edits to the track. A zero duration is
+    /// filled from the file's tags.
+    pub fn load_track_with_info(
+        &self,
+        deck: DeckId,
+        path: &Path,
+        info: TrackInfo,
+        grid: Option<BeatGrid>,
+    ) -> Result<TrackInfo, CoreError> {
+        self.load_prepared(deck, path, Some(info), grid)
+    }
+
+    fn load_prepared(
+        &self,
+        deck: DeckId,
+        path: &Path,
+        known: Option<TrackInfo>,
+        grid: Option<BeatGrid>,
+    ) -> Result<TrackInfo, CoreError> {
         if let Err(source) = std::fs::metadata(path) {
             return Err(CoreError::Media(format!(
                 "cannot read {}: {source}",
                 path.display()
             )));
         }
-        let info = match opendeck_media::read_tags(path) {
+        let from_tags = || match opendeck_media::read_tags(path) {
             Ok(tags) => TrackInfo::from_tags(path, &tags),
             // Unreadable tags do not stop a file that still decodes.
             Err(_) => TrackInfo::bare(path),
+        };
+        let info = match known {
+            Some(mut info) => {
+                if info.duration_secs <= 0.0 {
+                    info.duration_secs = from_tags().duration_secs;
+                }
+                info
+            }
+            None => from_tags(),
         };
         if info.duration_secs > self.max_track_secs {
             return Err(CoreError::TooLong {
@@ -505,6 +551,7 @@ impl AudioController {
 pub struct AppCore {
     pad_modes: [PadMode; MAX_DECKS],
     audio: Option<AudioController>,
+    library: Option<LibraryService>,
 }
 
 impl Default for AppCore {
@@ -519,6 +566,7 @@ impl AppCore {
         Self {
             pad_modes: [PadMode::HotCue; MAX_DECKS],
             audio: None,
+            library: None,
         }
     }
 
@@ -528,6 +576,48 @@ impl AppCore {
             audio: Some(AudioController::launch(opts)?),
             ..Self::new()
         })
+    }
+
+    /// Like [`launch`](Self::launch), with the library: cues persist in it,
+    /// played tracks go to the session's saved set, and `load_track` takes
+    /// library ids. `opts.library` is set from `library`.
+    pub fn launch_with_library(
+        mut opts: LaunchOptions,
+        library: LibraryService,
+    ) -> std::io::Result<Self> {
+        opts.library = Some(library.library());
+        let audio = AudioController::launch(opts)?;
+        library.attach_audio(audio.clone());
+        Ok(Self {
+            audio: Some(audio),
+            library: Some(library),
+            ..Self::new()
+        })
+    }
+
+    /// The library, if the core was launched with one.
+    pub fn library(&self) -> Result<LibraryService, CoreError> {
+        self.library
+            .clone()
+            .ok_or_else(|| CoreError::Library("the library is not open".to_owned()))
+    }
+
+    /// Loads a file into `deck`. With a library the file is imported first
+    /// (see [`LibraryService::load_track_path`]); without one it loads straight
+    /// from the path.
+    pub fn load_track_path(&self, deck: DeckId, path: &Path) -> Result<TrackInfo, CoreError> {
+        match &self.library {
+            Some(library) => library.load_track_path(deck, path),
+            None => self.audio()?.load_track(deck, path),
+        }
+    }
+
+    /// Unloads `deck` and forgets which library track it held.
+    pub fn eject(&self, deck: DeckId) -> Result<(), CoreError> {
+        if let Some(library) = &self.library {
+            library.forget_deck(deck);
+        }
+        self.audio()?.eject(deck)
     }
 
     /// The audio controller, if the core was launched with one.

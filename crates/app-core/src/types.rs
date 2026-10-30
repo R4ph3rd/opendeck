@@ -3,6 +3,7 @@
 use std::path::Path;
 
 use opendeck_contracts::cue::Cue;
+use opendeck_contracts::ids::TrackId;
 use opendeck_contracts::settings::ChannelPair;
 use opendeck_contracts::{DeckId, EngineEvent, EngineTelemetry, Frames};
 use opendeck_media::TrackTags;
@@ -24,6 +25,14 @@ pub struct TrackInfo {
     pub album: Option<String>,
     /// Length in seconds (from the decoded audio once loaded).
     pub duration_secs: f64,
+    /// Library track, `None` for a file loaded straight from a path.
+    pub id: Option<TrackId>,
+    /// Analysed BPM, when the track is in the library and analysed.
+    pub bpm: Option<f64>,
+    /// Analysed key, Camelot notation (`8A`).
+    pub key: Option<String>,
+    /// Analysed key, musical notation (`Am`).
+    pub key_musical: Option<String>,
 }
 
 impl TrackInfo {
@@ -39,6 +48,10 @@ impl TrackInfo {
             artist: None,
             album: None,
             duration_secs: 0.0,
+            id: None,
+            bpm: None,
+            key: None,
+            key_musical: None,
         }
     }
 
@@ -125,7 +138,7 @@ pub struct AudioStatus {
     pub error: Option<String>,
 }
 
-/// The eight hot cue slots of a deck. Held in memory until persistence lands (M3).
+/// The eight hot cue slots of a deck.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct HotCues {
@@ -158,6 +171,8 @@ pub enum CoreEvent {
     TrackLoadFailed(TrackLoadFailed),
     /// A deck's hot cue slots changed.
     HotCues(HotCues),
+    /// The stored cues of a library track changed (set, deleted).
+    CuesChanged(TrackId),
     /// The stream was (re)started or stopped.
     AudioStatus(AudioStatus),
 }
@@ -191,7 +206,10 @@ pub enum CoreError {
     /// Reading or writing the settings file failed.
     #[error("settings: {0}")]
     Settings(String),
-    /// An argument is out of range or not a finite number.
+    /// An argument is out of range or not a finite number, or a row does not exist.
     #[error("invalid argument: {0}")]
     Invalid(String),
+    /// The library database failed.
+    #[error("library: {0}")]
+    Library(String),
 }

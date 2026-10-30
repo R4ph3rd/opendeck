@@ -44,16 +44,18 @@ Done: two decks with jog scratch and nudge, tempo and beat sync with leader elec
 | M8 engine | No auto-reopen after device loss; the user reselects the device |
 | M8 app-core | Freed track buffers are dropped on the control thread, not the loader thread as ADR 0003 says |
 | M8 app-core | Playhead is not restored after an engine restart |
-| M3 app-core | `load_track` takes a path until `TrackId` lands |
-| M3 app-core | Hot cues and memory cues live in memory only; persistence lands with the library |
-| M3 app-core | No beat grids until analysis, so sync, auto loop, roll and beat jump do nothing on real tracks; no Tauri command for `set_beat_grid` yet |
+| M3 app-core | Memory cues have no delete or update command, and cue names and colours have no edit command (M4) |
+| M3 app-core | `nudge_beat_grid` is not implemented; `set_beat_grid` stores a locked grid but no UI edits it yet |
+| M3 app-core | The collection comment column costs one `get_track` per row of a page, because the library row type has no comment |
+| M3 ui | Collection, sidebar and import panel are covered by jsdom tests only; not checked in a real Tauri window |
+| M3 ui | OS file drops are off (`dragDropEnabled: false`, needed for in-app drag and drop on Windows); files come in through the Files tab or the Import menu |
+| M3 ui | Ctrl+A on a very large collection fetches every page before selecting |
+| M3 ui | No tag editor in the UI; `update_track_meta` exists |
 | M4 ui | No jog wheel and no manual BPM entry in the UI |
 | M4 ui | Two-deck layout not visually checked on a real screen |
 | M6 engine | Jog nudge sensitivity, `MAX_PITCH_BEND` and the linear channel fader law are product guesses, `TODO(verify)` |
 | M8 engine | A quantized hot cue waits for the next beat; confirm against user tests |
 | M8 engine | Heap-count test (`tests_heap`) runs on Linux only |
-| M3 library | `playlist_tracks` reorder hits `UNIQUE(playlist_id, position)` on bulk shift |
-| M3 library | Folder-guard trigger only fires on INSERT |
 | M6 midi | `on_connect` raw messages are capped at 3 bytes, so no SysEx |
 | M6 midi | Feedback entries lack `when` for shift-layer LEDs |
 | M6 midi | Drift test only checks schema to contracts |

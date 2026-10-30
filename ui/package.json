@@ -16,6 +16,8 @@
   },
   "dependencies": {
     "@opendeck/design-system": "workspace:*",
+    "@tanstack/react-table": "8.21.3",
+    "@tanstack/react-virtual": "3.14.24",
     "@tauri-apps/api": "2.12.4",
     "@tauri-apps/plugin-dialog": "2.8.4",
     "lucide-react": "1.64.0",

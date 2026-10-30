@@ -26,7 +26,7 @@ React app shell: layout (2 decks shown, 4-deck ready), deck headers and transpor
 ## Acceptance per milestone
 - M0: Vite + React shell calling `app_info`; typecheck, lint, test green. **Done in wave 0a.**
 - M1: deck and mixer panels wired to commands; settings audio page.
-- M2: collection view (virtualized, 50k rows smooth), playlists tree with drag and drop, import progress UI.
+- M2: collection view (virtualized, 50k rows smooth), playlists tree with drag and drop, import progress UI. **Done in M3 (wave 3b)**, with the Files tab, saved sets and key notation toggle; see `docs/STATUS.md` for gaps.
 - M4: middle panel per pad mode (8 modes), hot cue colours and names editing.
 - M6: MIDI settings, monitor and learn.
 - M8: layout presets and shortcut editor.

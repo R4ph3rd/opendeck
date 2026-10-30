@@ -55,17 +55,17 @@ describe("DeckPanel", () => {
 
   it("opens the picker and loads the chosen file", async () => {
     vi.mocked(open).mockResolvedValue("/music/tone.wav");
-    commands.loadTrack.mockResolvedValue({ status: "ok", data: track } as never);
+    commands.loadTrackPath.mockResolvedValue({ status: "ok", data: track } as never);
     render(<DeckPanel deck={0} />);
     fireEvent.click(screen.getByRole("button", { name: "Open file" }));
-    await waitFor(() => expect(commands.loadTrack).toHaveBeenCalledWith(0, "/music/tone.wav"));
+    await waitFor(() => expect(commands.loadTrackPath).toHaveBeenCalledWith(0, "/music/tone.wav"));
     expect(commands.supportedAudioExtensions).toHaveBeenCalled();
     await waitFor(() => expect(screen.getByTestId("title-0").textContent).toBe("Night Drive"));
   });
 
   it("shows an error toast when the load command fails", async () => {
     vi.mocked(open).mockResolvedValue("/music/bad.wav");
-    commands.loadTrack.mockResolvedValue({
+    commands.loadTrackPath.mockResolvedValue({
       status: "error",
       error: { kind: "media", message: "unsupported format" },
     } as never);
