@@ -52,3 +52,39 @@ Built-in effects and their parameters are specified in `docs/fx-catalog.md` (dsp
 - External plugins and built-ins look identical to the engine.
 - Plugin crashes are not isolated in-process; out-of-process hosting can be added behind the same `EffectFactory` later.
 - Effects cannot implement their own dry path; an effect that needs dry signal internally (e.g. freeze) receives it in its input and outputs its wet signal.
+
+## Addendum: engine FX host (M5, 2026-10-30)
+
+`crates/engine/src/fx.rs` (module docs hold the details). Status: accepted.
+
+### Topology and insert points
+
+- `MAX_DECKS` deck units, one master unit, `FX_SEND_BUSES` (2) send units, each a serial chain of `FX_SLOTS_PER_UNIT` slots.
+- Deck insert: after trim, EQ and filter, before the PFL tap and the channel fader. The cue hears the effect; the fader also fades a tail.
+- Sends: tapped per bus pre-fader (after the insert chain) or post-fader (after channel fader and crossfader side, the default). Returns sum into the master bus before the master unit, so the master chain also processes them.
+- A send unit with no slot enabled returns silence, not its input.
+
+### Controller units ("1&2")
+
+A hardware Beat FX unit assigned to one channel is that deck's chain. "1&2" is two mirrored instances, one per deck chain: the app sends every `SetFx*` to both and points both at the same tempo source, so they run in lockstep. One instance on the summed channels is not offered (no summing unit in the contracts; per-channel instances keep each channel's fader, EQ and cue).
+
+### Tempo sources
+
+Per unit: `Auto` (deck units: own deck; master and send units: the sync leader, else the first playing deck with a grid), `Deck(id)` (forced deck), `Tap(bpm)` (private beat counter from 0, play flag from the usual source).
+
+### Timed engage and release FX
+
+- Timed enable/disable at an engine frame (`EngineTelemetry::engine_time` clock), sample accurate inside the block, optional 1 ms ramp for pad FX. The effect is reset on the engage frame. Up to 16 events wait; more act at once; past times act on the next block's first frame.
+- Release FX: at one frame, bypass the main slot (10 ms) and engage a release slot (1 ms) for a hold time, then disable it so a tail effect rings out.
+
+### Tail handling
+
+Bypass is a 10 ms crossfade. A `has_tail` effect gets a faded-out input and keeps running until its output stays under -90 dBFS for 4096 frames, or `MAX_TAIL_FRAMES` (480 000) pass.
+
+### Latency compensation
+
+Per slot: the dry path runs through a delay line of the effect's `latency_frames`, read once at install and capped at `MAX_LATENCY_FRAMES` (16 384). It stays in the path while bypassed, so toggling never shifts timing. Limit: compensation is inside the slot only. A deck with a lookahead effect is late against the other decks by that latency; there is no cross-deck alignment.
+
+### Control surface
+
+Effects, timed engage, release FX, tempo source and send tap are `EngineHandle` methods (`install_effect`, `clear_effect`, `schedule_fx_enabled`, `release_fx`, `set_fx_tempo_source`, `set_fx_send_tap`) that app-core calls directly. They are not `EngineCommand` variants: effects are boxes on a dedicated hand-off ring and the rest are engine-internal types. Enable, parameters, mix, beat division and send levels stay `EngineCommand`s. `EngineTelemetry` reports per unit `{enabled, active, level}` in `fx_decks`, `fx_master` and `fx_sends`.
