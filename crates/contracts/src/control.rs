@@ -180,6 +180,16 @@ pub enum ControlAction {
         /// Deck.
         deck: DeckId,
     },
+    /// Delete the memory cue or loop at the playhead (SHIFT + CUE/LOOP CALL left on the FLX4). Button.
+    MemoryCueDelete {
+        /// Deck.
+        deck: DeckId,
+    },
+    /// Tap the tempo of the deck while pressing (SHIFT + headphone CUE on the FLX4). Button.
+    TapTempo {
+        /// Deck.
+        deck: DeckId,
+    },
     /// Toggle slip mode. Button.
     Slip {
         /// Deck.
@@ -292,7 +302,26 @@ pub enum ControlAction {
         /// +1 or -1.
         direction: i8,
     },
-    /// Route the beat effect unit to `target` (FX CH SELECT). Button.
+    /// Release FX: switch the effect off and play its release tail
+    /// (SHIFT + FX ON/OFF on the FLX4). Button, press and release both matter.
+    FxRelease {
+        /// Unit.
+        unit: FxUnit,
+    },
+    /// Beat FX tempo source: follow the track BPM (SHIFT + BEAT left on the FLX4). Button.
+    FxBpmAuto {
+        /// Unit.
+        unit: FxUnit,
+    },
+    /// Beat FX tempo source: tapped BPM; each press is a tap
+    /// (SHIFT + BEAT right on the FLX4). Button.
+    FxBpmTap {
+        /// Unit.
+        unit: FxUnit,
+    },
+    /// Route the beat effect unit to `target` (FX CH SELECT). Button:
+    /// `true` sets the route to `target`, `false` clears it. Controllers whose
+    /// channel switch reports one flag per channel send one control per flag.
     FxAssign {
         /// Unit being routed.
         unit: FxUnit,

@@ -133,11 +133,11 @@
             "tempo_fader", "tempo_range_next", "key_lock", "pitch_bend",
             "jog_touch", "jog_top", "jog_side", "jog_search", "vinyl_mode",
             "loop_in", "loop_out", "loop_toggle", "auto_loop", "loop_halve", "loop_double",
-            "beat_jump", "cue_loop_call_prev", "cue_loop_call_next", "memory_cue_add",
+            "beat_jump", "cue_loop_call_prev", "cue_loop_call_next", "memory_cue_add", "memory_cue_delete", "tap_tempo",
             "slip", "quantize", "pad_mode_select", "pad", "hot_cue", "hot_cue_delete",
             "trim", "eq", "filter", "channel_fader", "channel_fader_start", "pfl",
             "crossfader", "master_level", "master_cue", "headphone_level", "headphone_mix",
-            "fx_toggle", "fx_level", "fx_select", "fx_beat", "fx_assign",
+            "fx_toggle", "fx_level", "fx_select", "fx_beat", "fx_assign", "fx_release", "fx_bpm_auto", "fx_bpm_tap",
             "sampler", "browse_scroll", "browse_press", "browse_back"
           ]
         }
