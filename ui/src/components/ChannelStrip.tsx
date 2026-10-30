@@ -58,6 +58,7 @@ export function ChannelStrip({ deck }: ChannelStripProps) {
         value={channel.trim}
         defaultValue={TRIM_DEFAULT}
         format={formatTrim}
+        bipolar
         onChange={(v) => setTrim(deck, v)}
       />
       {EQ_ORDER.map((band) => (
@@ -68,6 +69,7 @@ export function ChannelStrip({ deck }: ChannelStripProps) {
           value={channel.eq[EQ_BANDS.indexOf(band)] ?? EQ_DEFAULT}
           defaultValue={EQ_DEFAULT}
           format={formatEq}
+          bipolar
           onChange={(v) => setEq(deck, band, v)}
         />
       ))}
@@ -79,6 +81,7 @@ export function ChannelStrip({ deck }: ChannelStripProps) {
         min={-1}
         max={1}
         format={formatFilter}
+        bipolar
         onChange={(v) => setFilter(deck, v)}
       />
       <Toggle

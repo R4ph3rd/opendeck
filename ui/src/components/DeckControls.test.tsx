@@ -277,7 +277,7 @@ describe("hot cues", () => {
     act(() => useAppStore.getState().patchDeck(1, { hotCues: [null, cue(1), ...Array(6).fill(null)] }));
     const pad = screen.getByRole("button", { name: "Hot cue 2" });
     expect(pad.getAttribute("aria-pressed")).toBe("true");
-    expect(pad.className).toContain("bg-cue-2");
+    expect(pad.getAttribute("style")).toContain("--cue-2");
     fireEvent.pointerDown(pad, { pointerId: 1 });
     fireEvent.pointerDown(pad, { pointerId: 1 });
     fireEvent.pointerUp(pad, { pointerId: 1 });

@@ -15,6 +15,7 @@ import { DECK_BORDER } from "../lib/deck";
 import { loadDroppedFile, loadTrackById } from "../state/libraryActions";
 import { selectDeckUi, useAppStore } from "../state/app";
 import { telemetryStore } from "../state/telemetry";
+import { DeckJog } from "../viz/DeckJog";
 import { BeatJumpControls } from "./BeatJumpControls";
 import { BpmReadout } from "./BpmReadout";
 import { HotCuePads } from "./HotCuePads";
@@ -147,44 +148,49 @@ export function DeckPanel({ deck }: DeckPanelProps) {
             />
           )}
           {hasTrack ? <ProgressBar deck={deck} label={`${name} position`} /> : null}
-          <div className="flex gap-2">
-            <Button
-              variant="primary"
-              size="lg"
-              className="w-24"
-              disabled={!ready}
-              onClick={(event) => {
-                togglePlay(deck);
-                // A mouse click (detail > 0) hands Space back to the global shortcut.
-                if (event.detail > 0) event.currentTarget.blur();
-              }}
-            >
-              {playing ? (
-                <Pause className="size-4" aria-hidden />
-              ) : (
-                <Play className="size-4" aria-hidden />
-              )}
-              {playing ? "PAUSE" : "PLAY"}
-            </Button>
-            <Button
-              size="lg"
-              className="w-24"
-              disabled={!ready}
-              aria-label="Cue"
-              onPointerDown={onCueDown}
-              onPointerUp={onCueUp}
-              onPointerCancel={() => cueRelease(deck)}
-              onLostPointerCapture={() => cueRelease(deck)}
-              onKeyDown={onCueKey}
-              onKeyUp={() => cueRelease(deck)}
-            >
-              CUE
-            </Button>
+          <div className="flex items-start gap-3">
+            <div className="flex min-w-0 flex-1 flex-col gap-3">
+              <div className="flex gap-2">
+                <Button
+                  variant="primary"
+                  size="lg"
+                  className="w-24"
+                  disabled={!ready}
+                  onClick={(event) => {
+                    togglePlay(deck);
+                    // A mouse click (detail > 0) hands Space back to the global shortcut.
+                    if (event.detail > 0) event.currentTarget.blur();
+                  }}
+                >
+                  {playing ? (
+                    <Pause className="size-4" aria-hidden />
+                  ) : (
+                    <Play className="size-4" aria-hidden />
+                  )}
+                  {playing ? "PAUSE" : "PLAY"}
+                </Button>
+                <Button
+                  size="lg"
+                  className="w-24"
+                  disabled={!ready}
+                  aria-label="Cue"
+                  onPointerDown={onCueDown}
+                  onPointerUp={onCueUp}
+                  onPointerCancel={() => cueRelease(deck)}
+                  onLostPointerCapture={() => cueRelease(deck)}
+                  onKeyDown={onCueKey}
+                  onKeyUp={() => cueRelease(deck)}
+                >
+                  CUE
+                </Button>
+              </div>
+              <SyncControls deck={deck} disabled={!ready} />
+              <LoopControls deck={deck} disabled={!ready} />
+              <BeatJumpControls deck={deck} disabled={!ready} />
+              <HotCuePads deck={deck} disabled={!ready} />
+            </div>
+            <DeckJog deck={deck} disabled={!ready} />
           </div>
-          <SyncControls deck={deck} disabled={!ready} />
-          <LoopControls deck={deck} disabled={!ready} />
-          <BeatJumpControls deck={deck} disabled={!ready} />
-          <HotCuePads deck={deck} disabled={!ready} />
         </div>
         <TempoControls deck={deck} disabled={!ready} />
       </PanelBody>
