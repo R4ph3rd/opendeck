@@ -47,6 +47,10 @@ export const track: TrackInfo = {
   artist: "Test Artist",
   album: null,
   duration_secs: 200,
+  id: 7,
+  bpm: 126,
+  key: "8A",
+  key_musical: "Am",
 };
 
 export const runningAudio: AudioStatus = {

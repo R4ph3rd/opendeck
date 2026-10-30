@@ -1,7 +1,9 @@
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import { commands, events, type EngineEvent } from "../ipc/bindings";
-import { errorMessage, hydrateDeck } from "./actions";
+import { errorMessage, hydrateDeck, report } from "./actions";
 import { VISIBLE_DECKS, useAppStore } from "./app";
+import { useLibraryStore } from "./library";
+import { hydrateJobs, onImportProgress, refreshPlaylists } from "./libraryActions";
 import { hydrateMixer } from "./mixer";
 import { notifyError } from "./notify";
 import { telemetryStore } from "./telemetry";
@@ -51,13 +53,24 @@ export async function startEventBridge(): Promise<() => void> {
         useAppStore.getState().patchDeck(e.payload.deck, { hotCues: e.payload.slots });
       }),
       await events.audioDeviceChanged.listen((e) => useAppStore.getState().setAudio(e.payload)),
+      await events.importProgress.listen((e) => onImportProgress(e.payload)),
+      await events.libraryChanged.listen(() => {
+        useLibraryStore.getState().bumpRevision();
+        // Imports can create playlists; keep the tree and its counts current.
+        void refreshPlaylists();
+      }),
+      await events.analysisReady.listen((e) => void refreshDeckAnalysis(e.payload)),
     );
     // Subscribe first, then read: a change between the two is not lost.
     const status = await commands.getAudioStatus();
     if (status.status === "ok") {
       useAppStore.getState().setAudio(status.data);
     }
-    await Promise.all([hydrateMixer(), ...VISIBLE_DECKS.map((deck) => hydrateDeck(deck))]);
+    await Promise.all([
+      hydrateMixer(),
+      hydrateJobs(),
+      ...VISIBLE_DECKS.map((deck) => hydrateDeck(deck)),
+    ]);
   } catch (error) {
     notifyError(errorMessage(error));
   }
@@ -66,6 +79,30 @@ export async function startEventBridge(): Promise<() => void> {
       stop();
     }
   };
+}
+
+/** Refreshes the BPM and key a deck shows when analysis of its track finishes. */
+export async function refreshDeckAnalysis(track: number): Promise<void> {
+  const holders = VISIBLE_DECKS.filter((deck) => {
+    const ui = useAppStore.getState().decks[deck];
+    return (ui?.track ?? ui?.incoming)?.id === track;
+  });
+  if (holders.length === 0) {
+    return;
+  }
+  const analysis = await report(commands.getAnalysis(track));
+  if (!analysis) {
+    return;
+  }
+  for (const deck of holders) {
+    const ui = useAppStore.getState().decks[deck];
+    const info = ui?.track ?? ui?.incoming;
+    if (info?.id !== track) {
+      continue;
+    }
+    const patch = { ...info, bpm: analysis.bpm, key: analysis.key, key_musical: analysis.key_musical };
+    useAppStore.getState().patchDeck(deck, ui?.track ? { track: patch } : { incoming: patch });
+  }
 }
 
 function fileName(path: string): string {

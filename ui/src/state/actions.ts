@@ -35,7 +35,7 @@ export async function report<T>(pending: Promise<Outcome<T>>): Promise<T | null>
 export async function loadFile(deck: number, path: string): Promise<void> {
   const { patchDeck } = useAppStore.getState();
   patchDeck(deck, { loading: true });
-  const info = await report(commands.loadTrack(deck, path));
+  const info = await report(commands.loadTrackPath(deck, path));
   patchDeck(deck, info ? { incoming: info } : { loading: false });
 }
 
