@@ -67,6 +67,23 @@ describe.each(themes)("contrast (%s)", (theme) => {
         expect(ratio(theme, `meter-${m}`, "bg")).toBeGreaterThanOrEqual(3);
       });
     }
+    // Callout, LED and status colours (icons, borders, dots).
+    for (const c of ["info", "success", "warning", "danger", "sync-on", "master-on"]) {
+      for (const bg of ["bg", "surface"]) {
+        it(`${c} on ${bg} >= 3`, () => {
+          expect(ratio(theme, c, bg)).toBeGreaterThanOrEqual(3);
+        });
+      }
+    }
+    // Callout titles use the status colour as text.
+    for (const c of ["info", "success", "warning", "danger"]) {
+      it(`${c} text on surface >= 4.5`, () => {
+        expect(ratio(theme, c, "surface")).toBeGreaterThanOrEqual(4.5);
+      });
+    }
+    it("border-strong (off LED ring) on surface >= 1.4 (off state, not essential)", () => {
+      expect(ratio(theme, "border-strong", "surface")).toBeGreaterThanOrEqual(1.4);
+    });
     for (const w of ["low", "mid", "high"]) {
       it(`wave-${w} on bg >= 3`, () => {
         expect(ratio(theme, `wave-${w}`, "bg")).toBeGreaterThanOrEqual(3);

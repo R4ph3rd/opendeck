@@ -57,6 +57,7 @@
   --color-meter-off: var(--meter-off);
   --color-loop-region: var(--loop-region);
   --color-loop-edge: var(--loop-edge);
+  --color-info: var(--info);
   --color-sync-on: var(--sync-on);
   --color-master-on: var(--master-on);
 
