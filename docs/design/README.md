@@ -1,6 +1,6 @@
 # OpenDeck design system
 
-Package: `ui/packages/design-system` (`@opendeck/design-system`). Palette origin: [palette-source.md](palette-source.md).
+Package: `ui/packages/design-system` (`@opendeck/design-system`). Palette: flat slate with a warm orange accent, approximated from general knowledge of a classic DAW dark theme (not sampled; see [palette-source.md](palette-source.md)).
 
 Dark is the default theme. Light is set with `data-theme="light"` on `<html>` (or any wrapper).
 
@@ -25,6 +25,29 @@ Components come from the package index: `import { Button, Panel } from "@opendec
 | `src/components/*` | shadcn/ui on Radix, restyled with tokens, one story per file. |
 | `src/tokens/contrast.test.ts` | WCAG contrast tests that parse `tokens.css`. |
 
+## Components
+
+Base (shadcn/ui on Radix): Badge, Button, ContextMenu, Dialog, DropdownMenu, EmptyState, IconButton, Input, Kbd, Panel, ScrollArea, Select, Separator, Slider, Switch, Table, Tabs, Toast, Toggle and ToggleGroup, Tooltip.
+
+Added in milestone 4:
+
+| Component | Use | Built on |
+|---|---|---|
+| `ResizablePanelGroup`, `ResizablePanel`, `ResizableHandle` | Deck, middle panel and collection split. Persist with `onLayoutChanged`, restore with `defaultLayout`. | `react-resizable-panels` (MIT) |
+| `Popover`, `HoverCard` | Click-opened panel; hover and focus preview. | Radix |
+| `Command`, `CommandPalette`, `Combobox` | Quick search and commands (Mod+K), searchable select. | `cmdk` (MIT) |
+| `NumberField` | BPM entry: type, arrows, wheel (focused), drag-to-scrub, precision. | native input |
+| `ColorSwatchPicker` | Hot cue colour from the 8 `--cue-N` tokens. | Radix RadioGroup |
+| `SegmentedControl` | One of a few values (tempo range, beat size). | Radix RadioGroup |
+| `StatusDot` | LED for SYNC, MASTER, loop: on, off, blink. | native |
+| `ProgressBar`, `Skeleton` | Import progress (determinate or not); loading placeholders. | Radix Progress |
+| `Breadcrumb` | File explorer path. | native |
+| `KeyValueList` | Info and settings summaries. | native |
+| `Callout` | Inline info, success, warning, danger message. | native |
+| `SettingsLayout`, `SettingsNav`, `SettingsSection`, `SettingsRow` | Frame for the settings dialog. | native |
+
+Storybook "Patterns" section: dense panel header, empty state, settings page skeleton.
+
 ## Add a token
 
 1. Add the variable to `tokens.css`. If it is a color or shadow, define it for dark in the `:root, [data-theme="dark"]` block and for light in `[data-theme="light"]`. A token that only references other tokens (`var(--x)`) goes in the shared block at the end so nested theme wrappers re-resolve it.
@@ -41,6 +64,10 @@ Components come from the package index: `import { Button, Panel } from "@opendec
 4. Export from `src/index.ts`.
 5. Add `<name>.stories.tsx` with the default state, variants and disabled/invalid states.
 
+## Flat rule
+
+No glass: no `backdrop-filter`, no `filter: blur`, no Tailwind `blur-*` or `backdrop-*` utilities, no gradients, no translucent panels, menus, dialogs or toasts. Stylelint (`property-disallowed-list`, `declaration-property-value-disallowed-list`) and the ESLint rule (`glass` message, also catches `backdropFilter` style keys) enforce it. The dim scrim `--overlay` is the one allowed alpha surface.
+
 ## Lint rules
 
 - Stylelint (`ui/stylelint.config.js`, `stylelint-declaration-strict-value`): color properties, spacing, gap, radius, font-size, box-shadow and z-index must use `var(--token)` or a neutral keyword. `tokens.css` is exempt.
@@ -50,7 +77,7 @@ Components come from the package index: `import { Button, Panel } from "@opendec
 
 ## Contrast policy
 
-Tested in both themes: `fg`, `fg-muted` at 4.5:1 on `bg` and `surface`; `fg-subtle` at 3:1 (placeholders, disabled hints, tertiary labels only); `accent-fg` on `accent` at 4.5:1; `focus-ring` at 3:1 on `bg`, `surface`, `surface-raised`; deck, cue, waveform and meter colors at 3:1 on `bg`; backdrop mesh at peak alpha keeps `fg` and `fg-muted` at 4.5:1.
+Tested in both themes (`src/tokens/contrast.test.ts`): `fg` and `fg-muted` at 4.5:1 on `bg`, `bg-subtle`, `surface`, `surface-raised`, `surface-hover`; `fg-subtle` at 3:1; `accent-fg` on `accent` and `accent-hover`, `danger-fg` on `danger`, `cue-fg` on all eight cues at 4.5:1; `focus-ring` at 3:1 on every surface; status text (`info`, `success`, `warning`, `danger`) and `fg` on their solid `*-bg` fills at 4.5:1; accent text on `accent-muted` at 4.5:1; accent, deck, cue, waveform, meter and LED colors at 3:1 on `bg` and panel surfaces. A test also fails if any gradient, backdrop or blur token appears, or if a surface token is not an opaque hex.
 
 ## Commands (run from the repo root)
 

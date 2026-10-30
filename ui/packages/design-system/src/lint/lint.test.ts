@@ -34,6 +34,18 @@ describe("eslint no-raw-style-literals", () => {
   it("rejects magic pixel sizes in class strings", () => {
     expect(eslintMessages('const c = "h-[28px] flex";')).toEqual(["arbitraryLength"]);
   });
+  it("rejects glassy effects", () => {
+    expect(eslintMessages('const c = "backdrop-blur-md";')).toEqual(["glass"]);
+    expect(eslintMessages('const c = "flex blur-sm";')).toEqual(["glass"]);
+    expect(eslintMessages('const c = "blur-[var(--x)]";')).toEqual(["glass"]);
+    expect(eslintMessages('const s = { filter: "blur(4px)" };')).toEqual(["glass"]);
+    expect(eslintMessages('const s = { backdropFilter: "none" };')).toEqual(["glass"]);
+    expect(eslintMessages('const s = { "backdropFilter": x };')).toEqual(["glass"]);
+  });
+  it("does not flag the blur event name", () => {
+    expect(eslintMessages('window.addEventListener("blur", f);')).toEqual([]);
+    expect(eslintMessages("el.blur();")).toEqual([]);
+  });
   it("accepts token references and scale classes", () => {
     expect(eslintMessages('const c = "bg-surface h-7 p-[var(--space-2)]";')).toEqual([]);
     expect(eslintMessages('const c = "var(--accent)";')).toEqual([]);
@@ -66,6 +78,14 @@ describe("stylelint declaration-strict-value", () => {
   it("accepts token references", async () => {
     const css = ".a { color: var(--fg); padding: var(--space-2); z-index: var(--z-modal); background: transparent; }";
     expect(await stylelintWarnings(css, file)).toEqual([]);
+  });
+  it("rejects backdrop-filter and filter: blur", async () => {
+    for (const decl of ["backdrop-filter: blur(8px)", "-webkit-backdrop-filter: none", "filter: blur(2px)"]) {
+      expect(await stylelintWarnings(`.a { ${decl}; }`, file), decl).not.toEqual([]);
+    }
+  });
+  it("allows non-blur filters", async () => {
+    expect(await stylelintWarnings(".a { filter: brightness(1.1); }", file)).toEqual([]);
   });
   it("exempts tokens.css", async () => {
     const tokens = `${uiRoot}packages/design-system/src/tokens/tokens.css`;
