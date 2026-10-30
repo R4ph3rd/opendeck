@@ -1,0 +1,61 @@
+{"note": "2-1 to 2-6: Beat FX CH SELECT flags, FX SELECT, BEAT, LEVEL/DEPTH, FX ON/OFF and Release FX"}
+{"note": "2-1 slide to CH1: ch5 0x10=7F, ch5 0x11=00, ch6 0x10=00, ch6 0x11=00"}
+{"t": 1000, "in": [148, 16, 127]}
+{"t": 2000, "in": [148, 17, 0]}
+{"t": 3000, "in": [149, 16, 0]}
+{"t": 4000, "in": [149, 17, 0]}
+{"expect": [{"action": {"action": "fx_assign", "unit": {"kind": "deck", "index": 0}, "target": 0}, "value": {"kind": "button", "value": true}}, {"action": {"action": "fx_assign", "unit": {"kind": "deck", "index": 0}, "target": 1}, "value": {"kind": "button", "value": false}}]}
+{"note": "slide to CH2: ch5 0x10=00 ... ch6 0x11=7F"}
+{"t": 5000, "in": [148, 16, 0]}
+{"t": 6000, "in": [148, 17, 0]}
+{"t": 7000, "in": [149, 16, 0]}
+{"t": 8000, "in": [149, 17, 127]}
+{"expect": [{"action": {"action": "fx_assign", "unit": {"kind": "deck", "index": 0}, "target": 0}, "value": {"kind": "button", "value": false}}, {"action": {"action": "fx_assign", "unit": {"kind": "deck", "index": 0}, "target": 1}, "value": {"kind": "button", "value": true}}]}
+{"note": "slide to CH1&CH2: ch5 0x10=7F and ch6 0x11=7F"}
+{"t": 9000, "in": [148, 16, 127]}
+{"t": 10000, "in": [148, 17, 0]}
+{"t": 11000, "in": [149, 16, 0]}
+{"t": 12000, "in": [149, 17, 127]}
+{"expect": [{"action": {"action": "fx_assign", "unit": {"kind": "deck", "index": 0}, "target": 0}, "value": {"kind": "button", "value": true}}, {"action": {"action": "fx_assign", "unit": {"kind": "deck", "index": 0}, "target": 1}, "value": {"kind": "button", "value": true}}]}
+{"note": "2-2 FX SELECT 0x63 and +SHIFT 0x64 (reverse), channel 5"}
+{"t": 13000, "in": [148, 99, 127]}
+{"t": 14000, "in": [148, 99, 0]}
+{"t": 15000, "in": [148, 100, 127]}
+{"t": 16000, "in": [148, 100, 0]}
+{"expect": [{"action": {"action": "fx_select", "unit": {"kind": "deck", "index": 0}, "direction": 1}, "value": {"kind": "button", "value": true}}, {"action": {"action": "fx_select", "unit": {"kind": "deck", "index": 0}, "direction": -1}, "value": {"kind": "button", "value": true}}]}
+{"note": "2-3 BEAT left 0x4A, +SHIFT 0x66 (AUTO); 2-4 BEAT right 0x4B, +SHIFT 0x6B (TAP)"}
+{"t": 17000, "in": [148, 74, 127]}
+{"t": 18000, "in": [148, 74, 0]}
+{"expect": [{"action": {"action": "fx_beat", "unit": {"kind": "deck", "index": 0}, "direction": -1}, "value": {"kind": "button", "value": true}}]}
+{"t": 19000, "in": [148, 102, 127]}
+{"t": 20000, "in": [148, 102, 0]}
+{"expect": [{"action": {"action": "fx_bpm_auto", "unit": {"kind": "deck", "index": 0}}, "value": {"kind": "button", "value": true}}]}
+{"t": 21000, "in": [148, 75, 127]}
+{"t": 22000, "in": [148, 75, 0]}
+{"expect": [{"action": {"action": "fx_beat", "unit": {"kind": "deck", "index": 0}, "direction": 1}, "value": {"kind": "button", "value": true}}]}
+{"t": 23000, "in": [148, 107, 127]}
+{"t": 24000, "in": [148, 107, 0]}
+{"expect": [{"action": {"action": "fx_bpm_tap", "unit": {"kind": "deck", "index": 0}}, "value": {"kind": "button", "value": true}}]}
+{"note": "2-5 LEVEL/DEPTH: CC 0x02 MSB and 0x22 LSB on channel 5 (status B4)"}
+{"t": 25000, "in": [180, 2, 0]}
+{"t": 25100, "in": [180, 34, 0]}
+{"expect": [{"action": {"action": "fx_level", "unit": {"kind": "deck", "index": 0}}, "value": {"kind": "absolute", "value": 0.0}}]}
+{"t": 26100, "in": [180, 2, 64]}
+{"t": 26200, "in": [180, 34, 0]}
+{"expect": [{"action": {"action": "fx_level", "unit": {"kind": "deck", "index": 0}}, "value": {"kind": "absolute", "value": 0.5000305194408838}}]}
+{"t": 27200, "in": [180, 2, 127]}
+{"t": 27300, "in": [180, 34, 127]}
+{"expect": [{"action": {"action": "fx_level", "unit": {"kind": "deck", "index": 0}}, "value": {"kind": "absolute", "value": 1.0}}]}
+{"note": "2-6 FX ON/OFF: ch5 for CH1 and CH1&CH2, ch6 for CH2, note 0x47; +SHIFT note 0x43 is Release FX"}
+{"t": 28300, "in": [148, 71, 127]}
+{"t": 29300, "in": [148, 71, 0]}
+{"expect": [{"action": {"action": "fx_toggle", "unit": {"kind": "deck", "index": 0}}, "value": {"kind": "button", "value": true}}]}
+{"t": 30300, "in": [148, 67, 127]}
+{"t": 31300, "in": [148, 67, 0]}
+{"expect": [{"action": {"action": "fx_release", "unit": {"kind": "deck", "index": 0}}, "value": {"kind": "button", "value": true}}, {"action": {"action": "fx_release", "unit": {"kind": "deck", "index": 0}}, "value": {"kind": "button", "value": false}}]}
+{"t": 32300, "in": [149, 71, 127]}
+{"t": 33300, "in": [149, 71, 0]}
+{"expect": [{"action": {"action": "fx_toggle", "unit": {"kind": "deck", "index": 1}}, "value": {"kind": "button", "value": true}}]}
+{"t": 34300, "in": [149, 67, 127]}
+{"t": 35300, "in": [149, 67, 0]}
+{"expect": [{"action": {"action": "fx_release", "unit": {"kind": "deck", "index": 1}}, "value": {"kind": "button", "value": true}}, {"action": {"action": "fx_release", "unit": {"kind": "deck", "index": 1}}, "value": {"kind": "button", "value": false}}]}

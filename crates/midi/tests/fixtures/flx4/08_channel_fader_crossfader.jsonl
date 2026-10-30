@@ -1,0 +1,67 @@
+{"note": "3-7, 3-8: CH FADER and CROSSFADER 14-bit, fader start messages (+SHIFT) for the channel faders and the crossfader"}
+{"t": 1000, "in": [176, 19, 0]}
+{"t": 1100, "in": [176, 51, 0]}
+{"expect": [{"action": {"action": "channel_fader", "deck": 0}, "value": {"kind": "absolute", "value": 0.0}}]}
+{"t": 2100, "in": [176, 19, 0]}
+{"t": 2200, "in": [176, 51, 1]}
+{"expect": [{"action": {"action": "channel_fader", "deck": 0}, "value": {"kind": "absolute", "value": 6.103888176768602e-05}}]}
+{"t": 3200, "in": [176, 19, 64]}
+{"t": 3300, "in": [176, 51, 0]}
+{"expect": [{"action": {"action": "channel_fader", "deck": 0}, "value": {"kind": "absolute", "value": 0.5000305194408838}}]}
+{"t": 4300, "in": [176, 19, 127]}
+{"t": 4400, "in": [176, 51, 126]}
+{"expect": [{"action": {"action": "channel_fader", "deck": 0}, "value": {"kind": "absolute", "value": 0.9999389611182323}}]}
+{"t": 5400, "in": [176, 19, 127]}
+{"t": 5500, "in": [176, 51, 127]}
+{"expect": [{"action": {"action": "channel_fader", "deck": 0}, "value": {"kind": "absolute", "value": 1.0}}]}
+{"note": "fader start: leaves the bottom sends note 0x66, returns to the bottom sends note 0x52"}
+{"t": 6500, "in": [144, 102, 127]}
+{"expect": [{"action": {"action": "channel_fader_start", "deck": 0}, "value": {"kind": "button", "value": true}}]}
+{"t": 7500, "in": [144, 82, 127]}
+{"expect": [{"action": {"action": "channel_fader_start", "deck": 0}, "value": {"kind": "button", "value": false}}]}
+{"t": 8500, "in": [144, 102, 0]}
+{"t": 9500, "in": [144, 82, 0]}
+{"expect": []}
+{"t": 10500, "in": [177, 19, 0]}
+{"t": 10600, "in": [177, 51, 0]}
+{"expect": [{"action": {"action": "channel_fader", "deck": 1}, "value": {"kind": "absolute", "value": 0.0}}]}
+{"t": 11600, "in": [177, 19, 0]}
+{"t": 11700, "in": [177, 51, 1]}
+{"expect": [{"action": {"action": "channel_fader", "deck": 1}, "value": {"kind": "absolute", "value": 6.103888176768602e-05}}]}
+{"t": 12700, "in": [177, 19, 64]}
+{"t": 12800, "in": [177, 51, 0]}
+{"expect": [{"action": {"action": "channel_fader", "deck": 1}, "value": {"kind": "absolute", "value": 0.5000305194408838}}]}
+{"t": 13800, "in": [177, 19, 127]}
+{"t": 13900, "in": [177, 51, 126]}
+{"expect": [{"action": {"action": "channel_fader", "deck": 1}, "value": {"kind": "absolute", "value": 0.9999389611182323}}]}
+{"t": 14900, "in": [177, 19, 127]}
+{"t": 15000, "in": [177, 51, 127]}
+{"expect": [{"action": {"action": "channel_fader", "deck": 1}, "value": {"kind": "absolute", "value": 1.0}}]}
+{"note": "fader start: leaves the bottom sends note 0x66, returns to the bottom sends note 0x52"}
+{"t": 16000, "in": [145, 102, 127]}
+{"expect": [{"action": {"action": "channel_fader_start", "deck": 1}, "value": {"kind": "button", "value": true}}]}
+{"t": 17000, "in": [145, 82, 127]}
+{"expect": [{"action": {"action": "channel_fader_start", "deck": 1}, "value": {"kind": "button", "value": false}}]}
+{"t": 18000, "in": [145, 102, 0]}
+{"t": 19000, "in": [145, 82, 0]}
+{"expect": []}
+{"note": "crossfader on channel 7: CC 0x1F/0x3F, min left, max right"}
+{"t": 20000, "in": [182, 31, 0]}
+{"t": 20100, "in": [182, 63, 0]}
+{"expect": [{"action": {"action": "crossfader"}, "value": {"kind": "absolute", "value": 0.0}}]}
+{"t": 21100, "in": [182, 31, 42]}
+{"t": 21200, "in": [182, 63, 85]}
+{"expect": [{"action": {"action": "crossfader"}, "value": {"kind": "absolute", "value": 0.3333333333333333}}]}
+{"t": 22200, "in": [182, 31, 64]}
+{"t": 22300, "in": [182, 63, 0]}
+{"expect": [{"action": {"action": "crossfader"}, "value": {"kind": "absolute", "value": 0.5000305194408838}}]}
+{"t": 23300, "in": [182, 31, 85]}
+{"t": 23400, "in": [182, 63, 42]}
+{"expect": [{"action": {"action": "crossfader"}, "value": {"kind": "absolute", "value": 0.6666666666666666}}]}
+{"t": 24400, "in": [182, 31, 127]}
+{"t": 24500, "in": [182, 63, 127]}
+{"expect": [{"action": {"action": "crossfader"}, "value": {"kind": "absolute", "value": 1.0}}]}
+{"note": "3-8 crossfader start rows: same bytes as the channel fader start (90/91 note 0x66 and 0x52)"}
+{"t": 25500, "in": [144, 102, 127]}
+{"t": 26500, "in": [145, 82, 127]}
+{"expect": [{"action": {"action": "channel_fader_start", "deck": 0}, "value": {"kind": "button", "value": true}}, {"action": {"action": "channel_fader_start", "deck": 1}, "value": {"kind": "button", "value": false}}]}

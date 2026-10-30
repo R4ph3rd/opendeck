@@ -1,0 +1,25 @@
+{"note": "4-1 to 4-3: BROWSE rotate (two's complement), press, SHIFT press, LOAD for both decks; SHIFT rotate and SHIFT LOAD are unmapped"}
+{"t": 1000, "in": [182, 64, 1]}
+{"t": 2000, "in": [182, 64, 127]}
+{"t": 3000, "in": [182, 64, 5]}
+{"t": 4000, "in": [182, 64, 123]}
+{"t": 5000, "in": [182, 64, 63]}
+{"t": 6000, "in": [182, 64, 64]}
+{"expect": [{"action": {"action": "browse_scroll"}, "value": {"kind": "relative", "value": 1}}, {"action": {"action": "browse_scroll"}, "value": {"kind": "relative", "value": -1}}, {"action": {"action": "browse_scroll"}, "value": {"kind": "relative", "value": 5}}, {"action": {"action": "browse_scroll"}, "value": {"kind": "relative", "value": -5}}, {"action": {"action": "browse_scroll"}, "value": {"kind": "relative", "value": 63}}, {"action": {"action": "browse_scroll"}, "value": {"kind": "relative", "value": -64}}]}
+{"t": 7000, "in": [150, 65, 127]}
+{"t": 8000, "in": [150, 65, 0]}
+{"expect": [{"action": {"action": "browse_press"}, "value": {"kind": "button", "value": true}}]}
+{"t": 9000, "in": [150, 66, 127]}
+{"t": 10000, "in": [150, 66, 0]}
+{"expect": [{"action": {"action": "browse_back"}, "value": {"kind": "button", "value": true}}]}
+{"t": 11000, "in": [150, 70, 127]}
+{"t": 12000, "in": [150, 70, 0]}
+{"expect": [{"action": {"action": "load", "deck": 0}, "value": {"kind": "button", "value": true}}]}
+{"t": 13000, "in": [150, 71, 127]}
+{"t": 14000, "in": [150, 71, 0]}
+{"expect": [{"action": {"action": "load", "deck": 1}, "value": {"kind": "button", "value": true}}]}
+{"note": "SHIFT rotate (CC 0x64) and SHIFT LOAD (0x68, 0x7A) are unmapped"}
+{"t": 15000, "in": [182, 100, 1]}
+{"t": 16000, "in": [150, 104, 127]}
+{"t": 17000, "in": [150, 122, 127]}
+{"expect": []}

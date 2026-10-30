@@ -1,0 +1,73 @@
+{"note": "1-1, 1-2, 1-5, 1-6, 1-10, 3-6: LED feedback for play (steady and blinking), cue, loop, sync and headphone cue, base and +SHIFT banks"}
+{"note": "deck 1"}
+{"t": 1000, "feedback": {"target": {"target": "playing", "deck": 0}, "value": {"kind": "on"}}}
+{"expect_out": [[144, 11, 127], [144, 14, 127]]}
+{"t": 2000, "feedback": {"target": {"target": "playing", "deck": 0}, "value": {"kind": "on"}}}
+{"expect_out": []}
+{"t": 3000, "feedback": {"target": {"target": "playing", "deck": 0}, "value": {"kind": "off"}}}
+{"expect_out": [[144, 11, 0], [144, 14, 0]]}
+{"note": "paused with a track loaded: Blink, software timed at 500 ms (the list has no blink code for PLAY)"}
+{"t": 4000, "feedback": {"target": {"target": "playing", "deck": 0}, "value": {"kind": "blink"}}}
+{"expect_out": [[144, 11, 127], [144, 14, 127]]}
+{"t": 504000, "tick": true}
+{"expect_out": [[144, 11, 0], [144, 14, 0]]}
+{"t": 1004000, "tick": true}
+{"expect_out": [[144, 11, 127], [144, 14, 127]]}
+{"t": 1005000, "feedback": {"target": {"target": "playing", "deck": 0}, "value": {"kind": "on"}}}
+{"expect_out": []}
+{"t": 3005000, "tick": true}
+{"expect_out": []}
+{"t": 3006000, "feedback": {"target": {"target": "playing", "deck": 0}, "value": {"kind": "off"}}}
+{"expect_out": [[144, 11, 0], [144, 14, 0]]}
+{"t": 3007000, "feedback": {"target": {"target": "cue_indicator", "deck": 0}, "value": {"kind": "on"}}}
+{"expect_out": [[144, 12, 127], [144, 72, 127]]}
+{"t": 3008000, "feedback": {"target": {"target": "cue_indicator", "deck": 0}, "value": {"kind": "off"}}}
+{"expect_out": [[144, 12, 0], [144, 72, 0]]}
+{"t": 3009000, "feedback": {"target": {"target": "sync_on", "deck": 0}, "value": {"kind": "on"}}}
+{"expect_out": [[144, 88, 127], [144, 96, 127]]}
+{"t": 3010000, "feedback": {"target": {"target": "sync_on", "deck": 0}, "value": {"kind": "off"}}}
+{"expect_out": [[144, 88, 0], [144, 96, 0]]}
+{"t": 3011000, "feedback": {"target": {"target": "pfl_on", "deck": 0}, "value": {"kind": "on"}}}
+{"expect_out": [[144, 84, 127], [144, 104, 127]]}
+{"t": 3012000, "feedback": {"target": {"target": "pfl_on", "deck": 0}, "value": {"kind": "off"}}}
+{"expect_out": [[144, 84, 0], [144, 104, 0]]}
+{"t": 3013000, "feedback": {"target": {"target": "loop_active", "deck": 0}, "value": {"kind": "on"}}}
+{"expect_out": [[144, 16, 127], [144, 76, 127], [144, 17, 127], [144, 78, 127]]}
+{"t": 3014000, "feedback": {"target": {"target": "loop_active", "deck": 0}, "value": {"kind": "off"}}}
+{"expect_out": [[144, 16, 0], [144, 76, 0], [144, 17, 0], [144, 78, 0]]}
+{"note": "deck 2"}
+{"t": 3015000, "feedback": {"target": {"target": "playing", "deck": 1}, "value": {"kind": "on"}}}
+{"expect_out": [[145, 11, 127], [145, 14, 127]]}
+{"t": 3016000, "feedback": {"target": {"target": "playing", "deck": 1}, "value": {"kind": "on"}}}
+{"expect_out": []}
+{"t": 3017000, "feedback": {"target": {"target": "playing", "deck": 1}, "value": {"kind": "off"}}}
+{"expect_out": [[145, 11, 0], [145, 14, 0]]}
+{"note": "paused with a track loaded: Blink, software timed at 500 ms (the list has no blink code for PLAY)"}
+{"t": 3018000, "feedback": {"target": {"target": "playing", "deck": 1}, "value": {"kind": "blink"}}}
+{"expect_out": [[145, 11, 127], [145, 14, 127]]}
+{"t": 3518000, "tick": true}
+{"expect_out": [[145, 11, 0], [145, 14, 0]]}
+{"t": 4018000, "tick": true}
+{"expect_out": [[145, 11, 127], [145, 14, 127]]}
+{"t": 4019000, "feedback": {"target": {"target": "playing", "deck": 1}, "value": {"kind": "on"}}}
+{"expect_out": []}
+{"t": 6019000, "tick": true}
+{"expect_out": []}
+{"t": 6020000, "feedback": {"target": {"target": "playing", "deck": 1}, "value": {"kind": "off"}}}
+{"expect_out": [[145, 11, 0], [145, 14, 0]]}
+{"t": 6021000, "feedback": {"target": {"target": "cue_indicator", "deck": 1}, "value": {"kind": "on"}}}
+{"expect_out": [[145, 12, 127], [145, 72, 127]]}
+{"t": 6022000, "feedback": {"target": {"target": "cue_indicator", "deck": 1}, "value": {"kind": "off"}}}
+{"expect_out": [[145, 12, 0], [145, 72, 0]]}
+{"t": 6023000, "feedback": {"target": {"target": "sync_on", "deck": 1}, "value": {"kind": "on"}}}
+{"expect_out": [[145, 88, 127], [145, 96, 127]]}
+{"t": 6024000, "feedback": {"target": {"target": "sync_on", "deck": 1}, "value": {"kind": "off"}}}
+{"expect_out": [[145, 88, 0], [145, 96, 0]]}
+{"t": 6025000, "feedback": {"target": {"target": "pfl_on", "deck": 1}, "value": {"kind": "on"}}}
+{"expect_out": [[145, 84, 127], [145, 104, 127]]}
+{"t": 6026000, "feedback": {"target": {"target": "pfl_on", "deck": 1}, "value": {"kind": "off"}}}
+{"expect_out": [[145, 84, 0], [145, 104, 0]]}
+{"t": 6027000, "feedback": {"target": {"target": "loop_active", "deck": 1}, "value": {"kind": "on"}}}
+{"expect_out": [[145, 16, 127], [145, 76, 127], [145, 17, 127], [145, 78, 127]]}
+{"t": 6028000, "feedback": {"target": {"target": "loop_active", "deck": 1}, "value": {"kind": "off"}}}
+{"expect_out": [[145, 16, 0], [145, 76, 0], [145, 17, 0], [145, 78, 0]]}

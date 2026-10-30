@@ -12,6 +12,7 @@
 //! - [`mapping`]: the JSON mapping types, loading and validation.
 //! - [`input`] and [`feedback`]: the two engines, pure state machines driven
 //!   with explicit timestamps. [`pipeline::Pipeline`] wires them together.
+//! - [`replay`]: the fixture runner behind the replay tests.
 //!
 //! The crate never touches the audio thread and never depends on the engine.
 
@@ -21,6 +22,7 @@ pub mod input;
 pub mod mapping;
 pub mod message;
 pub mod pipeline;
+pub mod replay;
 
 pub use error::{MappingError, MidiError};
 pub use feedback::{FeedbackConfig, FeedbackEngine, OutMessage};
@@ -30,6 +32,14 @@ pub use pipeline::Pipeline;
 
 /// Current mapping file format version (`mappings/schema/mapping.schema.json`).
 pub const MAPPING_FORMAT_VERSION: u32 = 1;
+
+/// The shipped Pioneer DJ DDJ-FLX4 mapping, embedded at build time.
+pub const FLX4_MAPPING_JSON: &str = include_str!("../../../mappings/ddj-flx4.json");
+
+/// Loads the embedded DDJ-FLX4 mapping.
+pub fn flx4_mapping() -> Result<Mapping, MappingError> {
+    Mapping::from_json(FLX4_MAPPING_JSON)
+}
 
 #[cfg(test)]
 mod tests {

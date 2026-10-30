@@ -1,0 +1,44 @@
+{"note": "VINYL MODE, LOADED illumination, FX ON/OFF and the channel level meter with de-duplication and rate limiting"}
+{"t": 1000, "feedback": {"target": {"target": "vinyl_mode", "deck": 0}, "value": {"kind": "on"}}}
+{"expect_out": [[144, 23, 127]]}
+{"t": 2000, "feedback": {"target": {"target": "vinyl_mode", "deck": 0}, "value": {"kind": "off"}}}
+{"expect_out": [[144, 23, 0]]}
+{"t": 3000, "feedback": {"target": {"target": "track_loaded", "deck": 0}, "value": {"kind": "on"}}}
+{"expect_out": [[159, 0, 127]]}
+{"t": 4000, "feedback": {"target": {"target": "track_loaded", "deck": 0}, "value": {"kind": "off"}}}
+{"expect_out": [[159, 0, 0]]}
+{"t": 5000, "feedback": {"target": {"target": "fx_on", "unit": {"kind": "deck", "index": 0}}, "value": {"kind": "on"}}}
+{"expect_out": [[148, 71, 127]]}
+{"t": 6000, "feedback": {"target": {"target": "fx_on", "unit": {"kind": "deck", "index": 0}}, "value": {"kind": "off"}}}
+{"expect_out": [[148, 71, 0]]}
+{"t": 7000, "feedback": {"target": {"target": "vinyl_mode", "deck": 1}, "value": {"kind": "on"}}}
+{"expect_out": [[145, 23, 127]]}
+{"t": 8000, "feedback": {"target": {"target": "vinyl_mode", "deck": 1}, "value": {"kind": "off"}}}
+{"expect_out": [[145, 23, 0]]}
+{"t": 9000, "feedback": {"target": {"target": "track_loaded", "deck": 1}, "value": {"kind": "on"}}}
+{"expect_out": [[159, 1, 127]]}
+{"t": 10000, "feedback": {"target": {"target": "track_loaded", "deck": 1}, "value": {"kind": "off"}}}
+{"expect_out": [[159, 1, 0]]}
+{"t": 11000, "feedback": {"target": {"target": "fx_on", "unit": {"kind": "deck", "index": 1}}, "value": {"kind": "on"}}}
+{"expect_out": [[149, 71, 127]]}
+{"t": 12000, "feedback": {"target": {"target": "fx_on", "unit": {"kind": "deck", "index": 1}}, "value": {"kind": "off"}}}
+{"expect_out": [[149, 71, 0]]}
+{"note": "meter: CC 0x02 on channel 1/2, linear 0..127, 33 ms minimum between messages per address, last value wins"}
+{"t": 112000, "feedback": {"target": {"target": "channel_level", "deck": 0}, "value": {"kind": "level", "value": 0.0}}}
+{"expect_out": [[176, 2, 0]]}
+{"t": 212000, "feedback": {"target": {"target": "channel_level", "deck": 0}, "value": {"kind": "level", "value": 0.5}}}
+{"expect_out": [[176, 2, 64]]}
+{"t": 217000, "feedback": {"target": {"target": "channel_level", "deck": 0}, "value": {"kind": "level", "value": 0.6}}}
+{"t": 222000, "feedback": {"target": {"target": "channel_level", "deck": 0}, "value": {"kind": "level", "value": 0.8}}}
+{"t": 227000, "feedback": {"target": {"target": "channel_level", "deck": 0}, "value": {"kind": "level", "value": 1.0}}}
+{"expect_out": []}
+{"t": 244999, "tick": true}
+{"expect_out": []}
+{"t": 245000, "tick": true}
+{"expect_out": [[176, 2, 127]]}
+{"t": 345000, "feedback": {"target": {"target": "channel_level", "deck": 0}, "value": {"kind": "level", "value": 1.0}}}
+{"expect_out": []}
+{"t": 346000, "feedback": {"target": {"target": "channel_level", "deck": 1}, "value": {"kind": "level", "value": 0.25}}}
+{"expect_out": [[177, 2, 32]]}
+{"t": 446000, "feedback": {"target": {"target": "channel_level", "deck": 0}, "value": {"kind": "off"}}}
+{"expect_out": [[176, 2, 0]]}

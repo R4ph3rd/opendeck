@@ -1,0 +1,49 @@
+{"note": "5-1 to 5-4: the four mode buttons and their +SHIFT notes select the eight pad modes on both decks"}
+{"t": 1000, "in": [144, 27, 127]}
+{"t": 2000, "in": [144, 27, 0]}
+{"expect": [{"action": {"action": "pad_mode_select", "deck": 0, "mode": "hot_cue"}, "value": {"kind": "button", "value": true}}]}
+{"t": 3000, "in": [144, 105, 127]}
+{"t": 4000, "in": [144, 105, 0]}
+{"expect": [{"action": {"action": "pad_mode_select", "deck": 0, "mode": "keyboard"}, "value": {"kind": "button", "value": true}}]}
+{"t": 5000, "in": [144, 30, 127]}
+{"t": 6000, "in": [144, 30, 0]}
+{"expect": [{"action": {"action": "pad_mode_select", "deck": 0, "mode": "pad_fx1"}, "value": {"kind": "button", "value": true}}]}
+{"t": 7000, "in": [144, 107, 127]}
+{"t": 8000, "in": [144, 107, 0]}
+{"expect": [{"action": {"action": "pad_mode_select", "deck": 0, "mode": "pad_fx2"}, "value": {"kind": "button", "value": true}}]}
+{"t": 9000, "in": [144, 32, 127]}
+{"t": 10000, "in": [144, 32, 0]}
+{"expect": [{"action": {"action": "pad_mode_select", "deck": 0, "mode": "beat_jump"}, "value": {"kind": "button", "value": true}}]}
+{"t": 11000, "in": [144, 109, 127]}
+{"t": 12000, "in": [144, 109, 0]}
+{"expect": [{"action": {"action": "pad_mode_select", "deck": 0, "mode": "beat_loop"}, "value": {"kind": "button", "value": true}}]}
+{"t": 13000, "in": [144, 34, 127]}
+{"t": 14000, "in": [144, 34, 0]}
+{"expect": [{"action": {"action": "pad_mode_select", "deck": 0, "mode": "sampler"}, "value": {"kind": "button", "value": true}}]}
+{"t": 15000, "in": [144, 111, 127]}
+{"t": 16000, "in": [144, 111, 0]}
+{"expect": [{"action": {"action": "pad_mode_select", "deck": 0, "mode": "key_shift"}, "value": {"kind": "button", "value": true}}]}
+{"t": 17000, "in": [145, 27, 127]}
+{"t": 18000, "in": [145, 27, 0]}
+{"expect": [{"action": {"action": "pad_mode_select", "deck": 1, "mode": "hot_cue"}, "value": {"kind": "button", "value": true}}]}
+{"t": 19000, "in": [145, 105, 127]}
+{"t": 20000, "in": [145, 105, 0]}
+{"expect": [{"action": {"action": "pad_mode_select", "deck": 1, "mode": "keyboard"}, "value": {"kind": "button", "value": true}}]}
+{"t": 21000, "in": [145, 30, 127]}
+{"t": 22000, "in": [145, 30, 0]}
+{"expect": [{"action": {"action": "pad_mode_select", "deck": 1, "mode": "pad_fx1"}, "value": {"kind": "button", "value": true}}]}
+{"t": 23000, "in": [145, 107, 127]}
+{"t": 24000, "in": [145, 107, 0]}
+{"expect": [{"action": {"action": "pad_mode_select", "deck": 1, "mode": "pad_fx2"}, "value": {"kind": "button", "value": true}}]}
+{"t": 25000, "in": [145, 32, 127]}
+{"t": 26000, "in": [145, 32, 0]}
+{"expect": [{"action": {"action": "pad_mode_select", "deck": 1, "mode": "beat_jump"}, "value": {"kind": "button", "value": true}}]}
+{"t": 27000, "in": [145, 109, 127]}
+{"t": 28000, "in": [145, 109, 0]}
+{"expect": [{"action": {"action": "pad_mode_select", "deck": 1, "mode": "beat_loop"}, "value": {"kind": "button", "value": true}}]}
+{"t": 29000, "in": [145, 34, 127]}
+{"t": 30000, "in": [145, 34, 0]}
+{"expect": [{"action": {"action": "pad_mode_select", "deck": 1, "mode": "sampler"}, "value": {"kind": "button", "value": true}}]}
+{"t": 31000, "in": [145, 111, 127]}
+{"t": 32000, "in": [145, 111, 0]}
+{"expect": [{"action": {"action": "pad_mode_select", "deck": 1, "mode": "key_shift"}, "value": {"kind": "button", "value": true}}]}

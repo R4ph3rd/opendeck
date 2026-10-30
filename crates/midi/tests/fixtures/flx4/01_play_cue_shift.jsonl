@@ -1,0 +1,43 @@
+{"note": "1-1, 1-2, 1-3: PLAY/PAUSE and CUE on both decks, SHIFT layer, SHIFT modifier state"}
+{"note": "deck 1"}
+{"t": 1000, "in": [144, 11, 127]}
+{"expect": [{"action": {"action": "play_pause", "deck": 0}, "value": {"kind": "button", "value": true}}]}
+{"t": 2000, "in": [144, 11, 0]}
+{"expect": []}
+{"t": 3000, "in": [144, 12, 127]}
+{"expect": [{"action": {"action": "cue", "deck": 0}, "value": {"kind": "button", "value": true}}]}
+{"t": 4000, "in": [144, 12, 0]}
+{"expect": [{"action": {"action": "cue", "deck": 0}, "value": {"kind": "button", "value": false}}]}
+{"note": "SHIFT held: the controller sends the +SHIFT notes (1-1 0x0E, 1-2 0x48)"}
+{"t": 5000, "in": [144, 63, 127]}
+{"expect_modifiers": {"shift_deck1": true}}
+{"t": 6000, "in": [144, 14, 127]}
+{"t": 7000, "in": [144, 14, 0]}
+{"expect": []}
+{"t": 8000, "in": [144, 72, 127]}
+{"expect": [{"action": {"action": "return_to_start", "deck": 0}, "value": {"kind": "button", "value": true}}]}
+{"t": 9000, "in": [144, 72, 0]}
+{"expect": []}
+{"t": 10000, "in": [144, 63, 0]}
+{"expect_modifiers": {"shift_deck1": false}}
+{"note": "deck 2"}
+{"t": 11000, "in": [145, 11, 127]}
+{"expect": [{"action": {"action": "play_pause", "deck": 1}, "value": {"kind": "button", "value": true}}]}
+{"t": 12000, "in": [145, 11, 0]}
+{"expect": []}
+{"t": 13000, "in": [145, 12, 127]}
+{"expect": [{"action": {"action": "cue", "deck": 1}, "value": {"kind": "button", "value": true}}]}
+{"t": 14000, "in": [145, 12, 0]}
+{"expect": [{"action": {"action": "cue", "deck": 1}, "value": {"kind": "button", "value": false}}]}
+{"note": "SHIFT held: the controller sends the +SHIFT notes (1-1 0x0E, 1-2 0x48)"}
+{"t": 15000, "in": [145, 63, 127]}
+{"expect_modifiers": {"shift_deck2": true}}
+{"t": 16000, "in": [145, 14, 127]}
+{"t": 17000, "in": [145, 14, 0]}
+{"expect": []}
+{"t": 18000, "in": [145, 72, 127]}
+{"expect": [{"action": {"action": "return_to_start", "deck": 1}, "value": {"kind": "button", "value": true}}]}
+{"t": 19000, "in": [145, 72, 0]}
+{"expect": []}
+{"t": 20000, "in": [145, 63, 0]}
+{"expect_modifiers": {"shift_deck2": false}}

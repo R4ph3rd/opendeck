@@ -1,0 +1,97 @@
+{"note": "5-5 HOT CUE: pads 1-8 on both decks, press and release, +SHIFT layer on channels 9 and 11"}
+{"t": 1000, "in": [151, 0, 127]}
+{"t": 2000, "in": [151, 0, 0]}
+{"expect": [{"action": {"action": "pad", "deck": 0, "mode": "hot_cue", "index": 0, "shifted": false}, "value": {"kind": "button", "value": true}}, {"action": {"action": "pad", "deck": 0, "mode": "hot_cue", "index": 0, "shifted": false}, "value": {"kind": "button", "value": false}}]}
+{"t": 3000, "in": [152, 0, 127]}
+{"t": 4000, "in": [152, 0, 0]}
+{"expect": [{"action": {"action": "pad", "deck": 0, "mode": "hot_cue", "index": 0, "shifted": true}, "value": {"kind": "button", "value": true}}, {"action": {"action": "pad", "deck": 0, "mode": "hot_cue", "index": 0, "shifted": true}, "value": {"kind": "button", "value": false}}]}
+{"t": 5000, "in": [153, 0, 127]}
+{"t": 6000, "in": [153, 0, 0]}
+{"expect": [{"action": {"action": "pad", "deck": 1, "mode": "hot_cue", "index": 0, "shifted": false}, "value": {"kind": "button", "value": true}}, {"action": {"action": "pad", "deck": 1, "mode": "hot_cue", "index": 0, "shifted": false}, "value": {"kind": "button", "value": false}}]}
+{"t": 7000, "in": [154, 0, 127]}
+{"t": 8000, "in": [154, 0, 0]}
+{"expect": [{"action": {"action": "pad", "deck": 1, "mode": "hot_cue", "index": 0, "shifted": true}, "value": {"kind": "button", "value": true}}, {"action": {"action": "pad", "deck": 1, "mode": "hot_cue", "index": 0, "shifted": true}, "value": {"kind": "button", "value": false}}]}
+{"t": 9000, "in": [151, 1, 127]}
+{"t": 10000, "in": [151, 1, 0]}
+{"expect": [{"action": {"action": "pad", "deck": 0, "mode": "hot_cue", "index": 1, "shifted": false}, "value": {"kind": "button", "value": true}}, {"action": {"action": "pad", "deck": 0, "mode": "hot_cue", "index": 1, "shifted": false}, "value": {"kind": "button", "value": false}}]}
+{"t": 11000, "in": [152, 1, 127]}
+{"t": 12000, "in": [152, 1, 0]}
+{"expect": [{"action": {"action": "pad", "deck": 0, "mode": "hot_cue", "index": 1, "shifted": true}, "value": {"kind": "button", "value": true}}, {"action": {"action": "pad", "deck": 0, "mode": "hot_cue", "index": 1, "shifted": true}, "value": {"kind": "button", "value": false}}]}
+{"t": 13000, "in": [153, 1, 127]}
+{"t": 14000, "in": [153, 1, 0]}
+{"expect": [{"action": {"action": "pad", "deck": 1, "mode": "hot_cue", "index": 1, "shifted": false}, "value": {"kind": "button", "value": true}}, {"action": {"action": "pad", "deck": 1, "mode": "hot_cue", "index": 1, "shifted": false}, "value": {"kind": "button", "value": false}}]}
+{"t": 15000, "in": [154, 1, 127]}
+{"t": 16000, "in": [154, 1, 0]}
+{"expect": [{"action": {"action": "pad", "deck": 1, "mode": "hot_cue", "index": 1, "shifted": true}, "value": {"kind": "button", "value": true}}, {"action": {"action": "pad", "deck": 1, "mode": "hot_cue", "index": 1, "shifted": true}, "value": {"kind": "button", "value": false}}]}
+{"t": 17000, "in": [151, 2, 127]}
+{"t": 18000, "in": [151, 2, 0]}
+{"expect": [{"action": {"action": "pad", "deck": 0, "mode": "hot_cue", "index": 2, "shifted": false}, "value": {"kind": "button", "value": true}}, {"action": {"action": "pad", "deck": 0, "mode": "hot_cue", "index": 2, "shifted": false}, "value": {"kind": "button", "value": false}}]}
+{"t": 19000, "in": [152, 2, 127]}
+{"t": 20000, "in": [152, 2, 0]}
+{"expect": [{"action": {"action": "pad", "deck": 0, "mode": "hot_cue", "index": 2, "shifted": true}, "value": {"kind": "button", "value": true}}, {"action": {"action": "pad", "deck": 0, "mode": "hot_cue", "index": 2, "shifted": true}, "value": {"kind": "button", "value": false}}]}
+{"t": 21000, "in": [153, 2, 127]}
+{"t": 22000, "in": [153, 2, 0]}
+{"expect": [{"action": {"action": "pad", "deck": 1, "mode": "hot_cue", "index": 2, "shifted": false}, "value": {"kind": "button", "value": true}}, {"action": {"action": "pad", "deck": 1, "mode": "hot_cue", "index": 2, "shifted": false}, "value": {"kind": "button", "value": false}}]}
+{"t": 23000, "in": [154, 2, 127]}
+{"t": 24000, "in": [154, 2, 0]}
+{"expect": [{"action": {"action": "pad", "deck": 1, "mode": "hot_cue", "index": 2, "shifted": true}, "value": {"kind": "button", "value": true}}, {"action": {"action": "pad", "deck": 1, "mode": "hot_cue", "index": 2, "shifted": true}, "value": {"kind": "button", "value": false}}]}
+{"t": 25000, "in": [151, 3, 127]}
+{"t": 26000, "in": [151, 3, 0]}
+{"expect": [{"action": {"action": "pad", "deck": 0, "mode": "hot_cue", "index": 3, "shifted": false}, "value": {"kind": "button", "value": true}}, {"action": {"action": "pad", "deck": 0, "mode": "hot_cue", "index": 3, "shifted": false}, "value": {"kind": "button", "value": false}}]}
+{"t": 27000, "in": [152, 3, 127]}
+{"t": 28000, "in": [152, 3, 0]}
+{"expect": [{"action": {"action": "pad", "deck": 0, "mode": "hot_cue", "index": 3, "shifted": true}, "value": {"kind": "button", "value": true}}, {"action": {"action": "pad", "deck": 0, "mode": "hot_cue", "index": 3, "shifted": true}, "value": {"kind": "button", "value": false}}]}
+{"t": 29000, "in": [153, 3, 127]}
+{"t": 30000, "in": [153, 3, 0]}
+{"expect": [{"action": {"action": "pad", "deck": 1, "mode": "hot_cue", "index": 3, "shifted": false}, "value": {"kind": "button", "value": true}}, {"action": {"action": "pad", "deck": 1, "mode": "hot_cue", "index": 3, "shifted": false}, "value": {"kind": "button", "value": false}}]}
+{"t": 31000, "in": [154, 3, 127]}
+{"t": 32000, "in": [154, 3, 0]}
+{"expect": [{"action": {"action": "pad", "deck": 1, "mode": "hot_cue", "index": 3, "shifted": true}, "value": {"kind": "button", "value": true}}, {"action": {"action": "pad", "deck": 1, "mode": "hot_cue", "index": 3, "shifted": true}, "value": {"kind": "button", "value": false}}]}
+{"t": 33000, "in": [151, 4, 127]}
+{"t": 34000, "in": [151, 4, 0]}
+{"expect": [{"action": {"action": "pad", "deck": 0, "mode": "hot_cue", "index": 4, "shifted": false}, "value": {"kind": "button", "value": true}}, {"action": {"action": "pad", "deck": 0, "mode": "hot_cue", "index": 4, "shifted": false}, "value": {"kind": "button", "value": false}}]}
+{"t": 35000, "in": [152, 4, 127]}
+{"t": 36000, "in": [152, 4, 0]}
+{"expect": [{"action": {"action": "pad", "deck": 0, "mode": "hot_cue", "index": 4, "shifted": true}, "value": {"kind": "button", "value": true}}, {"action": {"action": "pad", "deck": 0, "mode": "hot_cue", "index": 4, "shifted": true}, "value": {"kind": "button", "value": false}}]}
+{"t": 37000, "in": [153, 4, 127]}
+{"t": 38000, "in": [153, 4, 0]}
+{"expect": [{"action": {"action": "pad", "deck": 1, "mode": "hot_cue", "index": 4, "shifted": false}, "value": {"kind": "button", "value": true}}, {"action": {"action": "pad", "deck": 1, "mode": "hot_cue", "index": 4, "shifted": false}, "value": {"kind": "button", "value": false}}]}
+{"t": 39000, "in": [154, 4, 127]}
+{"t": 40000, "in": [154, 4, 0]}
+{"expect": [{"action": {"action": "pad", "deck": 1, "mode": "hot_cue", "index": 4, "shifted": true}, "value": {"kind": "button", "value": true}}, {"action": {"action": "pad", "deck": 1, "mode": "hot_cue", "index": 4, "shifted": true}, "value": {"kind": "button", "value": false}}]}
+{"t": 41000, "in": [151, 5, 127]}
+{"t": 42000, "in": [151, 5, 0]}
+{"expect": [{"action": {"action": "pad", "deck": 0, "mode": "hot_cue", "index": 5, "shifted": false}, "value": {"kind": "button", "value": true}}, {"action": {"action": "pad", "deck": 0, "mode": "hot_cue", "index": 5, "shifted": false}, "value": {"kind": "button", "value": false}}]}
+{"t": 43000, "in": [152, 5, 127]}
+{"t": 44000, "in": [152, 5, 0]}
+{"expect": [{"action": {"action": "pad", "deck": 0, "mode": "hot_cue", "index": 5, "shifted": true}, "value": {"kind": "button", "value": true}}, {"action": {"action": "pad", "deck": 0, "mode": "hot_cue", "index": 5, "shifted": true}, "value": {"kind": "button", "value": false}}]}
+{"t": 45000, "in": [153, 5, 127]}
+{"t": 46000, "in": [153, 5, 0]}
+{"expect": [{"action": {"action": "pad", "deck": 1, "mode": "hot_cue", "index": 5, "shifted": false}, "value": {"kind": "button", "value": true}}, {"action": {"action": "pad", "deck": 1, "mode": "hot_cue", "index": 5, "shifted": false}, "value": {"kind": "button", "value": false}}]}
+{"t": 47000, "in": [154, 5, 127]}
+{"t": 48000, "in": [154, 5, 0]}
+{"expect": [{"action": {"action": "pad", "deck": 1, "mode": "hot_cue", "index": 5, "shifted": true}, "value": {"kind": "button", "value": true}}, {"action": {"action": "pad", "deck": 1, "mode": "hot_cue", "index": 5, "shifted": true}, "value": {"kind": "button", "value": false}}]}
+{"t": 49000, "in": [151, 6, 127]}
+{"t": 50000, "in": [151, 6, 0]}
+{"expect": [{"action": {"action": "pad", "deck": 0, "mode": "hot_cue", "index": 6, "shifted": false}, "value": {"kind": "button", "value": true}}, {"action": {"action": "pad", "deck": 0, "mode": "hot_cue", "index": 6, "shifted": false}, "value": {"kind": "button", "value": false}}]}
+{"t": 51000, "in": [152, 6, 127]}
+{"t": 52000, "in": [152, 6, 0]}
+{"expect": [{"action": {"action": "pad", "deck": 0, "mode": "hot_cue", "index": 6, "shifted": true}, "value": {"kind": "button", "value": true}}, {"action": {"action": "pad", "deck": 0, "mode": "hot_cue", "index": 6, "shifted": true}, "value": {"kind": "button", "value": false}}]}
+{"t": 53000, "in": [153, 6, 127]}
+{"t": 54000, "in": [153, 6, 0]}
+{"expect": [{"action": {"action": "pad", "deck": 1, "mode": "hot_cue", "index": 6, "shifted": false}, "value": {"kind": "button", "value": true}}, {"action": {"action": "pad", "deck": 1, "mode": "hot_cue", "index": 6, "shifted": false}, "value": {"kind": "button", "value": false}}]}
+{"t": 55000, "in": [154, 6, 127]}
+{"t": 56000, "in": [154, 6, 0]}
+{"expect": [{"action": {"action": "pad", "deck": 1, "mode": "hot_cue", "index": 6, "shifted": true}, "value": {"kind": "button", "value": true}}, {"action": {"action": "pad", "deck": 1, "mode": "hot_cue", "index": 6, "shifted": true}, "value": {"kind": "button", "value": false}}]}
+{"t": 57000, "in": [151, 7, 127]}
+{"t": 58000, "in": [151, 7, 0]}
+{"expect": [{"action": {"action": "pad", "deck": 0, "mode": "hot_cue", "index": 7, "shifted": false}, "value": {"kind": "button", "value": true}}, {"action": {"action": "pad", "deck": 0, "mode": "hot_cue", "index": 7, "shifted": false}, "value": {"kind": "button", "value": false}}]}
+{"t": 59000, "in": [152, 7, 127]}
+{"t": 60000, "in": [152, 7, 0]}
+{"expect": [{"action": {"action": "pad", "deck": 0, "mode": "hot_cue", "index": 7, "shifted": true}, "value": {"kind": "button", "value": true}}, {"action": {"action": "pad", "deck": 0, "mode": "hot_cue", "index": 7, "shifted": true}, "value": {"kind": "button", "value": false}}]}
+{"t": 61000, "in": [153, 7, 127]}
+{"t": 62000, "in": [153, 7, 0]}
+{"expect": [{"action": {"action": "pad", "deck": 1, "mode": "hot_cue", "index": 7, "shifted": false}, "value": {"kind": "button", "value": true}}, {"action": {"action": "pad", "deck": 1, "mode": "hot_cue", "index": 7, "shifted": false}, "value": {"kind": "button", "value": false}}]}
+{"t": 63000, "in": [154, 7, 127]}
+{"t": 64000, "in": [154, 7, 0]}
+{"expect": [{"action": {"action": "pad", "deck": 1, "mode": "hot_cue", "index": 7, "shifted": true}, "value": {"kind": "button", "value": true}}, {"action": {"action": "pad", "deck": 1, "mode": "hot_cue", "index": 7, "shifted": true}, "value": {"kind": "button", "value": false}}]}
