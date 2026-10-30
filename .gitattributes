@@ -1,0 +1,10 @@
+# LF everywhere so generated files (ui/src/ipc/bindings.ts) and snapshot
+# tests compare byte for byte on Windows checkouts too.
+* text=auto eol=lf
+*.png binary
+*.ico binary
+*.icns binary
+*.pdf binary
+*.wav binary
+*.flac binary
+*.mp3 binary

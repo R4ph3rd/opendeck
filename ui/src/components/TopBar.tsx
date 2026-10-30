@@ -1,6 +1,7 @@
 import { Badge, IconButton } from "@opendeck/design-system";
 import { AudioLines, Settings } from "lucide-react";
 import { useAppStore } from "../state/app";
+import { ImportMenu } from "./ImportMenu";
 
 const KHZ = 1000;
 
@@ -24,6 +25,7 @@ export function TopBar() {
     <header className="flex h-10 shrink-0 items-center gap-3 border-b border-border bg-toolbar px-3">
       <h1 className="text-base font-semibold tracking-wide text-fg">OpenDeck</h1>
       <div className="flex-1" />
+      <ImportMenu />
       <button
         type="button"
         onClick={() => setSettingsOpen(true)}

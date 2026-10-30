@@ -3,7 +3,7 @@ resolver = "3"
 members = ["crates/*", "src-tauri"]
 
 [workspace.package]
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 rust-version = "1.97"
 license-file = "LICENSE"
@@ -45,7 +45,6 @@ atomic_float = "1"
 # Analysis
 rustfft = "6.4"
 ebur128 = "0.1"
-stratum-dsp = "1"
 
 # Library, metadata, MIDI
 # rusqlite 0.40, not 0.41: rusqlite_migration 2.6 requires ^0.40 (ADR 0005).
@@ -75,3 +74,8 @@ todo = "warn"
 [profile.release]
 lto = "thin"
 codegen-units = 1
+
+# Bundled SQLite at -O0 makes the 50k-row library queries 5x slower in debug
+# builds and tests; the C library has nothing to debug here.
+[profile.dev.package.libsqlite3-sys]
+opt-level = 3

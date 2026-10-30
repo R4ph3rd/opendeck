@@ -7,15 +7,18 @@ import {
   PanelHeader,
 } from "@opendeck/design-system";
 import { FolderOpen, Music, Pause, Play, Eject } from "lucide-react";
-import type { KeyboardEvent, PointerEvent } from "react";
+import { useState, type DragEvent, type KeyboardEvent, type PointerEvent } from "react";
 import { useStore } from "zustand";
 import { cuePress, cueRelease, ejectDeck, pickAndLoad, togglePlay } from "../state/actions";
+import { dragKind, readDrag } from "../lib/dnd";
 import { DECK_BORDER } from "../lib/deck";
+import { loadDroppedFile, loadTrackById } from "../state/libraryActions";
 import { selectDeckUi, useAppStore } from "../state/app";
 import { telemetryStore } from "../state/telemetry";
 import { BeatJumpControls } from "./BeatJumpControls";
 import { BpmReadout } from "./BpmReadout";
 import { HotCuePads } from "./HotCuePads";
+import { KeyReadout } from "./KeyReadout";
 import { LoopControls } from "./LoopControls";
 import { ProgressBar } from "./ProgressBar";
 import { SyncControls } from "./SyncControls";
@@ -37,6 +40,31 @@ export function DeckPanel({ deck }: DeckPanelProps) {
   const hasTrack = track !== null;
   const ready = loaded && !ui.loading;
   const name = `Deck ${deck + 1}`;
+  const [dropActive, setDropActive] = useState(false);
+
+  // Tracks from the collection and audio files from the explorer load on drop.
+  const onDragOver = (event: DragEvent) => {
+    const kind = dragKind(event.dataTransfer);
+    if (kind === "tracks" || kind === "files") {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "copy";
+      setDropActive(true);
+    }
+  };
+  const onDrop = (event: DragEvent) => {
+    setDropActive(false);
+    const payload = readDrag(event.dataTransfer);
+    if (payload?.kind === "tracks" && payload.ids[0] !== undefined) {
+      event.preventDefault();
+      void loadTrackById(deck, payload.ids[0]);
+    } else if (payload?.kind === "files") {
+      const file = payload.files.find((f) => f.kind === "audio");
+      if (file) {
+        event.preventDefault();
+        void loadDroppedFile(deck, file);
+      }
+    }
+  };
 
   const onCueDown = (event: PointerEvent<HTMLButtonElement>) => {
     event.currentTarget.setPointerCapture?.(event.pointerId);
@@ -55,7 +83,13 @@ export function DeckPanel({ deck }: DeckPanelProps) {
   };
 
   return (
-    <Panel aria-label={name} className={`min-w-0 flex-1 border-t-2 ${DECK_BORDER[deck] ?? ""}`}>
+    <Panel
+      aria-label={name}
+      className={`min-w-0 flex-1 border-t-2 ${DECK_BORDER[deck] ?? ""} ${dropActive ? "outline-2 -outline-offset-2 outline-accent" : ""}`}
+      onDragOver={onDragOver}
+      onDragLeave={() => setDropActive(false)}
+      onDrop={onDrop}
+    >
       <PanelHeader
         title={name}
         actions={
@@ -90,7 +124,10 @@ export function DeckPanel({ deck }: DeckPanelProps) {
                   {track.artist ?? (ui.loading ? "Loading..." : "Unknown artist")}
                 </p>
               </div>
-              <BpmReadout deck={deck} />
+              <div className="flex shrink-0 items-center gap-3">
+                <KeyReadout deck={deck} />
+                <BpmReadout deck={deck} />
+              </div>
             </div>
           ) : (
             <EmptyState

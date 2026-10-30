@@ -12,6 +12,7 @@ use opendeck_contracts::analysis::CancelFlag;
 use opendeck_contracts::beatgrid::BeatGrid;
 use opendeck_contracts::cue::{Cue, CueKind, FrameRegion, HotCueIndex, LoopRegion};
 use opendeck_contracts::deck::{DeckState, PlayState};
+use opendeck_contracts::ids::TrackId;
 use opendeck_contracts::mixer::{EqBand, MixerState};
 use opendeck_contracts::settings::AudioSettings;
 use opendeck_contracts::tempo::{SyncMode, TempoRange};
@@ -21,6 +22,7 @@ use opendeck_contracts::{
 };
 use opendeck_engine::device::{AudioOutput, open_output};
 use opendeck_engine::{EngineConfig, EngineHandle, OfflineRenderer, TrackBuffer};
+use opendeck_library::{Library, SavedSetEntry, now_ms};
 
 use crate::loader::{DecodeResult, LoadRequest};
 use crate::settings_store::{SettingsStore, StoredSettings};
@@ -59,6 +61,9 @@ pub struct LaunchOptions {
     pub store: SettingsStore,
     /// Tracks longer than this are refused (ADR 0003 memory budget).
     pub max_track_secs: f64,
+    /// Library that stores cues and the played-track history; `None` keeps
+    /// cues in memory only (tests, tools).
+    pub library: Option<Library>,
 }
 
 impl Default for LaunchOptions {
@@ -67,6 +72,7 @@ impl Default for LaunchOptions {
             backend: Backend::Device,
             store: SettingsStore::memory(),
             max_track_secs: 30.0 * 60.0,
+            library: None,
         }
     }
 }
@@ -221,6 +227,8 @@ struct Control {
     memory_cues: [Vec<Seconds>; MAX_DECKS],
     /// A reload after an engine restart: keep the cues instead of clearing them.
     restoring: [bool; MAX_DECKS],
+    /// Saved set that collects the tracks played this session, made on the first load.
+    current_set: Option<i64>,
     pending: Vec<Pending>,
     latest: Option<EngineTelemetry>,
     last_sequence: Option<u64>,
@@ -249,6 +257,7 @@ pub(crate) fn run(opts: LaunchOptions, inbox: Receiver<Msg>, loader: Sender<Load
         hot_cues: std::array::from_fn(|_| std::array::from_fn(|_| None)),
         memory_cues: std::array::from_fn(|_| Vec::new()),
         restoring: [false; MAX_DECKS],
+        current_set: None,
         pending: Vec::new(),
         latest: None,
         last_sequence: None,
@@ -260,6 +269,28 @@ pub(crate) fn run(opts: LaunchOptions, inbox: Receiver<Msg>, loader: Sender<Load
     }
     control.main_loop();
     control.cancel_all();
+}
+
+/// Name of the saved set that collects a session, from its start time (UTC).
+pub(crate) fn session_name(unix_ms: i64) -> String {
+    let secs = unix_ms.div_euclid(1000);
+    let days = secs.div_euclid(86_400);
+    let rem = secs.rem_euclid(86_400);
+    // Civil date from days since 1970-01-01 (Howard Hinnant's algorithm).
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = yoe + era * 400 + i64::from(month <= 2);
+    format!(
+        "Session {year:04}-{month:02}-{day:02} {:02}:{:02}",
+        rem / 3600,
+        rem % 3600 / 60
+    )
 }
 
 fn stopped_status(backend: Backend, reason: &str) -> AudioStatus {
@@ -456,7 +487,13 @@ impl Control {
         }
     }
 
-    // ----- cues (in memory until persistence lands in M3) -----
+    // ----- cues (persisted in the library when one is open) -----
+
+    /// Library track in `deck`, when cues can be stored.
+    fn cue_target(&self, deck: DeckId) -> Option<(&Library, TrackId)> {
+        let id = self.loaded[deck.index()].as_ref()?.id?;
+        Some((self.opts.library.as_ref()?, id))
+    }
 
     fn hot_cue_snapshot(&self, deck: DeckId) -> HotCues {
         HotCues {
@@ -486,26 +523,66 @@ impl Control {
         });
     }
 
+    /// Stores a hot cue in the library and returns it with its row id.
+    fn persist_hot_cue(&self, deck: DeckId, mut cue: Cue) -> Cue {
+        if let Some((lib, track)) = self.cue_target(deck) {
+            match lib.add_cue(track, &cue) {
+                Ok(id) => cue.id = Some(id),
+                Err(err) => tracing::warn!(%err, "could not store hot cue"),
+            }
+        }
+        cue
+    }
+
+    fn unpersist_hot_cue(&self, deck: DeckId, index: HotCueIndex, cue: &Cue) {
+        let Some((lib, track)) = self.cue_target(deck) else {
+            return;
+        };
+        let stored = match cue.id {
+            Some(id) => Ok(Some(id)),
+            None => lib.cues(track).map(|all| {
+                all.into_iter()
+                    .find(|c| matches!(c.kind, CueKind::Hot { index: i } if i == index))
+                    .and_then(|c| c.id)
+            }),
+        };
+        match stored {
+            Ok(Some(id)) => {
+                if let Err(err) = lib.delete_cue(id) {
+                    tracing::warn!(%err, "could not delete hot cue");
+                }
+            }
+            Ok(None) => {}
+            Err(err) => tracing::warn!(%err, "could not find hot cue"),
+        }
+    }
+
     fn set_hot_cue(&mut self, deck: DeckId, index: HotCueIndex) -> Result<Cue, CoreError> {
         let start = self.playhead(deck)?;
-        let cue = Cue {
-            id: None,
-            kind: CueKind::Hot { index },
-            start,
-            end: None,
-            color: None,
-            name: String::new(),
-        };
+        let cue = self.persist_hot_cue(
+            deck,
+            Cue {
+                id: None,
+                kind: CueKind::Hot { index },
+                start,
+                end: None,
+                color: None,
+                name: String::new(),
+            },
+        );
         self.hot_cues[deck.index()][index.index()] = Some(cue.clone());
         self.engine_hot_cue(deck, index, Some(&cue));
         self.publish_hot_cues(deck);
+        self.cues_changed(deck);
         Ok(cue)
     }
 
     fn delete_hot_cue(&mut self, deck: DeckId, index: HotCueIndex) {
-        if self.hot_cues[deck.index()][index.index()].take().is_some() {
+        if let Some(old) = self.hot_cues[deck.index()][index.index()].take() {
+            self.unpersist_hot_cue(deck, index, &old);
             self.engine_hot_cue(deck, index, None);
             self.publish_hot_cues(deck);
+            self.cues_changed(deck);
         }
     }
 
@@ -514,33 +591,46 @@ impl Control {
         let Some(rate) = self.rate() else {
             return;
         };
-        let cue = Cue {
-            id: None,
-            kind: CueKind::Hot { index },
-            start: region.start.to_seconds(rate),
-            end: region.end.map(|e| e.to_seconds(rate)),
-            color: None,
-            name: String::new(),
-        };
+        let cue = self.persist_hot_cue(
+            deck,
+            Cue {
+                id: None,
+                kind: CueKind::Hot { index },
+                start: region.start.to_seconds(rate),
+                end: region.end.map(|e| e.to_seconds(rate)),
+                color: None,
+                name: String::new(),
+            },
+        );
         self.hot_cues[deck.index()][index.index()] = Some(cue);
         self.publish_hot_cues(deck);
+        self.cues_changed(deck);
     }
 
     fn add_memory_cue(&mut self, deck: DeckId) -> Result<Cue, CoreError> {
         let start = self.playhead(deck)?;
-        let cues = &mut self.memory_cues[deck.index()];
-        if !cues.contains(&start) {
-            cues.push(start);
-            cues.sort_by(|a, b| a.0.total_cmp(&b.0));
-        }
-        Ok(Cue {
+        let fresh = !self.memory_cues[deck.index()].contains(&start);
+        let mut cue = Cue {
             id: None,
             kind: CueKind::Memory,
             start,
             end: None,
             color: None,
             name: String::new(),
-        })
+        };
+        if fresh {
+            if let Some((lib, track)) = self.cue_target(deck) {
+                match lib.add_cue(track, &cue) {
+                    Ok(id) => cue.id = Some(id),
+                    Err(err) => tracing::warn!(%err, "could not store memory cue"),
+                }
+            }
+            let cues = &mut self.memory_cues[deck.index()];
+            cues.push(start);
+            cues.sort_by(|a, b| a.0.total_cmp(&b.0));
+            self.cues_changed(deck);
+        }
+        Ok(cue)
     }
 
     fn call_memory_cue(&mut self, deck: DeckId, direction: i8) {
@@ -572,6 +662,72 @@ impl Control {
         self.hot_cues[deck.index()] = std::array::from_fn(|_| None);
         if had {
             self.publish_hot_cues(deck);
+        }
+    }
+
+    /// Replaces the cues of `deck` with the stored ones of its library track.
+    fn load_stored_cues(&mut self, deck: DeckId) {
+        self.clear_cues(deck);
+        let Some((lib, track)) = self.cue_target(deck) else {
+            return;
+        };
+        let stored = match lib.cues(track) {
+            Ok(stored) => stored,
+            Err(err) => {
+                tracing::warn!(%err, "could not read cues");
+                return;
+            }
+        };
+        let i = deck.index();
+        for cue in stored {
+            match cue.kind {
+                CueKind::Hot { index } => self.hot_cues[i][index.index()] = Some(cue),
+                CueKind::Memory => self.memory_cues[i].push(cue.start),
+                CueKind::Loop => {}
+            }
+        }
+        self.memory_cues[i].sort_by(|a, b| a.0.total_cmp(&b.0));
+        if self.hot_cues[i].iter().any(Option::is_some) {
+            self.publish_hot_cues(deck);
+        }
+    }
+
+    /// Tells subscribers that the stored cues of the track in `deck` changed.
+    fn cues_changed(&mut self, deck: DeckId) {
+        let track = self.loaded[deck.index()].as_ref().and_then(|i| i.id);
+        if let (Some(track), true) = (track, self.opts.library.is_some()) {
+            self.publish(CoreEvent::CuesChanged(track));
+        }
+    }
+
+    /// Counts a load as a play and appends the track to the session's saved set.
+    fn record_played(&mut self, deck: DeckId, info: &TrackInfo) {
+        let (Some(lib), Some(track)) = (self.opts.library.clone(), info.id) else {
+            return;
+        };
+        if let Err(err) = lib.mark_played(track) {
+            tracing::warn!(%err, "could not count the play");
+        }
+        let now = now_ms();
+        let set = match self.current_set {
+            Some(set) => set,
+            None => match lib.create_saved_set(&session_name(now), "", None, Some(now), &[]) {
+                Ok(set) => {
+                    self.current_set = Some(set);
+                    set
+                }
+                Err(err) => return tracing::warn!(%err, "could not start the session set"),
+            },
+        };
+        let entry = SavedSetEntry {
+            track: Some(track),
+            title: info.title.clone(),
+            artist: info.artist.clone(),
+            deck: u8::try_from(deck.index()).ok(),
+            played_at: Some(now),
+        };
+        if let Err(err) = lib.append_to_saved_set(set, &entry) {
+            tracing::warn!(%err, "could not add the track to the session set");
         }
     }
 
@@ -737,16 +893,17 @@ impl Control {
             }
         }
         for (deck, info, frames, grid) in delivered {
-            // A new track starts without cues (they come from the library
-            // in M3); an engine restart keeps them.
-            if !std::mem::take(&mut self.restoring[deck.index()]) {
-                self.clear_cues(deck);
-            }
-            // The engine clears hot cues on every load.
-            self.resend_hot_cues(deck);
             self.grids[deck.index()] = grid;
             self.grid_unsent[deck.index()] = false;
             self.loaded[deck.index()] = Some(info.clone());
+            // A new track takes its cues from the library; an engine restart
+            // keeps the ones in memory.
+            if !std::mem::take(&mut self.restoring[deck.index()]) {
+                self.load_stored_cues(deck);
+                self.record_played(deck, &info);
+            }
+            // The engine clears hot cues on every load.
+            self.resend_hot_cues(deck);
             self.publish(CoreEvent::TrackLoaded(TrackLoaded {
                 deck,
                 track: info,

@@ -23,11 +23,16 @@ export const commands = {
 	/**  File extensions the decoder accepts, lower case, without the dot. */
 	supportedAudioExtensions: () => __TAURI_INVOKE<string[]>("supported_audio_extensions"),
 	/**
-	 *  Reads the tags of an audio file and queues its decode into `deck`.
-	 *  Returns once the tags are known; `track-loaded` or `track-load-failed`
-	 *  follows when the decode ends.
+	 *  Loads a library track into `deck` with its stored beat grid and cues.
+	 *  Returns the deck info (tags, BPM, key) at once; `track-loaded` or
+	 *  `track-load-failed` follows when the decode ends.
 	 */
-	loadTrack: (deck: DeckId, path: string) => typedError<TrackInfo, CommandError>(__TAURI_INVOKE("load_track", { deck, path })),
+	loadTrack: (deck: DeckId, track: TrackId) => typedError<TrackInfo, CommandError>(__TAURI_INVOKE("load_track", { deck, track })),
+	/**
+	 *  Loads a file that may not be in the library (drag from the file explorer):
+	 *  imports it, then loads the new track by id.
+	 */
+	loadTrackPath: (deck: DeckId, path: string) => typedError<TrackInfo, CommandError>(__TAURI_INVOKE("load_track_path", { deck, path })),
 	/**  Unloads a deck. */
 	ejectTrack: (deck: DeckId) => typedError<null, CommandError>(__TAURI_INVOKE("eject_track", { deck })),
 	/**  Starts or stops playback. */
@@ -118,19 +123,123 @@ export const commands = {
 	setHeadphoneMix: (mix: number | null) => typedError<null, CommandError>(__TAURI_INVOKE("set_headphone_mix", { mix })),
 	/**  Split cue on or off. */
 	setSplitCue: (on: boolean) => typedError<null, CommandError>(__TAURI_INVOKE("set_split_cue", { on })),
+	/**  One sorted, filtered page of the collection. */
+	queryTracks: (query: TrackQueryDto) => typedError<TrackPageDto, CommandError>(__TAURI_INVOKE("query_tracks", { query })),
+	/**  Full row of a track. */
+	getTrack: (track: TrackId) => typedError<TrackDetailDto, CommandError>(__TAURI_INVOKE("get_track", { track })),
+	/**  Edits tag fields: `None` keeps a field, an empty string clears it. */
+	updateTrackMeta: (track: TrackId, patch: TrackMetaDto) => typedError<null, CommandError>(__TAURI_INVOKE("update_track_meta", { track, patch })),
+	/**  Star rating, 0 to 5. */
+	setRating: (track: TrackId, rating: number) => typedError<null, CommandError>(__TAURI_INVOKE("set_rating", { track, rating })),
+	/**  Removes tracks from the collection; the files stay on disk. Returns how many went. */
+	deleteTracks: (tracks: TrackId[]) => typedError<number, CommandError>(__TAURI_INVOKE("delete_tracks", { tracks })),
+	/**  Artwork bytes of a track (empty when it has none), as a raw binary payload. */
+	getArtwork: (track: TrackId) => typedError<ArtworkBytes, CommandError>(__TAURI_INVOKE("get_artwork", { track })),
+	/**  Stored analysis of a track: BPM, key, beat grid, loudness. */
+	getAnalysis: (track: TrackId) => typedError<TrackAnalysisDto | null, CommandError>(__TAURI_INVOKE("get_analysis", { track })),
+	/**
+	 *  Stores a hand-edited beat grid (locked against re-analysis) and sends it to
+	 *  the decks holding the track.
+	 */
+	setBeatGrid: (track: TrackId, grid: BeatGrid) => typedError<null, CommandError>(__TAURI_INVOKE("set_beat_grid", { track, grid })),
+	/**  Stored hot, memory and loop cues of a track. */
+	listCues: (track: TrackId) => typedError<Cue[], CommandError>(__TAURI_INVOKE("list_cues", { track })),
+	/**  Imports a folder, recursively. Progress arrives as `import-progress`. */
+	importFolder: (path: string, options: ImportOptionsDto | null) => typedError<JobId, CommandError>(__TAURI_INVOKE("import_folder", { path, options })),
+	/**  Imports a list of files. */
+	importFiles: (paths: string[], options: ImportOptionsDto | null) => typedError<JobId, CommandError>(__TAURI_INVOKE("import_files", { paths, options })),
+	/**  Imports an M3U or M3U8 playlist and creates a playlist from it. */
+	importPlaylistFile: (path: string, options: ImportOptionsDto | null) => typedError<JobId, CommandError>(__TAURI_INVOKE("import_playlist_file", { path, options })),
+	/**  Imports a rekordbox XML export: tracks, grids, cues and playlists. */
+	importRekordboxXml: (path: string, options: ImportOptionsDto | null) => typedError<JobId, CommandError>(__TAURI_INVOKE("import_rekordbox_xml", { path, options })),
+	/**  Re-analyses tracks. A locked beat grid survives. */
+	reanalyzeTracks: (tracks: TrackId[], features: AnalysisFeatures) => typedError<JobId, CommandError>(__TAURI_INVOKE("reanalyze_tracks", { tracks, features })),
+	/**  Stored jobs, newest first (the import panel's startup state). */
+	listJobs: () => typedError<JobInfo[], CommandError>(__TAURI_INVOKE("list_jobs")),
+	/**  Pauses a running job. */
+	pauseJob: (job: JobId) => typedError<null, CommandError>(__TAURI_INVOKE("pause_job", { job })),
+	/**  Resumes a paused job. */
+	resumeJob: (job: JobId) => typedError<null, CommandError>(__TAURI_INVOKE("resume_job", { job })),
+	/**  Cancels a job; finished items stay in the library. */
+	cancelJob: (job: JobId) => typedError<null, CommandError>(__TAURI_INVOKE("cancel_job", { job })),
+	/**  The playlist tree, flat with parent ids, in sibling order. */
+	listPlaylists: () => typedError<PlaylistNodeDto[], CommandError>(__TAURI_INVOKE("list_playlists")),
+	/**  Creates a playlist, or a folder when `folder` is true. */
+	createPlaylist: (parent: PlaylistId | null, name: string, folder: boolean) => typedError<PlaylistId, CommandError>(__TAURI_INVOKE("create_playlist", { parent, name, folder })),
+	/**  Renames a playlist or folder. */
+	renamePlaylist: (playlist: PlaylistId, name: string) => typedError<null, CommandError>(__TAURI_INVOKE("rename_playlist", { playlist, name })),
+	/**  Deletes a playlist or folder with its contents; the tracks stay. */
+	deletePlaylist: (playlist: PlaylistId) => typedError<null, CommandError>(__TAURI_INVOKE("delete_playlist", { playlist })),
+	/**  Moves a node under `parent` (`None` for the top level) at sibling index `position`. */
+	movePlaylist: (playlist: PlaylistId, parent: PlaylistId | null, position: number) => typedError<null, CommandError>(__TAURI_INVOKE("move_playlist", { playlist, parent, position })),
+	/**  Entries of a playlist in order. */
+	getPlaylistTracks: (playlist: PlaylistId) => typedError<PlaylistEntryDto[], CommandError>(__TAURI_INVOKE("get_playlist_tracks", { playlist })),
+	/**  Adds tracks to a playlist at `position` (the end when `None`). */
+	addToPlaylist: (playlist: PlaylistId, tracks: TrackId[], position: number | null) => typedError<null, CommandError>(__TAURI_INVOKE("add_to_playlist", { playlist, tracks, position })),
+	/**  Removes playlist entries by entry id. */
+	removeFromPlaylist: (playlist: PlaylistId, entries: number[]) => typedError<null, CommandError>(__TAURI_INVOKE("remove_from_playlist", { playlist, entries })),
+	/**  Moves playlist entries so the first ends at `to_index`. */
+	reorderPlaylist: (playlist: PlaylistId, entries: number[], toIndex: number) => typedError<null, CommandError>(__TAURI_INVOKE("reorder_playlist", { playlist, entries, toIndex })),
+	/**  Saved sets, newest first. The session's set is made on the first load. */
+	listSavedSets: () => typedError<SavedSetDto[], CommandError>(__TAURI_INVOKE("list_saved_sets")),
+	/**  One saved set with its entries. */
+	getSavedSet: (set: number) => typedError<SavedSetDetailDto, CommandError>(__TAURI_INVOKE("get_saved_set", { set })),
+	/**  Renames a saved set. */
+	renameSavedSet: (set: number, name: string) => typedError<null, CommandError>(__TAURI_INVOKE("rename_saved_set", { set, name })),
+	/**  Deletes a saved set. */
+	deleteSavedSet: (set: number) => typedError<null, CommandError>(__TAURI_INVOKE("delete_saved_set", { set })),
+	/**
+	 *  Lists a folder for the file explorer pane. `None` is the home folder and an
+	 *  empty path lists the filesystem roots.
+	 */
+	listDirectory: (path: string | null) => typedError<DirListing, CommandError>(__TAURI_INVOKE("list_directory", { path })),
+	/**  Shows a file in the system file manager. */
+	revealInExplorer: (path: string) => typedError<null, CommandError>(__TAURI_INVOKE("reveal_in_explorer", { path })),
 };
 
 /** Events */
 export const events = {
+	analysisReady: makeEvent<AnalysisReadyEvent, AnalysisReadyEvent>("analysis-ready"),
 	audioDeviceChanged: makeEvent<AudioDeviceChangedEvent, AudioDeviceChangedEvent>("audio-device-changed"),
+	cuesChanged: makeEvent<CuesChangedEvent, CuesChangedEvent>("cues-changed"),
 	engineEvent: makeEvent<EngineEventEvent, EngineEventEvent>("engine-event"),
 	engineTelemetry: makeEvent<EngineTelemetryEvent, EngineTelemetryEvent>("engine-telemetry"),
 	hotCuesChanged: makeEvent<HotCuesChangedEvent, HotCuesChangedEvent>("hot-cues-changed"),
+	importProgress: makeEvent<ImportProgressEvent, ImportProgressEvent>("import-progress"),
+	libraryChanged: makeEvent<LibraryChangedEvent, LibraryChangedEvent>("library-changed"),
 	trackLoadFailed: makeEvent<TrackLoadFailedEvent, TrackLoadFailedEvent>("track-load-failed"),
 	trackLoaded: makeEvent<TrackLoadedEvent, TrackLoadedEvent>("track-loaded"),
 };
 
 /* Types */
+/**  Which results an analyzer produces or a job requests. */
+export type AnalysisFeatures = {
+	/**  BPM and beat grid. */
+	tempo: boolean,
+	/**  Musical key. */
+	key: boolean,
+	/**  EBU R128 loudness and true peak. */
+	loudness: boolean,
+	/**  Waveform peaks. */
+	peaks: boolean,
+};
+
+/**  Analysis of a track was stored (BPM, key and grid are readable). */
+export type AnalysisReadyEvent = TrackId;
+
+/**  Analysis state of a track. */
+export type AnalysisStatusDto = 
+/**  Not analysed yet. */
+"pending" | 
+/**  A worker is analysing it. */
+"running" | 
+/**  Analysis stored. */
+"done" | 
+/**  Decoding or analysis failed. */
+"failed" | 
+/**  Analysed by an older analyzer version. */
+"stale";
+
 /**  Static information about the running build. */
 export type AppInfo = {
 	/**  Product name. */
@@ -148,6 +257,13 @@ export type AppInfo = {
 	/**  Decks the MVP UI shows. */
 	visible_decks: number,
 };
+
+/**
+ *  Raw artwork bytes. On the wire this is a binary payload (an `ArrayBuffer`
+ *  in the webview), not JSON; the generated binding types it as `number[]`, so
+ *  callers read it with `new Uint8Array(buffer as unknown as ArrayBuffer)`.
+ */
+export type ArtworkBytes = number[];
 
 /**  The audio stream was (re)started or stopped. */
 export type AudioDeviceChangedEvent = AudioStatus;
@@ -387,6 +503,9 @@ index: HotCueIndex } |
 /**  Saved loop without a pad assignment. */
 { kind: "loop" };
 
+/**  The stored cues of a track changed. */
+export type CuesChangedEvent = TrackId;
+
 /**
  *  A deck index, `0..MAX_DECKS`. Deck 1 in the UI is `DeckId(0)`.
  * 
@@ -482,6 +601,16 @@ export type DeckTelemetry = {
 	loop_active: boolean,
 	/**  Post-fader channel level. */
 	meter: StereoMeter,
+};
+
+/**  A directory listing for the file explorer pane. */
+export type DirListing = {
+	/**  Listed folder; empty for the list of roots. */
+	path: string,
+	/**  Parent folder, `None` at a root. */
+	parent: string | null,
+	/**  Folders first, then files, each sorted by name. */
+	entries: FsEntry[],
 };
 
 /**  A discrete notification from the audio thread. RT-safe. */
@@ -580,6 +709,25 @@ export type FrameRegion = {
  */
 export type Frames = number;
 
+/**  One entry of a directory listing. */
+export type FsEntry = {
+	/**  File or folder name. */
+	name: string,
+	/**  Absolute path. */
+	path: string,
+	/**  Folder, audio file or playlist file. */
+	kind: FsEntryKind,
+};
+
+/**  Kind of a directory entry in the file explorer. */
+export type FsEntryKind = 
+/**  A folder. */
+"dir" | 
+/**  A supported audio file. */
+"audio" | 
+/**  A playlist or collection file the importers read (`m3u`, `m3u8`, `xml`). */
+"playlist";
+
 /**
  *  A linear amplitude factor (`1.0` = unity, `0.0` = silence). Valid values
  *  are finite and `>= 0`. RT-safe.
@@ -593,7 +741,7 @@ export type Gain = number | null;
  */
 export type HotCueIndex = number;
 
-/**  The eight hot cue slots of a deck. Held in memory until persistence lands (M3). */
+/**  The eight hot cue slots of a deck. */
 export type HotCues = {
 	/**  Deck the slots belong to. */
 	deck: DeckId,
@@ -604,6 +752,104 @@ export type HotCues = {
 /**  A deck's hot cue slots changed (set, deleted, track loaded or ejected). */
 export type HotCuesChangedEvent = HotCues;
 
+/**  Options of an import job. */
+export type ImportOptionsDto = {
+	/**  Analysis to run. */
+	features: AnalysisFeatures,
+	/**  Playlist that receives the imported tracks. */
+	target_playlist: PlaylistId | null,
+};
+
+/**  Progress of an import or analysis job, at most about 10 per second per job. */
+export type ImportProgressEvent = JobProgress;
+
+/**  An import or analysis job (`import_jobs.id`). */
+export type JobId = number;
+
+/**  A stored job for the import panel. */
+export type JobInfo = {
+	/**  Counts and state, shaped like the `import-progress` event payload. */
+	progress: JobProgress,
+	/**  Folder, playlist or XML path. */
+	source: string | null,
+	/**  Failure message of a failed job. */
+	error: string | null,
+	/**  Unix ms the job was created. */
+	created_at: number,
+};
+
+/**  What started the job. */
+export type JobKind = 
+/**  Recursive folder import. */
+"import_folder" | 
+/**  Explicit list of files (drag and drop). */
+"import_files" | 
+/**  M3U/M3U8 playlist file. */
+"import_playlist" | 
+/**  rekordbox XML collection export. */
+"import_rekordbox_xml" | 
+/**  Re-analysis of tracks already in the library. */
+"reanalyze";
+
+/**
+ *  Progress snapshot of one job, sent to the UI.
+ * 
+ *  Invariant: `items_done + items_failed + items_duplicate <= items_total`.
+ *  `items_total` may grow while `stage == Discover`.
+ */
+export type JobProgress = {
+	/**  Job. */
+	job: JobId,
+	/**  Kind. */
+	kind: JobKind,
+	/**  State. */
+	state: JobState,
+	/**  Stage of the item being processed, if any. */
+	stage: JobStage | null,
+	/**  Items discovered so far. */
+	items_total: number,
+	/**  Items done. */
+	items_done: number,
+	/**  Items skipped as duplicates. */
+	items_duplicate: number,
+	/**  Items failed. */
+	items_failed: number,
+	/**  Path of the item being processed, for display. */
+	current_item: string | null,
+	/**  Track most recently added or updated, so the UI can refresh its row. */
+	last_track: TrackId | null,
+};
+
+/**  Pipeline stage of an item, in execution order. */
+export type JobStage = 
+/**  Walking folders or parsing the playlist/XML into items. */
+"discover" | 
+/**  Path and content-hash duplicate check. */
+"dedupe" | 
+/**  Tags and artwork. */
+"tags" | 
+/**  Decoding to PCM. */
+"decode" | 
+/**  BPM, grid, key, peaks, loudness. */
+"analyze" | 
+/**  Writing results to the database. */
+"persist";
+
+/**  Lifecycle state of a job. */
+export type JobState = 
+/**  Waiting for a worker. */
+"queued" | 
+/**  Processing items. */
+"running" | 
+/**  Paused by the user or interrupted by shutdown; resumable. */
+"paused" | 
+/**  Cancelled; finished items stay in the library. */
+"cancelled" | 
+/**  All items processed (some may have failed). */
+"completed" | 
+/**  The job itself failed (e.g. unreadable XML). */
+"failed";
+
 /**  Major or minor mode. */
 export type KeyMode = 
 /**  Major (Camelot letter B). */
@@ -611,12 +857,31 @@ export type KeyMode =
 /**  Minor (Camelot letter A). */
 "minor";
 
+/**  What a `library-changed` event says was touched. */
+export type LibraryChange = {
+	/**  Tracks were added, removed or edited. */
+	tracks: boolean,
+	/**  Playlists, folders or their entries changed. */
+	playlists: boolean,
+};
+
+/**  Tracks or playlists changed (import, delete, playlist edits); coalesced. */
+export type LibraryChangedEvent = LibraryChange;
+
 /**  A loop region in seconds. Invariant: `start < end`, both finite. */
 export type LoopRegion = {
 	/**  Loop in point. */
 	start: Seconds,
 	/**  Loop out point (exclusive). */
 	end: Seconds,
+};
+
+/**  Integrated loudness and true peak (EBU R128 / ITU-R BS.1770). */
+export type Loudness = {
+	/**  Integrated loudness, LUFS. */
+	integrated_lufs: number | null,
+	/**  True peak, dBTP. */
+	true_peak_dbtp: number | null,
 };
 
 /**  Snapshot of the whole mixer, for the UI and session restore. */
@@ -678,8 +943,84 @@ export type PlayState =
 /**  CUE held while paused: playing from the cue point until release. */
 "cue_preview";
 
+/**  One playlist entry. */
+export type PlaylistEntryDto = {
+	/**  Entry id, stable across reorders. */
+	entry_id: number,
+	/**  Index in the playlist. */
+	position: number,
+	/**  Track summary. */
+	track: TrackRowDto,
+};
+
+/**  A playlist or playlist folder (`playlists.id`). */
+export type PlaylistId = number;
+
+/**  Folder or playlist. */
+export type PlaylistKindDto = 
+/**  Holds playlists and folders. */
+"folder" | 
+/**  Holds tracks. */
+"playlist";
+
+/**  Node of the playlist tree, flat with parent ids in sibling order. */
+export type PlaylistNodeDto = {
+	/**  Row id. */
+	id: PlaylistId,
+	/**  Parent folder, `None` at the top level. */
+	parent: PlaylistId | null,
+	/**  Folder or playlist. */
+	kind: PlaylistKindDto,
+	/**  Name. */
+	name: string,
+	/**  Index among siblings. */
+	position: number,
+	/**  Tracks in the playlist (0 for folders). */
+	track_count: number,
+};
+
 /**  A sample rate in Hz. Invariant: `> 0` wherever it is used as a divisor. */
 export type SampleRate = number;
+
+/**  A saved set with its entries. */
+export type SavedSetDetailDto = {
+	/**  Header. */
+	set: SavedSetDto,
+	/**  Entries in play order. */
+	entries: SavedSetEntryDto[],
+};
+
+/**  Saved set header. */
+export type SavedSetDto = {
+	/**  Row id. */
+	id: number,
+	/**  Name. */
+	name: string,
+	/**  Notes. */
+	notes: string,
+	/**  Unix ms the session started. */
+	started_at: number | null,
+	/**  Unix ms. */
+	created_at: number,
+	/**  Unix ms. */
+	updated_at: number,
+	/**  Number of entries. */
+	track_count: number,
+};
+
+/**  Saved set entry. */
+export type SavedSetEntryDto = {
+	/**  Track, `None` once it left the library. */
+	track: TrackId | null,
+	/**  Title snapshot. */
+	title: string | null,
+	/**  Artist snapshot. */
+	artist: string | null,
+	/**  Deck index. */
+	deck: number | null,
+	/**  Unix ms the track was played. */
+	played_at: number | null,
+};
 
 /**
  *  A duration or position in seconds, `f64`.
@@ -689,6 +1030,33 @@ export type SampleRate = number;
  *  negative only where documented (beat grid anchors before the first frame).
  */
 export type Seconds = number | null;
+
+/**  Collection sort column. */
+export type SortColumnDto = 
+/**  Title. */
+"title" | 
+/**  Artist. */
+"artist" | 
+/**  Album. */
+"album" | 
+/**  Genre. */
+"genre" | 
+/**  Duration. */
+"duration" | 
+/**  Bitrate. */
+"bitrate" | 
+/**  Year. */
+"year" | 
+/**  Date added. */
+"date_added" | 
+/**  BPM. */
+"bpm" | 
+/**  Camelot key. */
+"key" | 
+/**  Rating. */
+"rating" | 
+/**  Analysis status. */
+"analysis_status";
 
 /**
  *  Peak and RMS levels for a stereo signal over the last block(s), linear
@@ -725,6 +1093,66 @@ export type TempoRange =
 /**  +/- 100 % (0x to 2x speed). */
 "wide";
 
+/**  Stored analysis of a track. */
+export type TrackAnalysisDto = {
+	/**  Analyzer ids joined with `+`. */
+	analyzer: string,
+	/**  Analyzer version. */
+	analyzer_version: number,
+	/**  Unix ms. */
+	analyzed_at: number,
+	/**  BPM. */
+	bpm: number | null,
+	/**  Key, Camelot notation. */
+	key: MusicalKey | null,
+	/**  Key, musical notation. */
+	key_musical: string | null,
+	/**  Beat grid. */
+	beat_grid: BeatGrid | null,
+	/**  The grid survives re-analysis. */
+	grid_locked: boolean,
+	/**  Loudness. */
+	loudness: Loudness | null,
+};
+
+/**  A full track row. */
+export type TrackDetailDto = {
+	/**  Row id. */
+	id: TrackId,
+	/**  Path. */
+	path: string,
+	/**  File size in bytes. */
+	file_size: number,
+	/**  Tags. */
+	meta: TrackMetaDto,
+	/**  Duration in seconds. */
+	duration_secs: number | null,
+	/**  Sample rate of the file. */
+	sample_rate: number | null,
+	/**  Channel count. */
+	channels: number | null,
+	/**  Bitrate in kbit/s. */
+	bitrate_kbps: number | null,
+	/**  Codec name. */
+	codec: string | null,
+	/**  Rating 0 to 5. */
+	rating: number,
+	/**  Colour `0xRRGGBB`. */
+	color: number | null,
+	/**  Times loaded and played. */
+	play_count: number,
+	/**  Unix ms of the last play. */
+	last_played_at: number | null,
+	/**  Artwork row. */
+	artwork_id: number | null,
+	/**  Unix ms. */
+	date_added: number,
+	/**  Analysis state. */
+	analysis_status: AnalysisStatusDto,
+	/**  The file was not found on the last check. */
+	missing: boolean,
+};
+
 /**  A track row in the library (`tracks.id`). */
 export type TrackId = number;
 
@@ -742,6 +1170,14 @@ export type TrackInfo = {
 	album: string | null,
 	/**  Length in seconds (from the decoded audio once loaded). */
 	duration_secs: number | null,
+	/**  Library track, `None` for a file loaded straight from a path. */
+	id: TrackId | null,
+	/**  Analysed BPM, when the track is in the library and analysed. */
+	bpm: number | null,
+	/**  Analysed key, Camelot notation (`8A`). */
+	key: string | null,
+	/**  Analysed key, musical notation (`Am`). */
+	key_musical: string | null,
 };
 
 /**  A load failed (unreadable file, unsupported format, too long). */
@@ -769,6 +1205,115 @@ export type TrackLoaded = {
 
 /**  A track is decoded and handed to the engine. */
 export type TrackLoadedEvent = TrackLoaded;
+
+/**
+ *  Editable tag fields. As a patch, `None` leaves a field as it is and an
+ *  empty string clears a text field.
+ */
+export type TrackMetaDto = {
+	/**  Title. */
+	title: string | null,
+	/**  Artist. */
+	artist: string | null,
+	/**  Album. */
+	album: string | null,
+	/**  Album artist. */
+	album_artist: string | null,
+	/**  Remixer. */
+	remixer: string | null,
+	/**  Label. */
+	label: string | null,
+	/**  Composer. */
+	composer: string | null,
+	/**  Genre. */
+	genre: string | null,
+	/**  Release year. */
+	year: number | null,
+	/**  Track number. */
+	track_number: number | null,
+	/**  Comment. */
+	comment: string | null,
+	/**  BPM written in the tags. */
+	tag_bpm: number | null,
+	/**  Key written in the tags. */
+	tag_key: string | null,
+};
+
+/**  One page of a [`TrackQueryDto`]. */
+export type TrackPageDto = {
+	/**  Rows of this page. */
+	rows: TrackRowDto[],
+	/**  Rows matching the filter in total. */
+	total: number,
+};
+
+/**  Collection query: filter, sort and page. */
+export type TrackQueryDto = {
+	/**  Free text over title, artist, album, genre and comment. */
+	text: string | null,
+	/**  Lowest BPM, inclusive. */
+	bpm_min: number | null,
+	/**  Highest BPM, inclusive. */
+	bpm_max: number | null,
+	/**  Camelot keys to include (any of); empty means all. */
+	keys: string[],
+	/**  Genre, case-insensitive exact match. */
+	genre: string | null,
+	/**  Minimum rating. */
+	min_rating: number | null,
+	/**  Only this analysis status. */
+	status: AnalysisStatusDto | null,
+	/**  Sort column. */
+	sort: SortColumnDto,
+	/**  Sort descending. */
+	descending: boolean,
+	/**  Rows to skip. */
+	offset: number,
+	/**  Maximum rows. */
+	limit: number,
+};
+
+/**  One collection row. */
+export type TrackRowDto = {
+	/**  Row id. */
+	id: TrackId,
+	/**  Path. */
+	path: string,
+	/**  Title. */
+	title: string | null,
+	/**  Artist. */
+	artist: string | null,
+	/**  Album. */
+	album: string | null,
+	/**  Genre. */
+	genre: string | null,
+	/**  Release year. */
+	year: number | null,
+	/**  Comment tag. */
+	comment: string | null,
+	/**  Duration in seconds. */
+	duration_secs: number | null,
+	/**  Bitrate in kbit/s. */
+	bitrate_kbps: number | null,
+	/**  Analysed BPM. */
+	bpm: number | null,
+	/**  Analysed key, Camelot notation (`8A`). */
+	key: string | null,
+	/**  Analysed key, musical notation (`Am`). */
+	key_musical: string | null,
+	/**  Rating 0 to 5. */
+	rating: number,
+	/**  Colour `0xRRGGBB`. */
+	color: number | null,
+	/**  Unix ms the track was added. */
+	date_added: number,
+	/**  Analysis state. */
+	analysis_status: AnalysisStatusDto,
+	/**  The file was not found on the last check. */
+	missing: boolean,
+	/**  Artwork row, if the file has artwork. */
+	artwork_id: number | null,
+};
 
 /* Tauri Specta runtime */
 async function typedError<T, E>(result: Promise<T>): Promise<{ status: "ok"; data: T } | { status: "error"; error: E }> {

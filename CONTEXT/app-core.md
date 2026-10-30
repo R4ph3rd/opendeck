@@ -27,7 +27,7 @@ Top of the crate graph. Owns application state (decks, mixer snapshot, pad modes
 ## Acceptance per milestone
 - M0: pad mode per deck and audio host stub. **Done in wave 0a.**
 - M1: control thread, engine start/stop with settings, deck/mixer commands, telemetry forwarding.
-- M2: library handle, import job events. M3: sync and analysis wiring. M4: cue/loop persistence, pad interpretation for HOT CUE, BEAT JUMP, BEAT LOOP. M5: FX registry and state. M6: MIDI connection, feedback loop. M7: sampler, KEYBOARD, KEY SHIFT, saved sets.
+- M2: library handle, import job events. M3: sync and analysis wiring (**done**: `LibraryService` owns the library and import queue, `load_track` by id with grid and cues, cue and settings persistence, session saved set).  M4: cue/loop persistence, pad interpretation for HOT CUE, BEAT JUMP, BEAT LOOP. M5: FX registry and state. M6: MIDI connection, feedback loop. M7: sampler, KEYBOARD, KEY SHIFT, saved sets.
 
 ## Open questions
 - Undo for destructive edits (cue delete, grid edit): scope and storage.

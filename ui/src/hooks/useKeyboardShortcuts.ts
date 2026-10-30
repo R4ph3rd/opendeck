@@ -18,7 +18,7 @@ import {
 
 /** Elements that keep Space and Enter for themselves (a focused button activates on both). */
 const OWN_ACTIVATION_KEYS =
-  "button, a[href], input, textarea, select, [role=slider], [role=combobox], [role=listbox], [role=dialog], [contenteditable=true]";
+  "button, a[href], input, textarea, select, [role=slider], [role=combobox], [role=listbox], [role=grid], [role=tree], [role=treeitem], [role=option], [role=dialog], [contenteditable=true]";
 
 /** Elements that take typed characters. Range inputs and buttons do not. */
 const OWN_TEXT_KEYS =

@@ -32,7 +32,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
-      - run: cargo test --workspace
+      - run: cargo test --workspace --no-fail-fast
       - name: Bindings are up to date
         run: |
           cargo run -p opendeck-desktop --example export-bindings
@@ -74,7 +74,7 @@ jobs:
             pnpm-lock.yaml
             ui/pnpm-lock.yaml
       - run: pnpm -C ui install --frozen-lockfile
-      - run: cargo test --workspace
+      - run: cargo test --workspace --no-fail-fast
       - name: Build the app (no installer)
         run: pnpm -C ui tauri build --no-bundle
 
