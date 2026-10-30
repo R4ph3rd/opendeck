@@ -671,6 +671,12 @@ export type EngineTelemetry = {
 	master: StereoMeter,
 	/**  Headphone output level. */
 	headphones: StereoMeter,
+	/**  Deck FX units (insert chains), indexed by [`DeckId::index`]. */
+	fx_decks: [FxUnitTelemetry, FxUnitTelemetry, FxUnitTelemetry, FxUnitTelemetry],
+	/**  Master FX unit. */
+	fx_master: FxUnitTelemetry,
+	/**  Send FX units, indexed by bus. */
+	fx_sends: [FxUnitTelemetry, FxUnitTelemetry],
 	/**  Current sync leader. See `EngineCommand::SetLeader` for the election. */
 	leader: DeckId | null,
 	/**  Callback time divided by block duration, smoothed, `0..` (1.0 = overrun). */
@@ -732,6 +738,22 @@ export type FsEntryKind =
 "audio" | 
 /**  A playlist or collection file the importers read (`m3u`, `m3u8`, `xml`). */
 "playlist";
+
+/**  State of one FX unit (a chain of slots) over the last block. RT-safe. */
+export type FxUnitTelemetry = {
+	/**  At least one slot holding an effect is enabled. */
+	enabled: boolean,
+	/**
+	 *  At least one slot is processing: enabled, crossfading, or ringing out
+	 *  its tail after being disabled.
+	 */
+	active: boolean,
+	/**
+	 *  Peak of the unit's output over the last block it ran, linear
+	 *  amplitude; 0 while idle.
+	 */
+	level: number | null,
+};
 
 /**
  *  A linear amplitude factor (`1.0` = unity, `0.0` = silence). Valid values
