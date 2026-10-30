@@ -11,15 +11,17 @@ use std::sync::Mutex;
 
 use opendeck_app_core::{
     AppCore, AudioController, AudioDeviceInfo, AudioStatus, Backend, CoreError, CoreEvent,
-    DirListing, HotCues, ImportOptionsDto, JobInfo, LaunchOptions, LibraryChange, LibraryEvent,
-    LibraryService, PlaylistEntryDto, PlaylistNodeDto, SavedSetDetailDto, SavedSetDto,
-    SettingsStore, TrackAnalysisDto, TrackDetailDto, TrackInfo, TrackLoadFailed, TrackLoaded,
-    TrackMetaDto, TrackPageDto, TrackQueryDto,
+    DirListing, FxEffectDto, FxOp, FxPresetsDto, FxSlotRef, FxStateDto, FxUnitRef, HotCues,
+    ImportOptionsDto, JobInfo, LaunchOptions, LibraryChange, LibraryEvent, LibraryService,
+    PlaylistEntryDto, PlaylistNodeDto, SavedSetDetailDto, SavedSetDto, SettingsStore,
+    TrackAnalysisDto, TrackDetailDto, TrackInfo, TrackLoadFailed, TrackLoaded, TrackMetaDto,
+    TrackPageDto, TrackQueryDto,
 };
 use opendeck_contracts::analysis::AnalysisFeatures;
 use opendeck_contracts::beatgrid::BeatGrid;
 use opendeck_contracts::cue::{Cue, HotCueIndex};
 use opendeck_contracts::deck::DeckState;
+use opendeck_contracts::fx::EffectKey;
 use opendeck_contracts::ids::{JobId, PlaylistId, TrackId};
 use opendeck_contracts::jobs::JobProgress;
 use opendeck_contracts::mixer::{CrossfaderAssign, CrossfaderCurve, EqBand, MixerState};
@@ -1112,6 +1114,102 @@ fn reveal_in_explorer(path: String) -> Result<(), CommandError> {
         .map_err(|e| CommandError::Internal(format!("could not open the file manager: {e}")))
 }
 
+/// The FX model: Beat FX units, Sound Color FX, sends, pad effects.
+#[tauri::command]
+#[specta::specta]
+async fn fx_get_state(state: tauri::State<'_, AppState>) -> Result<FxStateDto, CommandError> {
+    let audio = state.audio()?;
+    blocking(move || audio.fx_state()).await
+}
+
+/// Every effect with its parameters, primary parameter, release flag and
+/// accepted beat divisions.
+#[tauri::command]
+#[specta::specta]
+async fn fx_list_effects(
+    state: tauri::State<'_, AppState>,
+) -> Result<Vec<FxEffectDto>, CommandError> {
+    let audio = state.audio()?;
+    blocking(move || audio.fx_effects()).await
+}
+
+/// Factory presets, user presets and chain presets.
+#[tauri::command]
+#[specta::specta]
+async fn fx_get_presets(state: tauri::State<'_, AppState>) -> Result<FxPresetsDto, CommandError> {
+    let audio = state.audio()?;
+    blocking(move || audio.fx_presets()).await
+}
+
+/// Applies one change to the FX model; the new state arrives as `fx-state-changed`.
+#[tauri::command]
+#[specta::specta]
+async fn fx_apply(state: tauri::State<'_, AppState>, op: FxOp) -> Result<(), CommandError> {
+    let audio = state.audio()?;
+    blocking(move || audio.fx_apply(op)).await
+}
+
+/// Pad FX edge: `bank` 0 or 1, `shift` layer, `pad` 0 to 7.
+#[tauri::command]
+#[specta::specta]
+fn fx_pad(
+    state: tauri::State<'_, AppState>,
+    deck: DeckId,
+    bank: u8,
+    shift: bool,
+    pad: u8,
+    pressed: bool,
+) -> Result<(), CommandError> {
+    Ok(state.audio()?.fx_pad(deck, bank, shift, pad, pressed)?)
+}
+
+/// Stores the effect in a slot as a user preset (same name replaces).
+#[tauri::command]
+#[specta::specta]
+async fn fx_save_preset(
+    state: tauri::State<'_, AppState>,
+    slot: FxSlotRef,
+    name: String,
+) -> Result<FxPresetsDto, CommandError> {
+    let audio = state.audio()?;
+    blocking(move || audio.fx_save_preset(slot, name)).await
+}
+
+/// Deletes a user preset.
+#[tauri::command]
+#[specta::specta]
+async fn fx_delete_preset(
+    state: tauri::State<'_, AppState>,
+    effect: EffectKey,
+    name: String,
+) -> Result<FxPresetsDto, CommandError> {
+    let audio = state.audio()?;
+    blocking(move || audio.fx_delete_preset(effect, name)).await
+}
+
+/// Stores the effects of a unit as a chain preset.
+#[tauri::command]
+#[specta::specta]
+async fn fx_save_chain(
+    state: tauri::State<'_, AppState>,
+    unit: FxUnitRef,
+    name: String,
+) -> Result<FxPresetsDto, CommandError> {
+    let audio = state.audio()?;
+    blocking(move || audio.fx_save_chain(unit, name)).await
+}
+
+/// Deletes a chain preset.
+#[tauri::command]
+#[specta::specta]
+async fn fx_delete_chain(
+    state: tauri::State<'_, AppState>,
+    name: String,
+) -> Result<FxPresetsDto, CommandError> {
+    let audio = state.audio()?;
+    blocking(move || audio.fx_delete_chain(name)).await
+}
+
 /// Engine snapshot pushed to the UI at ~60 Hz (ADR 0003, ADR 0004).
 #[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
 #[tauri_specta(event_name = "engine-telemetry")]
@@ -1161,6 +1259,11 @@ pub struct AnalysisReadyEvent(pub TrackId);
 #[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
 #[tauri_specta(event_name = "cues-changed")]
 pub struct CuesChangedEvent(pub TrackId);
+
+/// The FX model changed (assignment, effects, parameters, pads).
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+#[tauri_specta(event_name = "fx-state-changed")]
+pub struct FxStateChangedEvent(pub FxStateDto);
 
 /// The tauri-specta builder holding every command and event. Used by the app
 /// and by the bindings exporter, so both always agree.
@@ -1221,6 +1324,15 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             set_headphone_level,
             set_headphone_mix,
             set_split_cue,
+            fx_get_state,
+            fx_list_effects,
+            fx_get_presets,
+            fx_apply,
+            fx_pad,
+            fx_save_preset,
+            fx_delete_preset,
+            fx_save_chain,
+            fx_delete_chain,
             query_tracks,
             get_track,
             update_track_meta,
@@ -1266,7 +1378,8 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             ImportProgressEvent,
             LibraryChangedEvent,
             AnalysisReadyEvent,
-            CuesChangedEvent
+            CuesChangedEvent,
+            FxStateChangedEvent
         ])
         // IDs (SQLite rowids) and frame counts are u64/i64 but stay far below
         // 2^53, so they are exported as `number` (ADR 0004).
@@ -1291,6 +1404,7 @@ fn forward_events(app: tauri::AppHandle, events: crossbeam_channel::Receiver<Cor
             CoreEvent::HotCues(h) => HotCuesChangedEvent(h).emit(&app),
             CoreEvent::CuesChanged(t) => CuesChangedEvent(t).emit(&app),
             CoreEvent::AudioStatus(s) => AudioDeviceChangedEvent(s).emit(&app),
+            CoreEvent::FxState(f) => FxStateChangedEvent(*f).emit(&app),
         };
         if let Err(err) = result {
             eprintln!("could not emit event: {err}");

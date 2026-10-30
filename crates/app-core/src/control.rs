@@ -24,6 +24,8 @@ use opendeck_engine::device::{AudioOutput, open_output};
 use opendeck_engine::{EngineConfig, EngineHandle, OfflineRenderer, TrackBuffer};
 use opendeck_library::{Library, SavedSetEntry, now_ms};
 
+use crate::fx::{FxController, FxEnv};
+use crate::fx_types::{FxEffectDto, FxOp, FxPresetsDto, FxSlotRef, FxStateDto, FxUnitRef};
 use crate::loader::{DecodeResult, LoadRequest};
 use crate::settings_store::{SettingsStore, StoredSettings};
 use crate::types::{
@@ -136,7 +138,40 @@ pub(crate) enum Msg {
     GetSettings(Sender<AudioSettings>),
     GetStatus(Sender<AudioStatus>),
     Subscribe(Sender<CoreEvent>),
+    Fx(FxMsg),
     Shutdown,
+}
+
+/// FX calls handled by [`FxController`].
+pub(crate) enum FxMsg {
+    State(Sender<FxStateDto>),
+    Effects(Sender<Vec<FxEffectDto>>),
+    Presets(Sender<FxPresetsDto>),
+    Apply(FxOp, Sender<Result<(), CoreError>>),
+    Pad {
+        deck: DeckId,
+        index: usize,
+        pressed: bool,
+    },
+    SavePreset {
+        slot: FxSlotRef,
+        name: String,
+        reply: Sender<Result<FxPresetsDto, CoreError>>,
+    },
+    DeletePreset {
+        effect: opendeck_contracts::fx::EffectKey,
+        name: String,
+        reply: Sender<Result<FxPresetsDto, CoreError>>,
+    },
+    SaveChain {
+        unit: FxUnitRef,
+        name: String,
+        reply: Sender<Result<FxPresetsDto, CoreError>>,
+    },
+    DeleteChain {
+        name: String,
+        reply: Sender<Result<FxPresetsDto, CoreError>>,
+    },
 }
 
 /// The engine half the control thread holds. One instance lives on the
@@ -232,11 +267,13 @@ struct Control {
     pending: Vec<Pending>,
     latest: Option<EngineTelemetry>,
     last_sequence: Option<u64>,
+    fx: FxController,
 }
 
 /// Runs the control loop until [`Msg::Shutdown`] or every sender is gone.
 pub(crate) fn run(opts: LaunchOptions, inbox: Receiver<Msg>, loader: Sender<LoadRequest>) {
     let settings = opts.store.load();
+    let fx = FxController::new(opts.library.as_ref());
     let mut control = Control {
         opts,
         inbox,
@@ -261,6 +298,7 @@ pub(crate) fn run(opts: LaunchOptions, inbox: Receiver<Msg>, loader: Sender<Load
         pending: Vec::new(),
         latest: None,
         last_sequence: None,
+        fx,
     };
     let initial = control.settings.audio.clone();
     if let Err(err) = control.start_engine(&initial) {
@@ -268,6 +306,7 @@ pub(crate) fn run(opts: LaunchOptions, inbox: Receiver<Msg>, loader: Sender<Load
         control.status = stopped_status(control.opts.backend, &err.to_string());
     }
     control.main_loop();
+    control.fx.flush(control.opts.library.as_ref());
     control.cancel_all();
 }
 
@@ -404,6 +443,7 @@ impl Control {
                 let _ = reply.send(self.status.clone());
             }
             Msg::Subscribe(tx) => self.subscribers.push(tx),
+            Msg::Fx(msg) => self.fx_msg(msg),
             Msg::Shutdown => {}
         }
     }
@@ -965,6 +1005,7 @@ impl Control {
                 self.publish(CoreEvent::Telemetry(Box::new(snapshot)));
             }
         }
+        self.with_fx(|fx, env| fx.tick(env));
         for event in events {
             lost |= event == EngineEvent::DeviceLost;
             if let EngineEvent::HotCueSet { deck, index, cue } = event {
@@ -1091,6 +1132,7 @@ impl Control {
         self.pending.clear();
         self.replay_mixer();
         self.replay_state();
+        self.with_fx(|fx, env| fx.resync(env));
         Ok(())
     }
 
@@ -1214,6 +1256,95 @@ impl Control {
                 }
                 self.publish(CoreEvent::AudioStatus(self.status.clone()));
                 Err(err)
+            }
+        }
+    }
+
+    // ----- FX -----
+
+    /// Runs `f` with the FX controller and the control thread's view of the
+    /// engine, then tells subscribers when the model changed.
+    fn with_fx<R>(&mut self, f: impl FnOnce(&mut FxController, &mut FxEnv<'_>) -> R) -> R {
+        let mut quantize = [false; MAX_DECKS];
+        for (q, c) in quantize.iter_mut().zip(&self.controls) {
+            *q = c.quantize;
+        }
+        let mut env = FxEnv {
+            handle: self.engine.as_mut().map(Engine::handle),
+            tel: self.latest.as_ref(),
+            quantize,
+            leader: self.latest.as_ref().and_then(|t| t.leader).or(self.leader),
+            library: self.opts.library.as_ref(),
+            now: Instant::now(),
+        };
+        let out = f(&mut self.fx, &mut env);
+        if self.fx.take_dirty() {
+            let state = Box::new(self.fx.state().clone());
+            self.publish(CoreEvent::FxState(state));
+        }
+        out
+    }
+
+    fn fx_msg(&mut self, msg: FxMsg) {
+        match msg {
+            FxMsg::State(reply) => {
+                let _ = reply.send(self.fx.state().clone());
+            }
+            FxMsg::Effects(reply) => {
+                let _ = reply.send(self.fx.effects());
+            }
+            FxMsg::Presets(reply) => {
+                let _ = reply.send(self.fx.presets());
+            }
+            FxMsg::Apply(op, reply) => {
+                let result = self.with_fx(|fx, env| fx.apply(env, op));
+                let _ = reply.send(result);
+            }
+            FxMsg::Pad {
+                deck,
+                index,
+                pressed,
+            } => {
+                if let Err(err) = self.with_fx(|fx, env| fx.pad(env, deck, index, pressed)) {
+                    tracing::warn!(%err, "pad FX ignored");
+                }
+            }
+            FxMsg::SavePreset { slot, name, reply } => {
+                let lib = self.opts.library.clone();
+                let result = self
+                    .fx
+                    .slot_preset(slot, &name)
+                    .and_then(|p| self.fx.save_preset(lib.as_ref(), p))
+                    .map(|()| self.fx.presets());
+                let _ = reply.send(result);
+            }
+            FxMsg::DeletePreset {
+                effect,
+                name,
+                reply,
+            } => {
+                let lib = self.opts.library.clone();
+                let result = self
+                    .fx
+                    .delete_preset(lib.as_ref(), &effect, &name)
+                    .map(|()| self.fx.presets());
+                let _ = reply.send(result);
+            }
+            FxMsg::SaveChain { unit, name, reply } => {
+                let lib = self.opts.library.clone();
+                let result = self
+                    .fx
+                    .save_chain(lib.as_ref(), unit, &name)
+                    .map(|()| self.fx.presets());
+                let _ = reply.send(result);
+            }
+            FxMsg::DeleteChain { name, reply } => {
+                let lib = self.opts.library.clone();
+                let result = self
+                    .fx
+                    .delete_chain(lib.as_ref(), &name)
+                    .map(|()| self.fx.presets());
+                let _ = reply.send(result);
             }
         }
     }

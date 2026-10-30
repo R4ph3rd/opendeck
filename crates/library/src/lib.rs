@@ -11,6 +11,7 @@ mod analysis;
 mod cues;
 pub mod db;
 mod error;
+mod fx_presets;
 pub mod import;
 mod library;
 mod paths;
@@ -22,6 +23,7 @@ mod types;
 
 pub use analysis::SaveOutcome;
 pub use error::{LibraryError, Result};
+pub use fx_presets::StoredFxPreset;
 pub use library::{Library, now_ms};
 pub use paths::{normalize_path, normalize_path_string};
 pub use types::*;

@@ -129,19 +129,19 @@ DTOs live in `crates/app-core/src/dto.rs` (plain copies of the `opendeck-library
 
 ### Effects
 
+The FX model sits on the engine FX units (ADR 0006): two FLX4-style Beat FX units (each on channel 1, 2 or 1&2), one Sound Color FX per channel, 32 pad effects and two send buses. DTOs (`Fx*Dto`, `FxOp`) live in `crates/app-core/src/fx_types.rs`. The model is persisted in the library settings (`fx.state`, `fx.chains`) and user effect presets in `fx_presets`. Every edit is one `FxOp` through `fx_apply`; the new model arrives as `fx-state-changed`. Engine slot layout and its limits: `crates/app-core/src/fx.rs` module docs.
+
 | Command | Args | Returns | M |
 |---|---|---|---|
-| `list_effects` | | `Vec<EffectInfo>` | 5 |
-| `get_fx_state` | | `FxState` (per slot: effect key, enabled, wet, division, params) | 5 |
-| `load_effect` | `slot: FxSlotId, effect: Option<EffectKey>` | `()` | 5 |
-| `set_fx_enabled` | `slot, on: bool` | `()` | 5 |
-| `set_fx_param` | `slot, param: ParamId, value: f32` | `()` | 5 |
-| `set_fx_mix` | `slot, wet: f32` | `()` | 5 |
-| `set_fx_beat_division` | `slot, beats: Beats` | `()` | 5 |
-| `set_fx_send` | `deck, bus: u8, level: Gain` | `()` | 5 |
-| `list_fx_presets` | `effect: EffectKey` | `Vec<FxPreset>` | 5 |
-| `save_fx_preset` / `delete_fx_preset` | `preset: FxPreset` / `effect, name` | `()` | 5 |
-| `apply_fx_preset` | `slot, name: String` | `()` | 5 |
+| `fx_list_effects` **done** | | `Vec<FxEffectDto>` (key, name, routing, params, primary parameter, release flag, accepted beat divisions) | 5 |
+| `fx_get_state` **done** | | `FxStateDto` (units, CFX, sends, send levels, pads, `utility_blocked`) | 5 |
+| `fx_apply` **done** | `op: FxOp` | `()`; ops: `set_assign`, `set_mode`, `set_effect`, `set_param`, `set_level` (primary parameter), `set_wet`, `set_division`, `step_division` (BEAT left/right), `set_slot_enabled`, `set_unit_on`, `release`, `set_bpm_source`, `tap`, `set_release_effect`, `set_cfx_kind`, `set_cfx`, `set_send_level`, `set_send_tap`, `apply_preset`, `apply_chain`, `set_pad`. Fails with `invalid` for an unknown effect, slot or parameter | 5 |
+| `fx_pad` **done** | `deck, bank: u8, shift: bool, pad: u8, pressed: bool` | `()`; hold engages the assigned pad effect at the next engine frame (next beat when the deck has quantize on), release stops it; a release pad fires Release FX | 5 |
+| `fx_get_presets` **done** | | `FxPresetsDto` (factory presets, user presets, chains) | 5 |
+| `fx_save_preset` **done** | `slot: FxSlotRef, name: String` | `FxPresetsDto`; stores the slot's effect, parameters, wet and division | 5 |
+| `fx_delete_preset` **done** | `effect: EffectKey, name: String` | `FxPresetsDto` | 5 |
+| `fx_save_chain` **done** | `unit: FxUnitRef, name: String` | `FxPresetsDto`; stores the unit's effects | 5 |
+| `fx_delete_chain` **done** | `name: String` | `FxPresetsDto` | 5 |
 
 ### MIDI
 
@@ -187,7 +187,7 @@ DTOs live in `crates/app-core/src/dto.rs` (plain copies of the `opendeck-library
 | `hot-cues-changed` **done** | `HotCues` *shell* (deck, 8 slots) | on change | 2 |
 | `cues-changed` **done** | `TrackId` | on every stored cue change | 3 |
 | `pad-mode-changed` | `{ deck: DeckId, mode: PadMode }` | on change | 7 |
-| `fx-state-changed` | `FxState` | on change | 5 |
+| `fx-state-changed` **done** | `FxStateDto` | on every FX model change | 5 |
 | `midi-message` | `MidiMonitorEntry` (timestamp, bytes, decoded control id, action) | monitor on only, coalesced at 60 Hz | 6 |
 | `midi-learned` | `MidiLearnResult` (message, suggested binding) | once | 6 |
 | `midi-connection-changed` | `MidiStatus` | on change | 6 |
@@ -195,4 +195,4 @@ DTOs live in `crates/app-core/src/dto.rs` (plain copies of the `opendeck-library
 
 Mixer values cross IPC as linear `Gain` (trim, EQ band, master, headphone) or normalised positions (`filter` in `[-1, 1]`, channel fader and headphone mix in `[0, 1]`, crossfader in `[-1, 1]`). The UI owns the knob-to-gain curves (`ui/src/lib/mixer.ts`, constants mirror `contracts::mixer`); app-core validates ranges and the engine clamps.
 
-Library DTOs (`TrackQueryDto`, `TrackRowDto`, `PlaylistNodeDto`, ...) live in `crates/app-core/src/dto.rs`, not in contracts. Types still missing (`FxState`, `MidiPorts`, ...) are added to `crates/contracts` by the architect when their milestone starts.
+Library DTOs (`TrackQueryDto`, `TrackRowDto`, `PlaylistNodeDto`, ...) live in `crates/app-core/src/dto.rs`, not in contracts. Types still missing (`MidiPorts`, ...) are added to `crates/contracts` by the architect when their milestone starts.
