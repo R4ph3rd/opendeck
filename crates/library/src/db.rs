@@ -11,10 +11,13 @@ use rusqlite::Connection;
 use rusqlite_migration::{M, Migrations};
 
 /// Every migration, in order. Index `n` brings the schema to version `n + 1`.
-const MIGRATION_LIST: &[M<'static>] = &[M::up(include_str!("../migrations/0001_init.sql"))];
+const MIGRATION_LIST: &[M<'static>] = &[
+    M::up(include_str!("../migrations/0001_init.sql")),
+    M::up(include_str!("../migrations/0002_playlist_order_fts.sql")),
+];
 
 /// Schema version after all migrations (`PRAGMA user_version`).
-pub const SCHEMA_VERSION: i64 = 1;
+pub const SCHEMA_VERSION: i64 = 2;
 
 /// Error opening or migrating the database.
 #[derive(Debug, thiserror::Error)]
@@ -25,6 +28,17 @@ pub enum DbError {
     /// Migration error.
     #[error("migration: {0}")]
     Migration(#[from] rusqlite_migration::Error),
+    /// The file was written by a newer app version; it is never downgraded.
+    #[error("library schema v{found} is newer than this app supports (v{supported})")]
+    NewerSchema {
+        /// `user_version` found in the file.
+        found: i64,
+        /// Highest version this build knows.
+        supported: i64,
+    },
+    /// Backing up the file before migration failed.
+    #[error("backup before migration failed: {0}")]
+    Backup(#[from] std::io::Error),
 }
 
 /// The migration set, for validation in tests and tooling.
@@ -42,12 +56,46 @@ fn configure(conn: &Connection) -> Result<(), DbError> {
     Ok(())
 }
 
+fn user_version(conn: &Connection) -> Result<i64, DbError> {
+    Ok(conn.query_row("PRAGMA user_version", [], |r| r.get(0))?)
+}
+
 /// Opens (creating if needed) the library at `path` and migrates it to
 /// [`SCHEMA_VERSION`].
+///
+/// An existing database with an older schema is copied to
+/// `<file>.bak-v<old>` first (ADR 0005). A database with a newer schema is
+/// refused with [`DbError::NewerSchema`] and left untouched.
 pub fn open(path: &Path) -> Result<Connection, DbError> {
     let mut conn = Connection::open(path)?;
     configure(&conn)?;
+    let found = user_version(&conn)?;
+    if found > SCHEMA_VERSION {
+        return Err(DbError::NewerSchema {
+            found,
+            supported: SCHEMA_VERSION,
+        });
+    }
+    if found > 0 && found < SCHEMA_VERSION {
+        // Fold the WAL into the main file so a plain copy is a complete backup.
+        conn.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |_| Ok(()))?;
+        let mut backup = path.as_os_str().to_owned();
+        backup.push(format!(".bak-v{found}"));
+        std::fs::copy(path, backup)?;
+    }
     migrations().to_latest(&mut conn)?;
+    Ok(conn)
+}
+
+/// Opens a read-only connection to an already migrated file database.
+pub fn open_reader(path: &Path) -> Result<Connection, DbError> {
+    let conn = Connection::open_with_flags(
+        path,
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY
+            | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX
+            | rusqlite::OpenFlags::SQLITE_OPEN_URI,
+    )?;
+    conn.busy_timeout(std::time::Duration::from_secs(5))?;
     Ok(conn)
 }
 
@@ -64,8 +112,7 @@ mod tests {
     use super::*;
 
     fn user_version(conn: &Connection) -> i64 {
-        conn.query_row("PRAGMA user_version", [], |r| r.get(0))
-            .expect("user_version")
+        super::user_version(conn).expect("user_version")
     }
 
     #[test]
