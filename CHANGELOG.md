@@ -4,6 +4,20 @@ All notable changes are recorded here. Format follows [Keep a Changelog](https:/
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-30
+
+Milestone 6: MIDI layer, DDJ-FLX4 mapping, LED feedback, MIDI settings and monitor, replay harness.
+
+### Added
+
+- MIDI layer (`midi`): data-driven JSON mappings (ADR 0007) with 14-bit pairs, relative jog and browse encodings and shift layers; feedback engine with per-address de-duplication, rate limits, software blink and `when` on feedback entries; `on_connect` messages including SysEx; a controller worker with hot-plug and LED replay on reconnect, fed by a lock-free midir callback.
+- DDJ-FLX4 mapping (`mappings/ddj-flx4.json`): message list sections 1 to 5, every row cited by its section number, unmapped rows listed with a reason. Values without a source carry `verify` and a question in `docs/midi-open-questions.md` (165 entries over 9 questions).
+- LED feedback for play, cue, sync, loop in and out, pads, pad modes, CH CUE, FX on, channel level meters, loaded and vinyl mode.
+- App-core MIDI bridge and service: deck, mixer, loop, hot cue, beat jump, beat loop, pad FX and Beat FX section actions, tempo soft takeover, CFX knob, optional fader start, user overrides.
+- MIDI settings (device, connect at launch, fader start, mapping table, MIDI learn, overrides, mapping import and export), MIDI monitor with mapped control and `verify` labels, and a controller status indicator in the top bar. Tauri MIDI commands and events.
+- Replay harness: recorded bytes in, expected `ControlEvent`s out, for every FLX4 control group, also driven through a headless app-core.
+- Contracts: `MemoryCueDelete`, `TapTempo`, `FxRelease`, `FxBpmAuto` and `FxBpmTap` control actions (additive).
+
 ## [0.5.0] - 2026-10-30
 
 Milestone 5: FX library, FX host, FX UI with presets and chains.
