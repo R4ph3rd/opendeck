@@ -15,18 +15,18 @@ const DJ = /^(deck-|cue-|wave-|beat-|playhead|loop-|meter-|sync-|master-)/;
 const groups: { title: string; note: string; names: string[] }[] = [
   {
     title: "Surfaces and borders",
-    note: "bg is the app canvas, surface holds panels, surface-raised holds menus and dialogs. Use border for hairlines.",
+    note: "bg is the app canvas, surface holds panels, surface-raised holds menus and dialogs. All surfaces are flat and opaque. Use border for hairlines.",
     names: pick(/^(bg|bg-subtle|surface|surface-raised|surface-hover|border|border-strong|overlay)$/),
   },
   {
     title: "Text",
-    note: "fg and fg-muted pass 4.5:1 on bg and surface. fg-subtle passes 3:1 only: placeholders, disabled hints, tertiary labels.",
+    note: "fg and fg-muted pass 4.5:1 on every surface step. fg-subtle passes 3:1 only: placeholders, disabled hints, tertiary labels.",
     names: pick(/^fg/),
   },
   {
     title: "Accent and status",
-    note: "accent-fg is the text color on accent fills. focus-ring is the :focus-visible outline.",
-    names: pick(/^(accent|focus-ring|selection|danger|danger-fg|success|warning)/),
+    note: "Warm orange accent. accent-fg is the text on accent fills. focus-ring is the :focus-visible outline. The *-bg tokens are solid callout fills; status text on them passes 4.5:1.",
+    names: pick(/^(accent|focus-ring|selection|danger|success|warning|info)/),
   },
   {
     title: "Shell",
@@ -50,8 +50,8 @@ const groups: { title: string; note: string; names: string[] }[] = [
   },
   {
     title: "DJ: meters and indicators",
-    note: "Meter segments run green, amber, red, then clip. sync-on and master-on light the SYNC and MASTER buttons.",
-    names: pick(/^(meter-|sync-|master-)/),
+    note: "Meter segments run green, yellow, red, then clip. led-on (lime) lights LEDs, SYNC and pads; master-on is yellow.",
+    names: pick(/^(meter-|sync-|master-|led-)/),
   },
 ];
 
@@ -102,7 +102,6 @@ const radii = names.filter((n) => /^radius-/.test(n));
 const shadows = names.filter((n) => /^shadow-/.test(n));
 const durations = names.filter((n) => /^duration-/.test(n));
 const zs = names.filter((n) => /^z-/.test(n));
-const gradients = names.filter((n) => /^gradient-/.test(n));
 
 function Tokens() {
   return (
@@ -111,7 +110,9 @@ function Tokens() {
       <p className="mb-6 max-w-2xl text-sm text-fg-muted">
         Tokens live in <code>src/tokens/tokens.css</code>. Dark is the default; use the toolbar to
         preview light. Use token classes (<code>bg-surface</code>, <code>text-fg-muted</code>) or{" "}
-        <code>var(--token)</code>. Raw hex and pixel values fail lint.
+        <code>var(--token)</code>. Raw hex and pixel values fail lint. The palette is flat slate with an
+        orange accent, approximated from general knowledge of a classic DAW dark theme and not sampled
+        (see <code>docs/design/palette-source.md</code>). No gradients, blur or translucent surfaces.
       </p>
 
       <Colors />
@@ -204,23 +205,6 @@ function Tokens() {
         <code className="block text-xs text-fg-muted">
           {zs.map((n) => `--${n}: ${raw[n]}`).join("   ")}
         </code>
-      </Section>
-
-      <Section
-        title="Gradients and backdrop"
-        note="Chrome and empty states only. Content surfaces stay flat. Contrast is tested with the mesh at peak alpha."
-      >
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-3">
-          {gradients.map((n) => (
-            <div key={n} className="flex flex-col gap-1">
-              <div
-                className="h-24 rounded-lg border border-border bg-surface"
-                style={{ backgroundImage: `var(--${n})` }}
-              />
-              <code className="text-xs text-fg-subtle">--{n}</code>
-            </div>
-          ))}
-        </div>
       </Section>
 
       <Section title="DJ token list" note="Everything matched by the DJ groups above, for reference.">

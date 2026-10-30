@@ -1,6 +1,6 @@
 {
   "name": "opendeck-ui",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.28.0",
@@ -12,7 +12,8 @@
     "test": "vitest run && pnpm --filter @opendeck/design-system test",
     "tauri": "node scripts/tauri.mjs",
     "storybook": "pnpm --filter @opendeck/design-system storybook",
-    "build-storybook": "pnpm --filter @opendeck/design-system build-storybook"
+    "build-storybook": "pnpm --filter @opendeck/design-system build-storybook && storybook build -c .storybook",
+    "storybook:viz": "storybook dev -p 6007 -c .storybook"
   },
   "dependencies": {
     "@opendeck/design-system": "workspace:*",
@@ -27,6 +28,8 @@
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@storybook/addon-docs": "9.1.21",
+    "@storybook/react-vite": "9.1.21",
     "@tailwindcss/vite": "4.3.3",
     "@tauri-apps/cli": "2.12.4",
     "@testing-library/react": "16.3.3",
@@ -38,6 +41,7 @@
     "eslint-plugin-react-hooks": "7.1.1",
     "globals": "17.13.0",
     "jsdom": "29.1.1",
+    "storybook": "9.1.21",
     "stylelint": "17.16.0",
     "stylelint-declaration-strict-value": "1.12.1",
     "tailwindcss": "4.3.3",

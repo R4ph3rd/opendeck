@@ -8,7 +8,11 @@ const COLOR_FN = /\b(?:rgba?|hsla?|hwb|oklch|oklab)\(/i;
 const ARBITRARY_LENGTH = /\[-?\d*\.?\d+(?:px|rem|em)\]/;
 
 /** @param {string} text */
+// Glass is banned: Tailwind blur/backdrop utilities, backdrop-filter, filter: blur().
+const GLASS = /(?:^|[\s:"'`])(?:backdrop-|blur-)|backdrop-filter|\bblur\(/i;
+
 function check(text) {
+  if (GLASS.test(text)) return "glass";
   if (HEX.test(text)) return "hex";
   if (COLOR_FN.test(text)) return "colorFn";
   if (ARBITRARY_LENGTH.test(text)) return "arbitraryLength";
@@ -21,6 +25,7 @@ export const noRawStyleLiterals = {
     type: "problem",
     schema: [],
     messages: {
+      glass: "Glassy effect in {{ value }}. Backdrop filters and blur are not allowed; use a flat token surface.",
       hex: "Raw hex color {{ value }}. Use a design token (var(--token) or a token class).",
       colorFn: "Raw color function in {{ value }}. Use a design token (var(--token) or a token class).",
       arbitraryLength:
@@ -37,6 +42,12 @@ export const noRawStyleLiterals = {
       }
     };
     return {
+      Property(node) {
+        const key = node.key.type === "Identifier" ? node.key.name : node.key.value;
+        if (key === "backdropFilter" || key === "WebkitBackdropFilter") {
+          context.report({ node, messageId: "glass", data: { value: String(key) } });
+        }
+      },
       Literal(node) {
         if (typeof node.value === "string") report(node, node.value);
       },

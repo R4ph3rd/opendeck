@@ -7,6 +7,15 @@ const KEYWORDS = ["transparent", "inherit", "initial", "unset", "currentColor", 
 export default {
   plugins: ["stylelint-declaration-strict-value"],
   rules: {
+    // No glass: backdrop-filter and blurs are banned everywhere.
+    "property-disallowed-list": [
+      ["backdrop-filter", "-webkit-backdrop-filter"],
+      { message: "Glassy effects are not allowed (no backdrop-filter)." },
+    ],
+    "declaration-property-value-disallowed-list": [
+      { "/^(-webkit-)?filter$/": ["/blur\\(/"] },
+      { message: "Glassy effects are not allowed (no filter: blur)." },
+    ],
     "scale-unlimited/declaration-strict-value": [
       [
         "/color$/",

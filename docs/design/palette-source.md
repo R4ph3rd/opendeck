@@ -1,186 +1,95 @@
 # Palette source
 
-The OpenDeck palette is extracted from gittrunk, the author's own project, and reused as-is where it fits.
+## Current palette: approximated, not sampled
 
-- Repository: https://github.com/R4ph3rd/gittrunk
-- Commit: `128c1ad728981ac744486608926cef0b2ba6a4d9`
-- Files read:
-  - `src/design/tokens.css` (all tokens below)
-  - `src/index.css` (fonts, Tailwind `@theme inline` mapping, base focus rule, `bg-chrome` utility)
-  - `docs/DESIGN.md` (intent, contrast rules for the backdrop)
+The palette follows the colour language of a classic DAW dark theme: flat slate-grey surfaces with a faint cool blue-green tint, light grey text, warm orange accent, lime for lit states. No name, logo, icon or asset from any DAW is used in the app or the package.
 
-Nothing here is guessed. Values in the table are copied from `tokens.css` at that commit. Where OpenDeck differs, the change is listed under Deviations.
+**Every value below is an approximation from general knowledge.** The owner could not provide an extraction and the vendor site was not reachable from the build environment, so nothing was sampled from a real UI. The owner may supply screenshots; exact values can then be sampled and these tokens adjusted in `tokens.css` alone (the contrast tests will say which pairs need tuning).
 
-## Other extracted facts
+Rules that hold for the whole palette: flat fills only, no gradients, no blur or `backdrop-filter` (banned by stylelint and ESLint), no translucent panels, menus, dialogs or toasts. Only the dim scrim (`--overlay`), text selection and the waveform and beat grid overlays use alpha.
 
-| Item | Value | Source | OpenDeck |
+Fonts are unchanged: Inter Variable for UI text, JetBrains Mono Variable for numbers (both OFL-1.1). Radii are small: 2, 3 and 4 px. Shadows are a hard 1px drop plus a 1px top highlight.
+
+### Surfaces and text
+
+| Token | Dark | Light | Rationale |
 |---|---|---|---|
-| Sans font | Inter Variable via `@fontsource-variable/inter` | `src/index.css` | kept (OFL-1.1) |
-| Mono font | JetBrains Mono Variable via `@fontsource-variable/jetbrains-mono` | `src/index.css` | kept (OFL-1.1) |
-| Base text size | 13px | `--text-base`, body rule | kept |
-| Focus rule | `:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }` | `src/index.css` | kept in `base.css` |
-| Chrome utility | `bg-chrome` = `var(--gradient-chrome)` | `src/index.css` | kept; adds `bg-mesh`, `bg-mesh-page` |
-| Keyframes | `ds-fade-in`, `ds-pop-in` | `tokens.css` | kept |
-| Reduced motion | `--duration-fast` and `--duration-base` become `0.01ms` | `tokens.css` | kept |
-| Tailwind mapping | `@theme inline` maps `--color-*`, `--radius-*`, `--shadow-*`, `--text-*`, `--ease-standard` | `src/index.css` | kept in `theme.css`, plus DJ colors |
-| Custom variants `compact`, `coarse`, `short` | mobile layout | `src/index.css` | dropped (desktop app) |
-| Direction | Dark first plus light, 13px text, 28px control, 1px borders, 120 to 180ms motion | `docs/DESIGN.md` | kept |
+| `--bg` | `#1f272c` | `#e2e9ec` | App canvas, the darkest step, slate with a blue-green cast. |
+| `--bg-subtle` | `#242d32` | `#eaf0f2` | Panel headers and inputs, one step up. |
+| `--surface` | `#2b353b` | `#f5f8f9` | Panels, a step lighter than the canvas. |
+| `--surface-raised` | `#36424a` | `#ffffff` | Menus, dialogs, raised controls. |
+| `--surface-hover` | `#3d4b53` | `#d7e0e5` | Hover and pressed fill. |
+| `--border` | `#161c20` | `#bcc8cf` | Thin separator, darker than every surface in dark. |
+| `--border-strong` | `#566670` | `#8a9aa5` | Control outlines, off-LED ring. |
+| `--fg` | `#e3e9ec` | `#1b2429` | Primary light grey text. |
+| `--fg-muted` | `#b4c0c7` | `#44535d` | Secondary text, 4.5:1 on every surface. |
+| `--fg-subtle` | `#94a3ad` | `#5a6a75` | Placeholders and disabled hints, 3:1. |
 
-## Extracted tokens
+### Accent and status
 
-Columns: dark value, light value (`same` means one value for both themes, set on `:root`), and what OpenDeck did with it.
-
-| Token | Dark | Light | OpenDeck |
+| Token | Dark | Light | Rationale |
 |---|---|---|---|
-| `--font-sans` | `"Inter Variable", "Inter", ui-sans-serif, system-ui, sans-serif` | same | kept |
-| `--font-mono` | `"JetBrains Mono Variable", "JetBrains Mono", ui-monospace, "Cascadia Code", monospace` | same | kept |
-| `--text-xs` | `11px` | same | kept |
-| `--text-sm` | `12px` | same | kept |
-| `--text-base` | `13px` | same | kept |
-| `--text-lg` | `15px` | same | kept |
-| `--text-xl` | `18px` | same | kept |
-| `--text-2xl` | `24px` | same | kept |
-| `--space-1` | `4px` | same | kept |
-| `--space-2` | `8px` | same | kept |
-| `--space-3` | `12px` | same | kept |
-| `--space-4` | `16px` | same | kept |
-| `--space-6` | `24px` | same | kept |
-| `--space-8` | `32px` | same | kept |
-| `--control-sm` | `24px` | same | kept |
-| `--control-md` | `28px` | same | kept |
-| `--control-lg` | `32px` | same | kept |
-| `--z-base` | `0` | same | kept |
-| `--z-sticky` | `10` | same | kept |
-| `--z-dropdown` | `50` | same | kept |
-| `--z-overlay` | `100` | same | kept |
-| `--z-modal` | `110` | same | kept |
-| `--z-popover` | `120` | same | kept |
-| `--z-toast` | `130` | same | kept |
-| `--z-tooltip` | `140` | same | kept |
-| `--radius-sm` | `4px` | same | kept |
-| `--radius-md` | `6px` | same | kept |
-| `--radius-lg` | `10px` | same | kept |
-| `--duration-fast` | `120ms` | same | kept |
-| `--duration-base` | `180ms` | same | kept |
-| `--ease-standard` | `cubic-bezier(0.2, 0, 0, 1)` | same | kept |
-| `--bp-compact` | `768px` | same | dropped (git or mobile specific) |
-| `--touch-target` | `44px` | same | dropped (git or mobile specific) |
-| `--touch-target-row` | `52px` | same | dropped (git or mobile specific) |
-| `--appbar-h` | `48px` | same | dropped (git or mobile specific) |
-| `--bottomnav-h` | `56px` | same | dropped (git or mobile specific) |
-| `--navrail-w` | `72px` | same | dropped (git or mobile specific) |
-| `--sheet-radius` | `var(--radius-lg)` | same | dropped (git or mobile specific) |
-| `--sheet-handle` | `32px` | same | dropped (git or mobile specific) |
-| `--sheet-duration` | `var(--duration-base)` | same | dropped (git or mobile specific) |
-| `--swipe-duration` | `150ms` | same | dropped (git or mobile specific) |
-| `--safe-top` | `env(safe-area-inset-top, 0px)` | same | dropped (git or mobile specific) |
-| `--safe-bottom` | `env(safe-area-inset-bottom, 0px)` | same | dropped (git or mobile specific) |
-| `--safe-left` | `env(safe-area-inset-left, 0px)` | same | dropped (git or mobile specific) |
-| `--safe-right` | `env(safe-area-inset-right, 0px)` | same | dropped (git or mobile specific) |
-| `--kb-inset` | `0px` | same | dropped (git or mobile specific) |
-| `--appbar-h-short` | `40px` | same | dropped (git or mobile specific) |
-| `--sheet-handle-h` | `4px` | same | dropped (git or mobile specific) |
-| `--sheet-max-h` | `85dvh` | same | dropped (git or mobile specific) |
-| `--progress-h` | `2px` | same | dropped (git or mobile specific) |
-| `--bg` | `#0c0c0d` | `#fafafa` | kept |
-| `--bg-subtle` | `#111113` | `#f4f4f5` | kept |
-| `--surface` | `#161618` | `#ffffff` | kept |
-| `--surface-raised` | `#1c1c1f` | `#ffffff` | kept |
-| `--surface-hover` | `#232326` | `#efeff1` | kept |
-| `--border` | `#2a2a2e` | `#e4e4e7` | kept |
-| `--border-strong` | `#3a3a3f` | `#d0d0d6` | kept |
-| `--fg` | `#ececef` | `#18181b` | kept |
-| `--fg-muted` | `#a3a3ab` | `#52525b` | kept |
-| `--fg-subtle` | `#8a8a92` | `#6b6b74` | kept |
-| `--accent` | `#ff4f7b` | `#d6195a` | kept |
-| `--accent-hover` | `#ff6b90` | `#bf1650` | kept |
-| `--accent-fg` | `#1a070d` | `#ffffff` | kept |
-| `--accent-muted` | `rgb(255 79 123 / 0.14)` | `rgb(214 25 90 / 0.1)` | kept |
-| `--focus-ring` | `rgb(255 79 123 / 0.6)` | `rgb(214 25 90 / 0.45)` | kept, alpha raised for 3:1 (see below) |
-| `--danger` | `#ff6a4d` | `#c2410c` | kept |
-| `--danger-fg` | `#1f0a05` | `#ffffff` | kept |
-| `--success` | `#3ecf8e` | `#15803d` | kept |
-| `--warning` | `#f5b83d` | `#b45309` | kept |
-| `--overlay` | `rgb(0 0 0 / 0.6)` | `rgb(24 24 27 / 0.35)` | kept |
-| `--selection` | `rgb(255 79 123 / 0.28)` | `rgb(214 25 90 / 0.18)` | kept |
-| `--scrollbar-thumb` | `#2e2e33` | `#d0d0d6` | kept |
-| `--scrollbar-thumb-hover` | `#45454c` | `#b0b0b8` | kept |
-| `--diff-add-bg` | `rgb(62 207 142 / 0.12)` | `rgb(21 128 61 / 0.12)` | dropped (git or mobile specific) |
-| `--diff-del-bg` | `rgb(255 106 77 / 0.12)` | `rgb(194 65 12 / 0.1)` | dropped (git or mobile specific) |
-| `--shadow-sm` | `0 1px 2px rgb(0 0 0 / 0.4)` | `0 1px 2px rgb(16 24 40 / 0.06)` | kept |
-| `--shadow-md` | `0 4px 16px rgb(0 0 0 / 0.35), 0 1px 2px rgb(0 0 0 / 0.4)` | `0 4px 16px rgb(16 24 40 / 0.08), 0 1px 2px rgb(16 24 40 / 0.06)` | kept |
-| `--shadow-lg` | `0 12px 40px rgb(0 0 0 / 0.5)` | `0 12px 40px rgb(16 24 40 / 0.14)` | kept |
-| `--gradient-chrome` | `radial-gradient(60% 90% at 100% 0%, rgb(255 79 123 / 0.07) 0%, transparent 60%), linear-gradient(180deg, #111113 0%, #0c0c0d 100%)` | `radial-gradient(60% 90% at 100% 0%, rgb(214 25 90 / 0.06) 0%, transparent 60%), linear-gradient(180deg, #f4f4f5 0%, #fafafa 100%)` | kept |
-| `--backdrop-red` | `#e11d48` | `#fb7185` | kept |
-| `--backdrop-blue` | `#1d4ed8` | `#60a5fa` | kept |
-| `--backdrop-alpha-subtle` | `0.136` | `0.08` | kept |
-| `--backdrop-alpha-page` | `0.347` | `0.392` | kept |
-| `--backdrop-blur-subtle` | `24px` | `24px` | kept |
-| `--backdrop-blur-page` | `40px` | `40px` | kept |
-| `--lane-0` | `#ff4f7b` | `#d6195a` | renamed `--cue-1` |
-| `--lane-1` | `#5cc8ff` | `#0369a1` | renamed `--cue-2` |
-| `--lane-2` | `#f5b83d` | `#b45309` | renamed `--cue-3` |
-| `--lane-3` | `#a78bfa` | `#7c3aed` | renamed `--cue-4` |
-| `--lane-4` | `#3ecf8e` | `#15803d` | renamed `--cue-5` |
-| `--lane-5` | `#ff8a4c` | `#c2410c` | renamed `--cue-6` |
-| `--lane-6` | `#2dd4bf` | `#0f766e` | renamed `--cue-7` |
-| `--lane-7` | `#e879f9` | `#a21caf` | renamed `--cue-8` |
-| `--tabbar-bg` | `#09090a` | `#e9e9ec` | kept |
-| `--toolbar-bg` | `#19191b` | `#fafafa` | kept |
-| `--tab-active-bg` | `var(--toolbar-bg)` | `var(--toolbar-bg)` | kept |
-| `--tab-hover-bg` | `#141416` | `#f1f1f3` | kept |
-| `--panel-header-bg` | `var(--bg-subtle)` | `var(--bg-subtle)` | kept |
-| `--lane-fg` | `#111113` | `#ffffff` | renamed `--cue-fg` |
-| `--avatar-ring` | `var(--surface)` | `var(--surface)` | dropped (git or mobile specific) |
-| `--staged-accent` | `var(--success)` | `var(--success)` | dropped (git or mobile specific) |
-| `--staged-bg` | `rgb(62 207 142 / 0.06)` | `rgb(21 128 61 / 0.06)` | dropped (git or mobile specific) |
-| `--unstaged-accent` | `var(--warning)` | `var(--warning)` | dropped (git or mobile specific) |
-| `--unstaged-bg` | `transparent` | `transparent` | dropped (git or mobile specific) |
-| `--terminal-bg` | `#0e0e10` | `#ffffff` | dropped (git or mobile specific) |
-| `--terminal-fg` | `var(--fg)` | `var(--fg)` | dropped (git or mobile specific) |
-| `--terminal-cursor` | `var(--accent)` | `var(--accent)` | dropped (git or mobile specific) |
-| `--terminal-selection` | `rgb(255 79 123 / 0.3)` | `rgb(214 25 90 / 0.2)` | dropped (git or mobile specific) |
+| `--accent` | `#ff9a2e` | `#a24900` | Warm orange: selection, active transport. Light is darkened for 3:1 on the canvas. |
+| `--accent-hover` | `#ffb04f` | `#873c00` | One step brighter (dark) or deeper (light). |
+| `--accent-fg` | `#1f1304` | `#ffffff` | Text on accent fills, 4.5:1. |
+| `--accent-muted` | `#43321d` | `#fbe3c8` | Solid on-state fill for toggles; accent text on it is 4.5:1. |
+| `--focus-ring` | `#ffb04f` | `#8f4000` | Solid, 3:1 on every surface. |
+| `--selection` | `rgb(255 154 46 / 0.35)` | `rgb(162 73 0 / 0.25)` | Text selection only. |
+| `--danger` / `--danger-fg` | `#ff7260` / `#2a0a05` | `#b52b17` / `#ffffff` | Coral red. |
+| `--success` | `#92d94a` | `#36700a` | Green for success and the meter low segment. |
+| `--warning` | `#f5c542` | `#8a5d00` | Yellow for warnings and the meter mid segment. |
+| `--info` | `#6fa0ff` | `#2a56c6` | Blue for information. |
+| `--danger-bg`, `--success-bg`, `--warning-bg`, `--info-bg` | `#442a29`, `#2d3c25`, `#4a4026`, `#273755` | `#fbe0dc`, `#e1f0d2`, `#f8ecc8`, `#dce6fb` | Solid callout fills. Status text and `fg` on them are 4.5:1. |
+| `--overlay` | `rgb(8 12 14 / 0.72)` | `rgb(27 36 41 / 0.4)` | Solid dim scrim behind modals. |
+| `--scrollbar-thumb`, `-hover` | `#4a5963`, `#627480` | `#b4c1c9`, `#93a3ae` | Quiet slate thumb. |
+| `--shadow-sm`, `-md`, `-lg` | hard 1px drop, plus `inset 0 1px 0` highlight on md and lg | same shape, lighter | Minimal, bevel-like. |
 
-## Deviations from gittrunk
+### Shell
 
-| Change | Reason |
-|---|---|
-| `--focus-ring` alpha raised: dark 0.6 to 0.8, light 0.45 to 0.85 | The gittrunk values give 2.8:1 (dark) and 2.1:1 (light) against `--bg`, below the 3:1 non-text requirement. Same hue. |
-| `--lane-0..7` renamed `--cue-1..8`, `--lane-fg` renamed `--cue-fg` | Hot cues use the same eight hues. The git graph lane concept is dropped. |
-| Git tokens dropped: diff, staged, unstaged, terminal, avatar ring | No equivalent in a DJ app. |
-| Mobile tokens dropped: breakpoints, touch targets, sheets, safe areas | OpenDeck is a desktop app. |
-| `--backdrop-blur-*` moved to the theme-independent block | Same values in both themes in gittrunk. |
-| Added `--row-h` (24px), `--wave-played-opacity`, `--wave-unplayed-opacity` | Dense tables and waveform dimming. New values, not from gittrunk. |
-| Added `--gradient-mesh`, `--gradient-mesh-page` | Soft mesh built from the gittrunk `--backdrop-*` tokens (colors, alphas). |
-
-## DJ tokens (derived)
-
-All DJ tokens reference gittrunk palette values. Each has one derivation note.
-
-| Token | Dark | Light | Derivation |
+| Token | Dark | Light | Rationale |
 |---|---|---|---|
-| `--deck-a` | `var(--cue-2)` | same ref | Cyan, the cool hue, for the left deck. |
-| `--deck-b` | `var(--cue-1)` | same ref | The accent pink-red, for the right deck. |
-| `--deck-c` | `var(--cue-3)` | same ref | Gold from the lane palette. |
-| `--deck-d` | `var(--cue-4)` | same ref | Purple from the lane palette. |
-| `--cue-1..8` | the eight `--lane-0..7` hex values | the eight light `--lane-0..7` hex values | Renamed lane palette; light values are the darker variants gittrunk already defines. |
-| `--wave-low` | `var(--cue-6)` | same ref | Orange (bass, warm end of the palette). |
-| `--wave-mid` | `var(--cue-5)` | same ref | Green. |
-| `--wave-high` | `var(--cue-2)` | same ref | Cyan (treble, cool end). |
-| `--wave-played-opacity` | `0.45` | same | New. Dims the part of the waveform already played; `--wave-unplayed-opacity` is `1`. |
-| `--beat-grid` | `rgb(236 236 239 / 0.16)` | `rgb(24 24 27 / 0.14)` | `--fg` at low alpha in each theme (fg values from the table above). |
-| `--beat-grid-downbeat` | `rgb(236 236 239 / 0.45)` | `rgb(24 24 27 / 0.45)` | Same base as the grid line, stronger alpha. |
+| `--tabbar-bg` | `#181f23` | `#d3dce1` | Darker than the canvas. |
+| `--toolbar-bg` | `#2b353b` | `#f5f8f9` | Same step as panels. |
+| `--tab-hover-bg` | `#202930` | `#e0e8ec` | Between tab bar and canvas. |
+| `--tab-active-bg`, `--panel-header-bg` | `var(--toolbar-bg)`, `var(--bg-subtle)` | same refs | Aliases. |
+
+### DJ tokens
+
+| Token | Dark | Light | Rationale |
+|---|---|---|---|
+| `--cue-1` red | `#ff6b6b` | `#c8303a` | Hot cue hues: red, orange, yellow, green, cyan, blue, purple, pink. |
+| `--cue-2` orange | `#ff9a2e` | `#a24900` | Same hue as the accent. |
+| `--cue-3` yellow | `#f2d03b` | `#8a6a00` | |
+| `--cue-4` green | `#7ed957` | `#3a7a1a` | |
+| `--cue-5` cyan | `#38c6e8` | `#00758f` | |
+| `--cue-6` blue | `#6f9bff` | `#2a56c6` | |
+| `--cue-7` purple | `#b78cff` | `#7040d0` | |
+| `--cue-8` pink | `#ff7ac8` | `#b52f85` | |
+| `--cue-fg` | `#14191c` | `#ffffff` | Text on a cue fill, 4.5:1 on all eight. |
+| `--led-on` | `#b6e94a` | `#3f7a0e` | Lime for lit LEDs, SYNC, pads. |
+| `--sync-on` | `var(--led-on)` | same ref | Lit SYNC. |
+| `--master-on` | `var(--cue-3)` | same ref | Yellow MASTER. |
+| `--deck-a` | `var(--cue-2)` | same ref | Orange. |
+| `--deck-b` | `var(--cue-5)` | same ref | Cyan. Orange against cyan differs on the blue-yellow axis, so it holds for the common colour-vision deficiencies. |
+| `--deck-c`, `--deck-d` | `var(--cue-7)`, `var(--cue-4)` | same refs | Purple, green. |
+| `--wave-low`, `-mid`, `-high` | `var(--cue-2)`, `var(--cue-4)`, `var(--cue-5)` | same refs | Orange, green, cyan: three well separated hues on slate. |
+| `--wave-played-opacity` | `0.45` | same | Dims the played part. |
+| `--beat-grid` | `rgb(227 233 236 / 0.14)` | `rgb(27 36 41 / 0.14)` | Low-contrast grey line. |
+| `--beat-grid-downbeat` | `rgb(227 233 236 / 0.45)` | `rgb(27 36 41 / 0.45)` | Brighter downbeat. |
 | `--playhead` | `var(--fg)` | same ref | Highest contrast neutral. |
-| `--loop-region` | `rgb(245 184 61 / 0.18)` | `rgb(180 83 9 / 0.16)` | `--warning` color at low alpha (gittrunk dark `#f5b83d`, light `#b45309`). |
-| `--loop-edge` | `var(--warning)` | same ref | Solid edge for the loop fill. |
-| `--meter-green` | `var(--success)` | same ref | Gittrunk status green. |
-| `--meter-amber` | `var(--warning)` | same ref | Gittrunk status amber. |
-| `--meter-red` | `var(--danger)` | same ref | Gittrunk coral danger. |
-| `--meter-clip` | `var(--backdrop-red)` (`#e11d48`) | `var(--accent-hover)` (`#bf1650`) | Deeper rose than meter red so clip is distinct. Light uses accent-hover because light `--backdrop-red` (`#fb7185`) is below 3:1. |
-| `--meter-off` | `var(--surface-hover)` | `var(--border)` | Unlit segment. |
-| `--sync-on` | `var(--cue-7)` | same ref | Teal, kept apart from the deck colors. |
-| `--master-on` | `var(--cue-3)` | same ref | Gold. |
-| `--gradient-mesh` | two radial gradients | same | `--backdrop-red` top left and `--backdrop-blue` bottom right at `--backdrop-alpha-subtle`. Chrome and empty states only. |
-| `--gradient-mesh-page` | two radial gradients | same | Same at `--backdrop-alpha-page`. |
+| `--loop-region`, `--loop-edge` | `rgb(242 208 59 / 0.2)`, `var(--cue-3)` | `rgb(138 106 0 / 0.18)`, same ref | Yellow loop fill and edge. |
+| `--meter-green`, `-amber`, `-red` | `var(--success)`, `var(--warning)`, `var(--danger)` | same refs | Green, yellow, red. |
+| `--meter-clip` | `#ff3b4e` | `#c4162a` | Hotter red than the meter red segment. |
+| `--meter-off` | `#3a4750` | `#b4c1c9` | Unlit segment. |
 
-Deck colors are tested at 3:1 against `--bg` in both themes. See `ui/packages/design-system/src/tokens/contrast.test.ts`.
+### Unchanged scales
+
+Type sizes (11 to 24 px), spacing (4 px scale), control heights (24, 28, 32), `--row-h`, z-index layers, durations (120 ms, 180 ms, plus `--duration-blink` 1000 ms and `--duration-sweep` 1400 ms), `--ease-standard`, `--slider-track-length`. Radii changed to 2, 3, 4 px.
+
+### Removed tokens
+
+`--gradient-chrome`, `--gradient-mesh`, `--gradient-mesh-page`, `--backdrop-red`, `--backdrop-blue`, `--backdrop-alpha-subtle`, `--backdrop-alpha-page`, `--backdrop-blur-subtle`, `--backdrop-blur-page`, and the utilities `bg-chrome`, `bg-mesh`, `bg-mesh-page`. Gradient backgrounds and the empty state backdrop are gone; `EmptyState` is flat.
+
+## Previous source, superseded
+
+The first palette was extracted from the author's project gittrunk (`https://github.com/R4ph3rd/gittrunk`, commit `128c1ad728981ac744486608926cef0b2ba6a4d9`, files `src/design/tokens.css`, `src/index.css`, `docs/DESIGN.md`): near-black neutrals, pink-red accent, a mesh backdrop. It is replaced by the table above and kept only in git history. The structure it set (token names, theme blocks, Tailwind mapping, focus rule, motion tokens, fonts) is unchanged.

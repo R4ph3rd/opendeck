@@ -9,7 +9,7 @@ export interface EmptyStateProps extends Omit<ComponentProps<"div">, "title"> {
   action?: ReactNode;
 }
 
-/** Empty or first-run state with the soft mesh backdrop (an allowed gradient use). */
+/** Empty or first-run state. Flat: no backdrop, gradient or blur. */
 export function EmptyState({
   icon,
   title,
@@ -21,15 +21,11 @@ export function EmptyState({
   return (
     <div
       className={cn(
-        "relative isolate flex flex-col items-center justify-center gap-3 overflow-hidden p-8 text-center",
+        "flex flex-col items-center justify-center gap-3 p-8 text-center",
         className,
       )}
       {...props}
     >
-      <div
-        aria-hidden
-        className="bg-mesh absolute inset-0 -z-10 blur-[var(--backdrop-blur-subtle)]"
-      />
       {icon ? <div className="text-fg-muted [&_svg]:size-6">{icon}</div> : null}
       <h3 className="text-lg font-semibold text-fg">{title}</h3>
       {description ? <p className="max-w-sm text-sm text-fg-muted">{description}</p> : null}

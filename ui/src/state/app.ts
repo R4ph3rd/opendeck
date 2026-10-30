@@ -39,6 +39,8 @@ export interface DeckUi {
   jumpBeats: number;
   /** The eight hot cue slots, `null` when empty. */
   hotCues: (Cue | null)[];
+  /** Main cue point in seconds, `null` when unknown. Drawn on the jog wheel ring. */
+  cuePoint: number | null;
 }
 
 export interface AppState {
@@ -72,6 +74,7 @@ const emptyDeck = (): DeckUi => ({
   rollMode: false,
   jumpBeats: DEFAULT_JUMP_BEATS,
   hotCues: emptyHotCues(),
+  cuePoint: null,
 });
 
 /** Stable fallback for a deck index the UI does not show. */
@@ -111,6 +114,7 @@ export const useAppStore = create<AppState>()((set) => ({
         syncPref: deckState.sync === "off" ? current.syncPref : deckState.sync,
         quantize: deckState.quantize,
         slip: deckState.slip,
+        cuePoint: deckState.cue_point ?? null,
       };
       return {
         decks: state.decks.map((d, i) => (i === deck ? { ...d, ...patch } : d)),

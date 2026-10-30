@@ -142,6 +142,7 @@ export function createBindingsMock() {
       setRating: vi.fn(() => ok(null)),
       deleteTracks: vi.fn((tracks: number[]) => ok(tracks.length)),
       getArtwork: vi.fn(() => ok([])),
+      getTrackPeaks: vi.fn(() => ok(new ArrayBuffer(0))),
       getAnalysis: vi.fn(() => ok(null)),
       setBeatGrid: vi.fn(() => ok(null)),
       listCues: vi.fn(() => ok([])),

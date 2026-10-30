@@ -135,6 +135,11 @@ export const commands = {
 	deleteTracks: (tracks: TrackId[]) => typedError<number, CommandError>(__TAURI_INVOKE("delete_tracks", { tracks })),
 	/**  Artwork bytes of a track (empty when it has none), as a raw binary payload. */
 	getArtwork: (track: TrackId) => typedError<ArtworkBytes, CommandError>(__TAURI_INVOKE("get_artwork", { track })),
+	/**
+	 *  Peak blob of one zoom level (0 to 2 detail, 3 overview). Empty payload when
+	 *  the track has no peaks at that level, so the UI can wait for analysis.
+	 */
+	getTrackPeaks: (track: TrackId, level: number) => typedError<PeakBytes, CommandError>(__TAURI_INVOKE("get_track_peaks", { track, level })),
 	/**  Stored analysis of a track: BPM, key, beat grid, loudness. */
 	getAnalysis: (track: TrackId) => typedError<TrackAnalysisDto | null, CommandError>(__TAURI_INVOKE("get_analysis", { track })),
 	/**
@@ -929,6 +934,13 @@ export type PadMode =
 "beat_loop" | 
 /**  Pads shift the key by semitones (SHIFT + 5-4). */
 "key_shift";
+
+/**
+ *  Raw peak blob (`contracts::peaks` v1). A binary payload on the wire, typed
+ *  `number[]` in the bindings like [`ArtworkBytes`]; the UI decodes it from an
+ *  `ArrayBuffer` in `ui/src/viz/peaks.ts`.
+ */
+export type PeakBytes = number[];
 
 /**  Transport state of a deck. */
 export type PlayState = 

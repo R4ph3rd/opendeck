@@ -33,6 +33,12 @@ export async function startEventBridge(): Promise<() => void> {
     unlisten.push(
       await events.engineTelemetry.listen((e) => telemetryStore.getState().push(e.payload)),
       await events.engineEvent.listen((e) => {
+        if (e.payload.type === "cue_point_set") {
+          const rate = telemetryStore.getState().telemetry?.sample_rate ?? 0;
+          if (rate > 0) {
+            useAppStore.getState().patchDeck(e.payload.deck, { cuePoint: e.payload.position / rate });
+          }
+        }
         const message = engineEventMessage(e.payload);
         if (message) {
           notifyError(message);
