@@ -770,6 +770,35 @@ async fn get_artwork(
     )))
 }
 
+/// Raw peak blob (`contracts::peaks` v1). A binary payload on the wire, typed
+/// `number[]` in the bindings like [`ArtworkBytes`]; the UI decodes it from an
+/// `ArrayBuffer` in `ui/src/viz/peaks.ts`.
+#[derive(Type)]
+#[specta(transparent)]
+pub struct PeakBytes(#[specta(type = Vec<u8>)] tauri::ipc::Response);
+
+impl tauri::ipc::IpcResponse for PeakBytes {
+    fn body(self) -> tauri::Result<tauri::ipc::InvokeResponseBody> {
+        self.0.body()
+    }
+}
+
+/// Peak blob of one zoom level (0 to 2 detail, 3 overview). Empty payload when
+/// the track has no peaks at that level, so the UI can wait for analysis.
+#[tauri::command]
+#[specta::specta]
+async fn get_track_peaks(
+    state: tauri::State<'_, AppState>,
+    track: TrackId,
+    level: u8,
+) -> Result<PeakBytes, CommandError> {
+    let library = state.library()?;
+    let blob = blocking(move || library.peaks(track, u32::from(level))).await?;
+    Ok(PeakBytes(tauri::ipc::Response::new(
+        blob.unwrap_or_default(),
+    )))
+}
+
 /// Stored analysis of a track: BPM, key, beat grid, loudness.
 #[tauri::command]
 #[specta::specta]
@@ -1198,6 +1227,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             set_rating,
             delete_tracks,
             get_artwork,
+            get_track_peaks,
             get_analysis,
             set_beat_grid,
             list_cues,
@@ -1801,6 +1831,9 @@ mod tests {
 
         // No artwork in a generated WAV: an empty payload, not an error.
         assert!(tauri::async_runtime::block_on(get_artwork(app.state(), row.id)).is_ok());
+
+        // Not analysed yet: an empty payload, not an error.
+        assert!(tauri::async_runtime::block_on(get_track_peaks(app.state(), row.id, 0)).is_ok());
 
         let removed = tauri::async_runtime::block_on(delete_tracks(app.state(), vec![row.id]))
             .expect("delete");

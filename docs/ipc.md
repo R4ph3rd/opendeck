@@ -76,7 +76,7 @@ DTOs live in `crates/app-core/src/dto.rs` (plain copies of the `opendeck-library
 | `set_rating` **done** | `track, rating: u8` (0 to 5) | `()` | 3 |
 | `delete_tracks` **done** | `tracks: Vec<TrackId>` | rows removed; the files stay on disk | 3 |
 | `get_artwork` **done** | `track: TrackId` | raw bytes, empty when the track has none. `ArtworkBytes` is a binary payload on the wire and typed `number[]` in the bindings: read it as `new Uint8Array(buffer as unknown as ArrayBuffer)` | 3 |
-| `get_track_peaks` | `track: TrackId, level: u8` | raw `contracts::peaks` blob (`Response`) | 4 |
+| `get_track_peaks` **done** | `track: TrackId, level: u8` (0 to 2 detail, 3 overview) | raw `contracts::peaks` blob, empty when not analysed. Typed `number[]` like `get_artwork`: read as `ArrayBuffer`, decode with `ui/src/viz/peaks.ts` | 4 |
 | `import_folder` **done** | `path: String, options: Option<ImportOptionsDto>` (features, target playlist) | `JobId` | 3 |
 | `import_files` **done** | `paths: Vec<String>, options` | `JobId` | 3 |
 | `import_playlist_file` **done** | `path: String, options` | `JobId`; makes a playlist from the M3U or M3U8 | 3 |
