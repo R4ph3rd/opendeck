@@ -43,7 +43,9 @@ On a 4-channel device (FLX4 or similar) with headphones on 3/4.
 
 ## M4 Waveforms and deck UI
 
-- [ ] Waveform scroll stays smooth at 60 fps on the target laptop.
+- [ ] Waveform scroll stays smooth at 60 fps with two decks playing on the owner's PC (open the `Viz/Perf` story and the app; record p95 frame time and late frames).
+- [ ] Waveforms, knobs, jog and meters stay sharp on a high-DPI display (150% and 200% scaling) and after moving the window between screens.
+- [ ] Jog feel: platter touch stops the deck, turning scratches and nudges at a natural rate, Shift search speed is usable (`SEARCH_BEATS_PER_REV` TODO(verify)).
 
 ## M5 FX
 

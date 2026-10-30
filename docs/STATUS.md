@@ -9,8 +9,8 @@ Current milestone: **4 (next)**. Milestone 3 landed as v0.3.0 on 2026-10-30 (mil
 | 0 | Architecture, contracts, skeleton, CI, design tokens | done (v0.0.0) |
 | 1 | Audio engine: one deck plays a file, device selection, offline render tests | done (v0.1.0) |
 | 2 | Two decks, mixer, routing with cue, sync, loops, hot cues | done (v0.2.0) |
-| 3 | Library, DB, import pipeline, analysis, collection view | next |
-| 4 | Waveforms and deck UI, design system components in Storybook | planned |
+| 3 | Library, DB, import pipeline, analysis, collection view | done (v0.3.0) |
+| 4 | Waveforms and deck UI, design system components in Storybook | gate passed on `workbench` |
 | 5 | FX engine and FX UI with presets and chains | planned |
 | 6 | MIDI layer, DDJ-FLX4 mapping, LED feedback, MIDI monitor, replay harness | planned |
 | 7 | Pad modes with the dynamic middle panel, sampler | planned |
@@ -28,6 +28,10 @@ Done: engine with one deck playing a `TrackBuffer` (play/pause, CDJ CUE, seek, t
 ## Milestone 2
 
 Done: two decks with jog scratch and nudge, tempo and beat sync with leader election, quantize, loops with click-free wraps, loop roll, 8 hot cues, beat jump and slip. Mixer with trim, 3-band isolator EQ (LR8, kill), one-knob filter, channel fader, PFL, crossfader with three curves, master level and a headphone bus with cue/master blend and split cue on the headphone pair. Tracks carry an optional beat grid (`load_track_with_grid`, `set_beat_grid`). Telemetry reports channel, master and headphone meters, beat phase, sync mode, leader and loop state per deck. App-core deck, mixer, loop and cue control, hot cues re-sent after every load. Tauri commands for all of it. UI: deck B, mixer strip, loops, hot cue pads, sync/master/quantize/slip, two-deck shortcuts; design system Toaster and slider detent. Offline tests through the engine and through app-core prove EQ kill, crossfader, PFL, loops and beat sync change the audio.
+
+## Milestone 4
+
+Done: zoomed and overview waveforms from analysis peaks (`get_track_peaks`), with beat grid, hot and memory cues, loops and a playhead extrapolated from telemetry; zoom (2 to 64 s) and scrub. Canvas knob, jog wheel (touch, turn, nudge ring, Shift search), performance pads and stereo level meter, wired into the deck and mixer panels. Design system: info, blink and sweep tokens with contrast tests; resizable, popover, command, number field, status dot, segmented control, settings layout, breadcrumb, callout, key-value, skeleton, progress bar and colour swatch picker, with stories and pattern docs. Flat FL-style slate re-theme: gradients, mesh backgrounds and backdrop blur removed and banned in stylelint and ESLint. Viz Storybook (`pnpm -C ui storybook:viz`) with a two-deck and mixer layout story on synthetic tracks.
 
 ## Branch model
 
@@ -51,8 +55,15 @@ Done: two decks with jog scratch and nudge, tempo and beat sync with leader elec
 | M3 ui | OS file drops are off (`dragDropEnabled: false`, needed for in-app drag and drop on Windows); files come in through the Files tab or the Import menu |
 | M3 ui | Ctrl+A on a very large collection fetches every page before selecting |
 | M3 ui | No tag editor in the UI; `update_track_meta` exists |
-| M4 ui | No jog wheel and no manual BPM entry in the UI |
-| M4 ui | Two-deck layout not visually checked on a real screen |
+| M4 ui | No manual BPM entry in the UI |
+| M4 ui | Two-deck layout checked in headless Chromium Storybook screenshots only; not in a real Tauri window |
+| M4 ui | Waveforms are Canvas 2D only; the WebGL2 renderer in `CONTEXT/ui-viz.md` is not done |
+| M4 ui | Waveform frame times not measured in a real browser; only stubbed-canvas JS cost (p95 at most 2.0 ms per deck). Use the `Viz/Perf` story |
+| M4 ui | No global zoom shortcut; `+` and `-` work only while a waveform has focus |
+| M4 ui | Waveform scrub sends `seek` once per frame; there is no jog-search scrub |
+| M4 ui | Tracks loaded by path (not from the library) have no peaks, so no waveform |
+| M4 ui | Jog Shift search uses `SEARCH_BEATS_PER_REV` = 16, a UI choice, `TODO(verify)` with the engine owner |
+| M4 ui | Hot cue colours come from the `--cue-1..8` tokens by slot; `Cue.color` is ignored |
 | M6 engine | Jog nudge sensitivity, `MAX_PITCH_BEND` and the linear channel fader law are product guesses, `TODO(verify)` |
 | M8 engine | A quantized hot cue waits for the next beat; confirm against user tests |
 | M8 engine | Heap-count test (`tests_heap`) runs on Linux only |
