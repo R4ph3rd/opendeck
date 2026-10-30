@@ -457,6 +457,15 @@ fn text_search_covers_title_artist_album_genre_comment() {
         vec![by_title, by_artist, by_album, by_genre, by_comment],
         "prefix, any case"
     );
+    let comment_row = all_rows(&lib, TrackQuery::default())
+        .into_iter()
+        .find(|r| r.id == by_comment)
+        .unwrap();
+    assert_eq!(
+        comment_row.comment.as_deref(),
+        Some("so blue"),
+        "rows carry the comment"
+    );
     assert_eq!(ids("blue monday"), vec![by_title], "every word must match");
     assert_eq!(ids("cafe"), vec![diacritic], "diacritics fold");
     assert!(ids("zzzz").is_empty());

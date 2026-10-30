@@ -189,6 +189,8 @@ pub struct TrackRow {
     pub missing: bool,
     /// Artwork row.
     pub artwork_id: Option<i64>,
+    /// Comment tag.
+    pub comment: Option<String>,
 }
 
 /// Collection view sort column.

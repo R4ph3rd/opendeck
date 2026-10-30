@@ -14,7 +14,7 @@ use crate::types::{
 /// Columns of [`TrackRow`], from `tracks t`.
 pub(crate) const ROW_COLUMNS: &str = "t.id, t.path, t.title, t.artist, t.album, t.genre, t.year, \
      t.duration_secs, t.bitrate_kbps, t.bpm, t.musical_key, t.rating, t.color, t.date_added, \
-     t.analysis_status, t.missing, t.artwork_id";
+     t.analysis_status, t.missing, t.artwork_id, t.comment";
 
 pub(crate) fn row_to_track_row(r: &Row<'_>) -> rusqlite::Result<TrackRow> {
     row_to_track_row_at(r, 0)
@@ -41,6 +41,7 @@ pub(crate) fn row_to_track_row_at(r: &Row<'_>, o: usize) -> rusqlite::Result<Tra
         analysis_status: AnalysisStatus::parse(&status).unwrap_or_default(),
         missing: r.get::<_, i64>(o + 15)? != 0,
         artwork_id: r.get(o + 16)?,
+        comment: r.get(o + 17)?,
     })
 }
 
