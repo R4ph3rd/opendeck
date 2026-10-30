@@ -17,6 +17,7 @@ mod audio;
 mod deck;
 pub mod device;
 mod dsp;
+mod fx;
 mod handle;
 mod meter;
 mod mixer;
@@ -26,6 +27,8 @@ mod track;
 
 #[cfg(test)]
 mod tests_deck;
+#[cfg(test)]
+mod tests_fx;
 #[cfg(all(test, target_os = "linux", target_env = "gnu"))]
 mod tests_heap;
 #[cfg(test)]
@@ -37,9 +40,12 @@ mod tests_support;
 
 pub use crate::audio::EngineCore;
 pub use crate::deck::{DeckStatus, Interpolation, MAX_PITCH_BEND, MAX_RATE, SyncStatus};
+pub use crate::fx::{
+    FxSlotStatus, FxTempoSource, FxUnitStatus, MAX_LATENCY_FRAMES, MAX_TAIL_FRAMES, SendTap,
+};
 pub use crate::handle::{
-    COMMAND_RING, CommandRingFull, EVENT_RING, EngineHandle, HANDOFF_RING, RETURN_RING,
-    TELEMETRY_RING, engine, engine_with_xruns,
+    COMMAND_RING, CommandRingFull, EVENT_RING, EngineHandle, FX_HANDOFF_RING, FX_RETURN_RING,
+    HANDOFF_RING, RETURN_RING, TELEMETRY_RING, engine, engine_with_xruns,
 };
 pub use crate::mixer::{EQ_LOW_MID_HZ, EQ_MID_HIGH_HZ, FILTER_DEAD_ZONE, FILTER_Q};
 pub use crate::offline::{OfflineRenderer, RenderStats};

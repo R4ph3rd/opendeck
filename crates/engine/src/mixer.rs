@@ -8,8 +8,8 @@
 //! # Signal flow
 //!
 //! ```text
-//! deck -> trim -> EQ -> filter -+-> (PFL on) cue bus
-//!                               '-> channel fader -> meter -> crossfader side -> master bus
+//! deck -> trim -> EQ -> filter -> FX insert -+-> (PFL on) cue bus
+//!                                            '-> channel fader -> meter -> crossfader side -> master bus
 //! master bus -> master level -> master out (and its meter)
 //! cue bus, master out -> headphone blend or split cue -> headphone level -> headphone out
 //! ```
@@ -39,6 +39,7 @@ use opendeck_contracts::units::db_to_gain;
 use opendeck_contracts::{EngineCommand, MAX_DECKS};
 
 use crate::dsp::{Lr, Pass, Svf, SvfCoeffs};
+use crate::fx::FxHost;
 use crate::meter::MeterAcc;
 
 /// Lower EQ crossover, Hz.
@@ -173,14 +174,28 @@ impl Strip {
         }
     }
 
-    /// Runs the strip over `buf` (interleaved stereo, `buf.len() / 2` frames),
-    /// adds the post-fader signal to `master` and, with PFL on, the pre-fader
-    /// signal to `cue`. `buf` is left holding the post-fader signal.
-    pub(crate) fn process(&mut self, buf: &mut [f32], master: &mut [f32], cue: &mut [f32]) {
+    /// First half of the strip: trim, EQ and filter, in place on `buf`
+    /// (interleaved stereo). The FX insert chain runs after this.
+    pub(crate) fn pre_fx(&mut self, buf: &mut [f32]) {
         let n = buf.len() / 2;
         self.apply_trim(buf, n);
         self.apply_eq(buf, n);
         self.apply_filter(buf, n);
+    }
+
+    /// Second half: PFL tap, channel fader, meter and crossfader side. Adds the
+    /// post-fader signal to `master` and, with PFL on, the pre-fader signal to
+    /// `cue`. `buf` is left holding the post-fader signal. `send_tap`, when
+    /// given, receives what this channel adds to `master` (post fader and
+    /// crossfader) for a post-fader FX send.
+    pub(crate) fn post_fx(
+        &mut self,
+        buf: &mut [f32],
+        master: &mut [f32],
+        cue: &mut [f32],
+        mut send_tap: Option<&mut [f32]>,
+    ) {
+        let n = buf.len() / 2;
         if self.pfl {
             for (c, s) in cue.iter_mut().zip(buf.iter()) {
                 *c += *s;
@@ -202,6 +217,13 @@ impl Strip {
             let g = start + step * (i + 1) as f32;
             m[0] += s[0] * g;
             m[1] += s[1] * g;
+            if let Some(t) = send_tap
+                .as_deref_mut()
+                .and_then(|t| t.get_mut(i * 2..i * 2 + 2))
+            {
+                t[0] = s[0] * g;
+                t[1] = s[1] * g;
+            }
         }
     }
 
@@ -406,7 +428,15 @@ impl Mixer {
     }
 
     /// Runs one deck's block through its strip into `master` (accumulating).
-    pub(crate) fn process_deck(&mut self, index: usize, buf: &mut [f32], master: &mut [f32]) {
+    /// The deck's FX insert chain sits between EQ/filter and the PFL tap and
+    /// fader; `fx` also takes the pre and post-fader sends.
+    pub(crate) fn process_deck(
+        &mut self,
+        index: usize,
+        buf: &mut [f32],
+        master: &mut [f32],
+        fx: &mut FxHost,
+    ) {
         let frames = buf.len() / 2;
         let (Some(strip), Some(cue)) = (
             self.strips.get_mut(index),
@@ -414,7 +444,15 @@ impl Mixer {
         ) else {
             return;
         };
-        strip.process(buf, master, cue);
+        strip.pre_fx(buf);
+        fx.insert_deck(index, buf);
+        fx.send_pre(index, buf);
+        let tap = fx.post_tap(index, frames);
+        let tapped = tap.is_some();
+        strip.post_fx(buf, master, cue, tap);
+        if tapped {
+            fx.send_post(index, frames);
+        }
     }
 
     /// Post-fader meter of channel `index`, taken for a telemetry snapshot.
