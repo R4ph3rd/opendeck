@@ -2,6 +2,9 @@
 
 use opendeck_contracts::beatgrid::BeatGrid;
 use opendeck_contracts::tempo::SyncMode;
+use opendeck_contracts::{Bpm, Seconds};
+
+use crate::fx::FxView;
 
 use super::{Deck, Transport};
 
@@ -38,6 +41,22 @@ impl Deck {
 
     pub(crate) fn position(&self) -> f64 {
         self.pos
+    }
+
+    /// Tempo and beat position at the playhead for FX (block start, call
+    /// before rendering). Tempo stays known while stopped.
+    pub(crate) fn fx_view(&self) -> FxView {
+        match self.grid() {
+            Some(grid) => FxView {
+                bpm: Some(Bpm(grid.bpm().0 * self.tempo_rate())).filter(|b| b.0 > 0.0),
+                beat: Some(grid.beat_at(Seconds(self.pos / self.sample_rate))),
+                playing: self.is_playing(),
+            },
+            None => FxView {
+                playing: self.is_playing(),
+                ..FxView::default()
+            },
+        }
     }
 
     pub(crate) fn sync_mode(&self) -> SyncMode {
