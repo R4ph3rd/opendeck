@@ -4,6 +4,7 @@ import { errorMessage, hydrateDeck, report } from "./actions";
 import { VISIBLE_DECKS, useAppStore } from "./app";
 import { useLibraryStore } from "./library";
 import { hydrateJobs, onImportProgress, refreshPlaylists } from "./libraryActions";
+import { hydrateFx, useFxStore } from "./fx";
 import { hydrateMixer } from "./mixer";
 import { notifyError } from "./notify";
 import { telemetryStore } from "./telemetry";
@@ -66,6 +67,7 @@ export async function startEventBridge(): Promise<() => void> {
         void refreshPlaylists();
       }),
       await events.analysisReady.listen((e) => void refreshDeckAnalysis(e.payload)),
+      await events.fxStateChanged.listen((e) => useFxStore.getState().setState(e.payload)),
     );
     // Subscribe first, then read: a change between the two is not lost.
     const status = await commands.getAudioStatus();
@@ -74,6 +76,7 @@ export async function startEventBridge(): Promise<() => void> {
     }
     await Promise.all([
       hydrateMixer(),
+      hydrateFx(),
       hydrateJobs(),
       ...VISIBLE_DECKS.map((deck) => hydrateDeck(deck)),
     ]);

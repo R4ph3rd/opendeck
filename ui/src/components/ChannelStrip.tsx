@@ -22,6 +22,7 @@ import {
   useMixerStore,
 } from "../state/mixer";
 import { Knob } from "./Knob";
+import { CfxControl, SendKnobs } from "./fx/ChannelFx";
 import { LevelMeter } from "./LevelMeter";
 
 /** Fader resolution. */
@@ -84,6 +85,8 @@ export function ChannelStrip({ deck }: ChannelStripProps) {
         bipolar
         onChange={(v) => setFilter(deck, v)}
       />
+      <CfxControl deck={deck} />
+      <SendKnobs deck={deck} />
       <Toggle
         variant="outline"
         size="sm"
