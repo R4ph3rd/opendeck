@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { contrast, over, parseColor, resolvedTokens, type Theme } from "./parse";
+import { contrast, parseColor, resolvedTokens, type Theme } from "./parse";
 
 const css = readFileSync(new URL("./tokens.css", import.meta.url), "utf8");
 const themes: Theme[] = ["dark", "light"];
@@ -129,7 +129,7 @@ describe.each(themes)("contrast (%s)", (theme) => {
     });
     it("surface steps are monotonic: bg < bg-subtle < surface < surface-raised", () => {
       const lum = (n: string): number => {
-        const c = parseColor(resolvedTokens(css, theme)[n] ?? "#000000");
+        const c = parseColor(resolvedTokens(css, theme)[n] ?? "");
         return c.r + c.g + c.b;
       };
       const order = ["bg", "bg-subtle", "surface", "surface-raised"].map(lum);
