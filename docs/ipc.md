@@ -134,7 +134,7 @@ The FX model sits on the engine FX units (ADR 0006): two FLX4-style Beat FX unit
 | Command | Args | Returns | M |
 |---|---|---|---|
 | `fx_list_effects` **done** | | `Vec<FxEffectDto>` (key, name, routing, params, primary parameter, release flag, accepted beat divisions) | 5 |
-| `fx_get_state` **done** | | `FxStateDto` (units, CFX, sends, send levels, pads, `utility_blocked`) | 5 |
+| `fx_get_state` **done** | | `FxStateDto` (units, CFX, sends, send levels, pads) | 5 |
 | `fx_apply` **done** | `op: FxOp` | `()`; ops: `set_assign`, `set_mode`, `set_effect`, `set_param`, `set_level` (primary parameter), `set_wet`, `set_division`, `step_division` (BEAT left/right), `set_slot_enabled`, `set_unit_on`, `release`, `set_bpm_source`, `tap`, `set_release_effect`, `set_cfx_kind`, `set_cfx`, `set_send_level`, `set_send_tap`, `apply_preset`, `apply_chain`, `set_pad`. Fails with `invalid` for an unknown effect, slot or parameter | 5 |
 | `fx_pad` **done** | `deck, bank: u8, shift: bool, pad: u8, pressed: bool` | `()`; hold engages the assigned pad effect at the next engine frame (next beat when the deck has quantize on), release stops it; a release pad fires Release FX | 5 |
 | `fx_get_presets` **done** | | `FxPresetsDto` (factory presets, user presets, chains) | 5 |

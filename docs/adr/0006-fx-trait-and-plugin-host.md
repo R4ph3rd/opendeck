@@ -33,7 +33,7 @@ The engine wraps each instance in a slot that owns everything an external plugin
 - `FxUnit::Deck(deck)`: insert chain after EQ and filter, before the channel fader.
 - `FxUnit::Master`: insert chain before master level.
 - `FxUnit::Send(bus)`: send/return bus; channels feed it with `SetFxSend`; its return sums into master.
-- Each unit has `FX_SLOTS_PER_UNIT` (3) slots processed in order. Sizes are contracts constants because engine arrays use them.
+- Each unit has `FX_SLOTS_PER_UNIT` (6, raised from 3 in M5, see the addendum) slots processed in order. Sizes are contracts constants because engine arrays use them.
 
 ### Lifecycle
 
@@ -59,7 +59,7 @@ Built-in effects and their parameters are specified in `docs/fx-catalog.md` (dsp
 
 ### Topology and insert points
 
-- `MAX_DECKS` deck units, one master unit, `FX_SEND_BUSES` (2) send units, each a serial chain of `FX_SLOTS_PER_UNIT` slots.
+- `MAX_DECKS` deck units, one master unit, `FX_SEND_BUSES` (2) send units, each a serial chain of `FX_SLOTS_PER_UNIT` (6) slots.
 - Deck insert: after trim, EQ and filter, before the PFL tap and the channel fader. The cue hears the effect; the fader also fades a tail.
 - Sends: tapped per bus pre-fader (after the insert chain) or post-fader (after channel fader and crossfader side, the default). Returns sum into the master bus before the master unit, so the master chain also processes them.
 - A send unit with no slot enabled returns silence, not its input.
@@ -74,7 +74,7 @@ Per unit: `Auto` (deck units: own deck; master and send units: the sync leader, 
 
 ### Timed engage and release FX
 
-- Timed enable/disable at an engine frame (`EngineTelemetry::engine_time` clock), sample accurate inside the block, optional 1 ms ramp for pad FX. The effect is reset on the engage frame. Up to 16 events wait; more act at once; past times act on the next block's first frame.
+- Timed enable/disable at an engine frame (`EngineTelemetry::engine_time` clock), sample accurate inside the block, optional 1 ms ramp for pad FX. The effect is reset on the engage frame. Up to `2 * MAX_DECKS * FX_SLOTS_PER_UNIT` (48) events wait; more act at once; past times act on the next block's first frame.
 - Release FX: at one frame, bypass the main slot (10 ms) and engage a release slot (1 ms) for a hold time, then disable it so a tail effect rings out.
 
 ### Tail handling
@@ -88,3 +88,16 @@ Per slot: the dry path runs through a delay line of the effect's `latency_frames
 ### Control surface
 
 Effects, timed engage, release FX, tempo source and send tap are `EngineHandle` methods (`install_effect`, `clear_effect`, `schedule_fx_enabled`, `release_fx`, `set_fx_tempo_source`, `set_fx_send_tap`) that app-core calls directly. They are not `EngineCommand` variants: effects are boxes on a dedicated hand-off ring and the rest are engine-internal types. Enable, parameters, mix, beat division and send levels stay `EngineCommand`s. `EngineTelemetry` reports per unit `{enabled, active, level}` in `fx_decks`, `fx_master` and `fx_sends`.
+
+### Dedicated deck slots (M5, 2026-10-30)
+
+`FX_SLOTS_PER_UNIT` went from 3 to 6 (approved contract change). With 3 slots, the third Beat FX effect of a Multi unit shared one slot with Sound Color FX, pad FX and Release FX, so a full Multi unit switched those off on its channels. Each deck chain now has one slot per feature, in processing order:
+
+| Slot | Use |
+|---|---|
+| 0 to 2 | Beat FX of the unit assigned to the channel (Multi mode; Single uses slot 0) |
+| 3 | Sound Color FX |
+| 4 | Pad FX |
+| 5 | Release FX (SHIFT+ON/OFF and release pads) |
+
+Master and send units have the same 6 slots; the send units in the app model use slots 0 to 2 (`FX_CHAIN_SLOTS` in app-core). Engine arrays, the timed event queue and the FX hand-off and return rings scale with the constant (`FX_HANDOFF_RING = FX_UNITS * FX_SLOTS_PER_UNIT`, `FX_RETURN_RING` twice that). The `utility_blocked` field of `FxStateDto` is gone. CPU (release, 48 kHz, 512 frames, gain effect in every slot): 2 decks x 6 slots + master x 6 slots run at 2.1 % of realtime, worst block 2.3 ms.
