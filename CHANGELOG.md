@@ -4,6 +4,23 @@ All notable changes are recorded here. Format follows [Keep a Changelog](https:/
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-30
+
+Milestone 5: FX library, FX host, FX UI with presets and chains.
+
+### Added
+
+- FX library (`dsp-fx`): 17 built-in effects (delay, echo, ping pong, spiral, reverb, helix, flanger, phaser, filter, trans, roll, reverse roll, pitch, vinyl brake, noise, bit crusher, colour filter) with catalog data, factory presets, chain presets and a reference slot host. Parameter ranges are `TODO(verify)` against the rekordbox manual.
+- FX host in the engine: deck, master and send units of six serial slots each; equal-power wet/dry, 10 ms bypass, tail spill, slot latency compensation, sample-accurate timed engage, Release FX, tapped tempo source, per-unit FX telemetry, no heap calls in the callback.
+- FX control model in app-core: two FLX4-style Beat FX units (channel 1, 2 or 1&2, Multi and Single, BEAT stepper, tap BPM, Release FX), Sound Color FX per channel, two send buses (pre or post fader) and 32 pad FX. Each deck chain has dedicated Beat FX, Sound Color FX, pad FX and Release FX slots. State persists in the library settings.
+- Presets and chains: user effect presets in `fx_presets`, chain presets per unit, factory presets per effect.
+- Tauri FX commands and the `fx-state-changed` event.
+- UI: effects panel with Beat FX units and send units, CFX knobs and send levels on the channel strips, pad FX editor, preset and chain menus.
+
+### Changed
+
+- `FX_SLOTS_PER_UNIT` is 6 (contract change), so a three-effect Multi unit no longer disables Sound Color FX, pad FX or Release FX on its channel.
+
 ## [0.4.0] - 2026-10-30
 
 Milestone 4: waveforms, deck visual components, design system components, flat re-theme.

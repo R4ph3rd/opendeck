@@ -1,6 +1,6 @@
 # Status
 
-Current milestone: **5 (next)**. Milestone 4 landed as v0.4.0 on 2026-10-30 (milestone 3 as v0.3.0, milestone 2 as v0.2.0, milestone 1 as v0.1.0, milestone 0 as v0.0.0).
+Current milestone: **6 (next)**. Milestone 5 landed as v0.5.0 on 2026-10-30 (milestone 4 as v0.4.0, milestone 3 as v0.3.0, milestone 2 as v0.2.0, milestone 1 as v0.1.0, milestone 0 as v0.0.0).
 
 ## Milestones
 
@@ -11,8 +11,8 @@ Current milestone: **5 (next)**. Milestone 4 landed as v0.4.0 on 2026-10-30 (mil
 | 2 | Two decks, mixer, routing with cue, sync, loops, hot cues | done (v0.2.0) |
 | 3 | Library, DB, import pipeline, analysis, collection view | done (v0.3.0) |
 | 4 | Waveforms and deck UI, design system components in Storybook | done (v0.4.0) |
-| 5 | FX engine and FX UI with presets and chains | next |
-| 6 | MIDI layer, DDJ-FLX4 mapping, LED feedback, MIDI monitor, replay harness | planned |
+| 5 | FX engine and FX UI with presets and chains | done (v0.5.0) |
+| 6 | MIDI layer, DDJ-FLX4 mapping, LED feedback, MIDI monitor, replay harness | next |
 | 7 | Pad modes with the dynamic middle panel, sampler | planned |
 | 8 | Hardening: latency, error handling, settings, installer, first-run | planned |
 | 9 | Post-MVP: VST3/CLAP, 4 decks, recording, more controllers (needs owner confirmation) | not scheduled |
