@@ -100,19 +100,14 @@ describe("first run", () => {
     commands.listAudioDevices.mockImplementationOnce(() => ok([flx4Device]));
     await openAt("audio");
     fireEvent.click(await screen.findByRole("button", { name: /test tone on master 1\/2/ }));
-    await waitFor(() =>
-      expect(commands.playTestTone).toHaveBeenCalledWith(null, "DDJ-FLX4", {
-        left: 0,
-        right: 1,
-      }),
+    await waitFor(() => expect(commands.playTestTone).toHaveBeenCalledWith("master"));
+    // The FLX4 draft differs from the stored settings, so it is applied first.
+    expect(commands.setAudioSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ device: "DDJ-FLX4" }),
     );
     fireEvent.click(screen.getByRole("button", { name: /test tone on headphones 3\/4/ }));
-    await waitFor(() =>
-      expect(commands.playTestTone).toHaveBeenCalledWith(null, "DDJ-FLX4", {
-        left: 2,
-        right: 3,
-      }),
-    );
+    await waitFor(() => expect(commands.playTestTone).toHaveBeenCalledWith("headphones"));
+    expect(commands.setAudioSettings).toHaveBeenCalledTimes(1);
   });
 
   it("shows a toast when the tone cannot play", async () => {

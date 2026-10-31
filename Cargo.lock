@@ -2821,7 +2821,6 @@ dependencies = [
 name = "opendeck-app-core"
 version = "0.7.0"
 dependencies = [
- "cpal",
  "crossbeam-channel",
  "opendeck-analysis",
  "opendeck-contracts",

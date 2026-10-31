@@ -17,9 +17,9 @@ use opendeck_app_core::{
     MidiLearnResultDto, MidiMappingRowDto, MidiMonitorEntryDto, MidiPortDto, MidiService,
     MidiStatusDto, PadEvent, PadModeChanged, PadStateDto, PlaylistEntryDto, PlaylistNodeDto,
     SamplerLayout, SamplerSlotPatch, SamplerStateDto, SavedSetDetailDto, SavedSetDto,
-    SettingsStore, TrackAnalysisDto, TrackDetailDto, TrackInfo, TrackLoadFailed, TrackLoaded,
-    TrackMetaDto, TrackPageDto, TrackQueryDto, build_diagnostics, check_and_recover, get_pref,
-    play_test_tone as core_play_test_tone, recent_errors, reset_prefs, set_pref, unix_stamp,
+    SettingsStore, TestToneOutput, TrackAnalysisDto, TrackDetailDto, TrackInfo, TrackLoadFailed,
+    TrackLoaded, TrackMetaDto, TrackPageDto, TrackQueryDto, build_diagnostics, check_and_recover,
+    get_pref, recent_errors, reset_prefs, set_pref, unix_stamp,
 };
 use opendeck_contracts::analysis::AnalysisFeatures;
 use opendeck_contracts::beatgrid::BeatGrid;
@@ -30,7 +30,7 @@ use opendeck_contracts::ids::{JobId, PlaylistId, SamplerSlotId, TrackId};
 use opendeck_contracts::jobs::JobProgress;
 use opendeck_contracts::mixer::{CrossfaderAssign, CrossfaderCurve, EqBand, MixerState};
 use opendeck_contracts::pad::PadMode;
-use opendeck_contracts::settings::{AudioHostInfo, AudioHostKind, AudioSettings, ChannelPair};
+use opendeck_contracts::settings::{AudioHostInfo, AudioHostKind, AudioSettings};
 use opendeck_contracts::tempo::{SyncMode, TempoRange};
 use opendeck_contracts::{
     Beats, DeckId, EngineEvent, EngineTelemetry, Gain, MAX_DECKS, MVP_DECKS, Seconds,
@@ -1191,15 +1191,24 @@ async fn get_diagnostics(
     ))
 }
 
-/// Plays a short test tone on one output channel pair of a device.
+/// Plays the test tone (about a second, quiet) on one output through the
+/// running engine and returns when it has played. Fails when audio is off or
+/// the output is not routed.
 #[tauri::command]
 #[specta::specta]
 async fn play_test_tone(
-    host: Option<AudioHostKind>,
-    device: Option<String>,
-    pair: ChannelPair,
+    state: tauri::State<'_, AppState>,
+    output: TestToneOutput,
 ) -> Result<(), CommandError> {
-    blocking(move || core_play_test_tone(host, device.as_deref(), pair)).await
+    let audio = state.audio()?;
+    blocking(move || {
+        audio.play_test_tone(output)?;
+        std::thread::sleep(std::time::Duration::from_millis(u64::from(
+            opendeck_app_core::TEST_TONE_MS,
+        )));
+        Ok(())
+    })
+    .await
 }
 
 /// Reads a UI preference (JSON text) from the library settings.

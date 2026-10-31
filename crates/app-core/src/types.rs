@@ -216,6 +216,19 @@ pub struct InputState {
     pub talk_over: TalkOverSettings,
 }
 
+/// Output that carries the test tone.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub enum TestToneOutput {
+    /// Master pair.
+    Master,
+    /// Headphone pair.
+    Headphones,
+    /// Booth pair.
+    Booth,
+}
+
 /// Audio rendered on demand by the offline backend
 /// ([`AudioController::render_offline`](crate::AudioController::render_offline)).
 #[derive(Debug, Clone, PartialEq, Default)]

@@ -230,8 +230,12 @@ export const commands = {
 	getStartupNotices: () => __TAURI_INVOKE<string[]>("get_startup_notices"),
 	/**  Version, OS, audio and MIDI devices, file locations and the last errors. */
 	getDiagnostics: () => typedError<DiagnosticsDto, CommandError>(__TAURI_INVOKE("get_diagnostics")),
-	/**  Plays a short test tone on one output channel pair of a device. */
-	playTestTone: (host: AudioHostKind | null, device: string | null, pair: ChannelPair) => typedError<null, CommandError>(__TAURI_INVOKE("play_test_tone", { host, device, pair })),
+	/**
+	 *  Plays the test tone (about a second, quiet) on one output through the
+	 *  running engine and returns when it has played. Fails when audio is off or
+	 *  the output is not routed.
+	 */
+	playTestTone: (output: TestToneOutput) => typedError<null, CommandError>(__TAURI_INVOKE("play_test_tone", { output })),
 	/**  Reads a UI preference (JSON text) from the library settings. */
 	getUiPref: (name: string) => typedError<string | null, CommandError>(__TAURI_INVOKE("get_ui_pref", { name })),
 	/**  Stores a UI preference (JSON text) in the library settings. */
@@ -2431,6 +2435,15 @@ export type TempoRange =
 "percent16" | 
 /**  +/- 100 % (0x to 2x speed). */
 "wide";
+
+/**  Output that carries the test tone. */
+export type TestToneOutput = 
+/**  Master pair. */
+"master" | 
+/**  Headphone pair. */
+"headphones" | 
+/**  Booth pair. */
+"booth";
 
 /**  Stored analysis of a track. */
 export type TrackAnalysisDto = {

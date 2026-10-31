@@ -22,7 +22,7 @@ import {
   commands,
   type AudioDeviceInfo,
   type AudioSettings,
-  type ChannelPair,
+  type TestToneOutput,
 } from "../ipc/bindings";
 import { pairLabel } from "../lib/audioOptions";
 import { errorMessage } from "../lib/errors";
@@ -125,8 +125,9 @@ export function WelcomeStep() {
 export function AudioStep() {
   const [devices, setDevices] = useState<AudioDeviceInfo[]>([]);
   const [draft, setDraft] = useState<AudioSettings | null>(null);
+  const [applied, setApplied] = useState<AudioSettings | null>(null);
   const [applying, setApplying] = useState(false);
-  const [tone, setTone] = useState<string | null>(null);
+  const [tone, setTone] = useState<TestToneOutput | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -137,6 +138,7 @@ export function AudioStep() {
       ]);
       if (!live || !list || !settings) return;
       setDevices(list);
+      setApplied(settings);
       const flx4 = findFlx4Device(list);
       setDraft(flx4 && settings.device === null ? flx4Settings(settings, flx4) : settings);
     })();
@@ -146,27 +148,29 @@ export function AudioStep() {
   }, []);
 
   const flx4 = useMemo(() => findFlx4Device(devices), [devices]);
-  const selected = devices.find((d) => d.name === draft?.device) ?? devices.find((d) => d.is_default);
 
   if (!draft) {
     return <p className="text-sm text-fg-muted">Looking for audio outputs...</p>;
   }
 
-  const apply = async () => {
+  /** Applies the draft. Returns false when the output could not start. */
+  const apply = async (): Promise<boolean> => {
     setApplying(true);
     const status = await report(commands.setAudioSettings(draft));
     setApplying(false);
-    if (status) {
-      useAppStore.getState().setAudio(status);
-      notifySuccess("Audio output set.");
-    }
+    if (!status) return false;
+    useAppStore.getState().setAudio(status);
+    setApplied(draft);
+    return true;
   };
 
-  const play = async (label: string, pair: ChannelPair | null) => {
-    if (!pair) return;
-    setTone(label);
+  /** The tone plays through the engine, so the draft is applied first when it changed. */
+  const play = async (output: TestToneOutput) => {
+    setTone(output);
     try {
-      const result = await commands.playTestTone(draft.host, selected?.name ?? draft.device, pair);
+      const current = JSON.stringify(applied) === JSON.stringify(draft);
+      if (!current && !(await apply())) return;
+      const result = await commands.playTestTone(output);
       if (result.status === "error") notifyError(errorMessage(result.error));
     } catch (error) {
       notifyError(errorMessage(error));
@@ -208,7 +212,7 @@ export function AudioStep() {
       <div className="flex flex-wrap gap-2">
         <Button
           loading={tone === "master"}
-          onClick={() => void play("master", draft.master)}
+          onClick={() => void play("master")}
           aria-label={`Play test tone on master ${pairLabel(draft.master)}`}
         >
           <Volume2 className="size-3.5" aria-hidden />
@@ -217,19 +221,22 @@ export function AudioStep() {
         <Button
           loading={tone === "headphones"}
           disabled={!draft.headphones}
-          onClick={() => void play("headphones", draft.headphones)}
+          onClick={() => void play("headphones")}
           aria-label={`Play test tone on headphones ${draft.headphones ? pairLabel(draft.headphones) : ""}`}
         >
           <Volume2 className="size-3.5" aria-hidden />
           Test headphones {draft.headphones ? pairLabel(draft.headphones) : ""}
         </Button>
-        <Button variant="primary" loading={applying} onClick={() => void apply()}>
+        <Button
+          variant="primary"
+          loading={applying}
+          onClick={() => void apply().then((ok) => ok && notifySuccess("Audio output set."))}
+        >
           Use this output
         </Button>
       </div>
       <p className="text-xs text-fg-muted">
-        The tone is quiet and lasts about a second. If the device is busy, apply the output first,
-        or close other audio apps.
+        The tone is quiet and lasts about a second. Testing applies the chosen output first.
       </p>
     </div>
   );

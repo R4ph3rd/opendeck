@@ -153,3 +153,21 @@ fn replaced_track_buffers_are_dropped_on_the_loader_thread() {
         std::thread::sleep(Duration::from_millis(20));
     }
 }
+
+#[test]
+fn test_tone_plays_through_the_engine_on_routed_outputs() {
+    let (audio, _events) = launch();
+    let amp = |bus: &[f32]| bus.iter().fold(0.0f32, |m, s| m.max(s.abs()));
+
+    audio
+        .play_test_tone(crate::TestToneOutput::Headphones)
+        .expect("headphones are routed by default");
+    let out = audio.render_offline(RATE as usize / 4).expect("render");
+    assert!(amp(&out.headphones) > 0.15, "headphones carry the tone");
+    assert!(amp(&out.master) < 1e-6, "master stays silent");
+
+    let err = audio
+        .play_test_tone(crate::TestToneOutput::Booth)
+        .expect_err("no booth pair by default");
+    assert!(err.to_string().contains("booth"), "{err}");
+}

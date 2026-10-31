@@ -33,7 +33,6 @@ mod sampler;
 mod settings_store;
 #[cfg(test)]
 mod tests_m8;
-mod tone;
 mod types;
 
 use std::path::Path;
@@ -93,11 +92,11 @@ pub use crate::sampler::{
     SamplerStateDto, StubSamplerEngine,
 };
 pub use crate::settings_store::{SETTINGS_FILE, SettingsStore, StoredSettings};
-pub use crate::tone::play_test_tone;
 pub use crate::types::{
     AudioDeviceInfo, AudioStatus, CoreError, CoreEvent, HotCues, InputState, OfflineAudio,
-    TrackInfo, TrackLoadFailed, TrackLoaded,
+    TestToneOutput, TrackInfo, TrackLoadFailed, TrackLoaded,
 };
+pub use opendeck_engine::TEST_TONE_MS;
 pub use opendeck_library::DATABASE_FILE_NAME;
 pub use opendeck_library::import::ImportConfig;
 
@@ -534,6 +533,14 @@ impl AudioController {
             depth_db: settings.depth_db,
             threshold_db: settings.threshold_db,
         })
+    }
+
+    /// Plays the test tone (about a second, -14 dBFS) on `output` through
+    /// the running engine, so it works while the engine holds the device.
+    /// Returns once the engine has the request; fails when audio is off or
+    /// the output is not routed.
+    pub fn play_test_tone(&self, output: TestToneOutput) -> Result<(), CoreError> {
+        self.ask(|reply| Msg::TestTone { output, reply })?
     }
 
     /// Booth, mic, aux and talk-over controls as last sent to the engine.

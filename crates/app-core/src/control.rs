@@ -22,7 +22,9 @@ use opendeck_contracts::{
     MVP_DECKS, SampleRate, Seconds,
 };
 use opendeck_engine::device::{AudioOutput, device_present, input_device_present, open_output};
-use opendeck_engine::{EngineConfig, EngineHandle, OfflineRenderer, Reopener, TrackBuffer};
+use opendeck_engine::{
+    EngineConfig, EngineHandle, OfflineRenderer, Reopener, ToneOutput, TrackBuffer,
+};
 use opendeck_library::{Library, SavedSetEntry, now_ms};
 
 use crate::fx::{FxController, FxEnv};
@@ -30,8 +32,8 @@ use crate::fx_types::{FxEffectDto, FxOp, FxPresetsDto, FxSlotRef, FxStateDto, Fx
 use crate::loader::{DecodeResult, LoadRequest, LoaderJob};
 use crate::settings_store::{SettingsStore, StoredSettings};
 use crate::types::{
-    AudioStatus, CoreError, CoreEvent, HotCues, InputState, OfflineAudio, TrackInfo,
-    TrackLoadFailed, TrackLoaded,
+    AudioStatus, CoreError, CoreEvent, HotCues, InputState, OfflineAudio, TestToneOutput,
+    TrackInfo, TrackLoadFailed, TrackLoaded,
 };
 
 /// Control tick: telemetry is forwarded at this period (~60 Hz).
@@ -166,6 +168,11 @@ pub(crate) enum Msg {
     },
     /// Empties a sampler slot.
     SamplerClear(SamplerSlotId),
+    /// Plays the engine's test tone on one output.
+    TestTone {
+        output: TestToneOutput,
+        reply: Sender<Result<(), CoreError>>,
+    },
     /// Test hook: behave as if the output device was unplugged.
     #[cfg(test)]
     SimulateDeviceLoss,
@@ -632,6 +639,9 @@ impl Control {
                 self.sampler_unsent[slot.index()] = true;
                 self.flush_sampler();
             }
+            Msg::TestTone { output, reply } => {
+                let _ = reply.send(self.test_tone(output));
+            }
             #[cfg(test)]
             Msg::SimulateDeviceLoss => self.lose_engine("Output device lost"),
             Msg::Shutdown => {}
@@ -682,6 +692,37 @@ impl Control {
         {
             tracing::warn!(?command, "engine command ring full, command dropped");
         }
+    }
+
+    /// Plays the test tone on `output` if the engine runs and the output is
+    /// routed.
+    fn test_tone(&mut self, output: TestToneOutput) -> Result<(), CoreError> {
+        let routed = match output {
+            TestToneOutput::Master => self.status.master.is_some(),
+            TestToneOutput::Headphones => self.status.headphones.is_some(),
+            TestToneOutput::Booth => self.status.booth.is_some(),
+        };
+        let Some(engine) = self.engine.as_mut() else {
+            return Err(CoreError::Audio(
+                "audio is off, so the tone cannot play".to_owned(),
+            ));
+        };
+        if !routed {
+            let name = match output {
+                TestToneOutput::Master => "master",
+                TestToneOutput::Headphones => "headphone",
+                TestToneOutput::Booth => "booth",
+            };
+            return Err(CoreError::Invalid(format!(
+                "the {name} output is not routed on this device"
+            )));
+        }
+        engine.handle().play_test_tone(match output {
+            TestToneOutput::Master => ToneOutput::Master,
+            TestToneOutput::Headphones => ToneOutput::Headphones,
+            TestToneOutput::Booth => ToneOutput::Booth,
+        });
+        Ok(())
     }
 
     fn input_state(&self) -> InputState {
