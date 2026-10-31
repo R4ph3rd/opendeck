@@ -23,7 +23,7 @@ use std::path::PathBuf;
 use opendeck_contracts::plugin::{PluginInfo, PluginScanStatus};
 use serde::{Deserialize, Serialize};
 
-use crate::scan::{ScanRecord, Scanner, find_candidates};
+use crate::scan::{ScanRecord, ScannedParams, Scanner, find_candidates};
 
 /// What to scan for one plugin format.
 #[derive(Debug, Clone)]
@@ -130,6 +130,24 @@ impl ScanCache {
                 .cmp(&b.name.to_lowercase())
                 .then_with(|| a.key.cmp(&b.key))
         });
+        out
+    }
+
+    /// Parameters of the plugins in [`ScanCache::catalog`] (the same file
+    /// wins for a duplicated key), for `PluginHost::set_param_table`.
+    pub fn param_table(&self) -> Vec<ScannedParams> {
+        let mut out: Vec<ScannedParams> = Vec::new();
+        for record in self
+            .records
+            .iter()
+            .filter(|r| r.status == PluginScanStatus::Ok)
+        {
+            for p in &record.params {
+                if !out.iter().any(|o| o.key == p.key) {
+                    out.push(p.clone());
+                }
+            }
+        }
         out
     }
 
@@ -271,6 +289,7 @@ mod tests {
             modified: 1,
             status,
             plugins,
+            params: Vec::new(),
         }
     }
 

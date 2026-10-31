@@ -27,7 +27,7 @@ use std::time::{Duration, Instant, UNIX_EPOCH};
 
 use opendeck_contracts::Beats;
 use opendeck_contracts::SampleRate;
-use opendeck_contracts::fx::{ProcessContext, StereoBufferMut};
+use opendeck_contracts::fx::{EffectKey, ParamDescriptor, ProcessContext, StereoBufferMut};
 use opendeck_contracts::instrument::NoteEvent;
 use opendeck_contracts::plugin::{PluginInfo, PluginKind, PluginScanStatus};
 use serde::{Deserialize, Serialize};
@@ -49,6 +49,16 @@ pub const VALIDATION_BLOCKS: usize = 8;
 const VALIDATION_RATE: SampleRate = SampleRate(48_000);
 const VALIDATION_FRAMES: usize = 512;
 
+/// Parameters of one scanned plugin, read during validation. Lets app-core
+/// list a plugin's parameters without instantiating it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ScannedParams {
+    /// The plugin.
+    pub key: EffectKey,
+    /// Its parameters, as `PluginInstance::params` lists them.
+    pub params: Vec<ParamDescriptor>,
+}
+
 /// What the scanner prints.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ScanReport {
@@ -56,6 +66,9 @@ pub struct ScanReport {
     pub protocol: u32,
     /// Plugins that loaded and passed validation.
     pub plugins: Vec<PluginInfo>,
+    /// Their parameters.
+    #[serde(default)]
+    pub params: Vec<ScannedParams>,
     /// Why the file (or every plugin in it) failed, if it did.
     pub error: Option<String>,
 }
@@ -75,6 +88,9 @@ pub struct ScanRecord {
     pub status: PluginScanStatus,
     /// Plugins found; empty unless `status` is `Ok`.
     pub plugins: Vec<PluginInfo>,
+    /// Parameters of those plugins (absent in records stored by older builds).
+    #[serde(default)]
+    pub params: Vec<ScannedParams>,
 }
 
 impl ScanRecord {
@@ -129,27 +145,19 @@ impl Scanner {
     /// Scans one file in a subprocess.
     pub fn scan(&self, provider: &str, path: &Path) -> ScanRecord {
         let (size, modified) = file_stamp(path).unwrap_or((0, 0));
-        let (status, plugins) = match self.run(provider, path) {
-            Ok(Outcome::Report(r)) if r.protocol != SCAN_PROTOCOL => (
-                PluginScanStatus::Failed {
-                    reason: format!("scanner protocol {} (expected {SCAN_PROTOCOL})", r.protocol),
-                },
-                Vec::new(),
-            ),
+        let failed = |reason: String| (PluginScanStatus::Failed { reason }, Vec::new(), Vec::new());
+        let (status, plugins, params) = match self.run(provider, path) {
+            Ok(Outcome::Report(r)) if r.protocol != SCAN_PROTOCOL => failed(format!(
+                "scanner protocol {} (expected {SCAN_PROTOCOL})",
+                r.protocol
+            )),
             Ok(Outcome::Report(r)) => match r.error {
-                Some(reason) if r.plugins.is_empty() => {
-                    (PluginScanStatus::Failed { reason }, Vec::new())
-                }
-                _ => (PluginScanStatus::Ok, r.plugins),
+                Some(reason) if r.plugins.is_empty() => failed(reason),
+                _ => (PluginScanStatus::Ok, r.plugins, r.params),
             },
-            Ok(Outcome::Crashed) => (PluginScanStatus::Crashed, Vec::new()),
-            Ok(Outcome::TimedOut) => (PluginScanStatus::TimedOut, Vec::new()),
-            Err(e) => (
-                PluginScanStatus::Failed {
-                    reason: e.to_string(),
-                },
-                Vec::new(),
-            ),
+            Ok(Outcome::Crashed) => (PluginScanStatus::Crashed, Vec::new(), Vec::new()),
+            Ok(Outcome::TimedOut) => (PluginScanStatus::TimedOut, Vec::new(), Vec::new()),
+            Err(e) => failed(e.to_string()),
         };
         ScanRecord {
             provider: provider.to_owned(),
@@ -158,6 +166,7 @@ impl Scanner {
             modified,
             status,
             plugins,
+            params,
         }
     }
 
@@ -224,15 +233,23 @@ pub fn scan_in_process(backend: &dyn PluginBackend, path: &Path) -> ScanReport {
             return ScanReport {
                 protocol: SCAN_PROTOCOL,
                 plugins: Vec::new(),
+                params: Vec::new(),
                 error: Some(e.to_string()),
             };
         }
     };
     let mut plugins = Vec::new();
+    let mut scanned = Vec::new();
     let mut errors = Vec::new();
     for info in listed {
         match validate(backend, &info) {
-            Ok(()) => plugins.push(info),
+            Ok(params) => {
+                plugins.push(info.clone());
+                scanned.push(ScannedParams {
+                    key: info.key,
+                    params,
+                });
+            }
             // Backends without instances yet are listed unvalidated.
             Err(PluginError::NotYetImplemented(_)) => plugins.push(info),
             Err(e) => errors.push(format!("{}: {e}", info.name)),
@@ -241,12 +258,22 @@ pub fn scan_in_process(backend: &dyn PluginBackend, path: &Path) -> ScanReport {
     ScanReport {
         protocol: SCAN_PROTOCOL,
         plugins,
+        params: scanned,
         error: (!errors.is_empty()).then(|| errors.join("; ")),
     }
 }
 
-fn validate(backend: &dyn PluginBackend, info: &PluginInfo) -> Result<(), PluginError> {
+/// Instantiates and runs one plugin; returns its parameters.
+fn validate(
+    backend: &dyn PluginBackend,
+    info: &PluginInfo,
+) -> Result<Vec<ParamDescriptor>, PluginError> {
     let mut instance = backend.instantiate(info, std::sync::Arc::new(|| {}))?;
+    let params: Vec<ParamDescriptor> = instance
+        .params()
+        .into_iter()
+        .filter(ParamDescriptor::is_valid)
+        .collect();
     let mut processor = instance.activate(VALIDATION_RATE, VALIDATION_FRAMES)?;
     let ctx = ProcessContext {
         sample_rate: VALIDATION_RATE,
@@ -288,7 +315,7 @@ fn validate(backend: &dyn PluginBackend, info: &PluginInfo) -> Result<(), Plugin
     }
     instance.deactivate(processor);
     if finite {
-        Ok(())
+        Ok(params)
     } else {
         Err(PluginError::Plugin("non-finite output".into()))
     }

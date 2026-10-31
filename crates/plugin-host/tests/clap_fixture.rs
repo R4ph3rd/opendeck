@@ -192,6 +192,10 @@ fn scan_cache_reuses_blacklists_and_rescans_changes() {
     assert_eq!(seen.len(), 3);
     assert_eq!(cache.catalog().len(), 1);
     assert_eq!(cache.catalog()[0].key, key(GAIN_ID));
+    let table = cache.param_table();
+    assert_eq!(table.len(), 1);
+    assert_eq!(table[0].key, key(GAIN_ID));
+    assert_eq!(table[0].params.len(), 2);
     let blacklisted: Vec<_> = cache
         .blacklist()
         .map(|r| (r.path.file_name().unwrap().to_owned(), r.status.clone()))
@@ -466,6 +470,11 @@ fn clap_effects_register_under_clap_keys() {
     assert_eq!(effects.len(), 1);
     assert_eq!(effects[0].key, key(GAIN_ID));
     assert_eq!(effects[0].name, "Test Gain");
+    // Without a scan the list has no parameters; the scan fills them.
+    assert!(effects[0].params.is_empty());
+    let record = scanner(Duration::from_secs(20)).scan("clap", &gain_file());
+    host.set_param_table(record.params);
+    assert_eq!(registry.effects()[0].params.len(), 2);
     let mut fx = registry.create(&key(GAIN_ID)).expect("create");
     fx.prepare(SampleRate(48_000), 32);
     assert_eq!(fx.info().params.len(), 2);

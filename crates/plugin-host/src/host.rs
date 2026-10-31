@@ -31,6 +31,7 @@ use crate::adapter::{AudioHalf, PluginEffect, PluginInstrument};
 use crate::backend::{HostWake, InstanceRequests, PARAM_RING, ParamChange, PluginBackend};
 use crate::instances::{self, Entry, InstanceId};
 use crate::main_thread::{DEFAULT_TIMEOUT, MainThread, run_blocking};
+use crate::scan::ScannedParams;
 
 /// State of an instance as the main thread last saw it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -48,6 +49,7 @@ struct Shared {
     main: Arc<dyn MainThread>,
     backends: Vec<Arc<dyn PluginBackend>>,
     catalog: RwLock<Vec<PluginInfo>>,
+    params: RwLock<Vec<ScannedParams>>,
     timeout: Duration,
 }
 
@@ -55,6 +57,14 @@ struct Shared {
 #[derive(Clone)]
 pub struct PluginHost {
     shared: Arc<Shared>,
+}
+
+impl std::fmt::Debug for PluginHost {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PluginHost")
+            .field("plugins", &self.catalog().len())
+            .finish_non_exhaustive()
+    }
 }
 
 impl PluginHost {
@@ -75,6 +85,7 @@ impl PluginHost {
                 main,
                 backends,
                 catalog: RwLock::new(Vec::new()),
+                params: RwLock::new(Vec::new()),
                 timeout,
             }),
         }
@@ -86,6 +97,24 @@ impl PluginHost {
         if let Ok(mut c) = self.shared.catalog.write() {
             *c = plugins;
         }
+    }
+
+    /// Replaces the parameter table: what the scanner read from each plugin.
+    /// Factories list these parameters in `effects()` without instantiating
+    /// the plugin. A plugin without an entry lists none until created.
+    pub fn set_param_table(&self, params: Vec<ScannedParams>) {
+        if let Ok(mut p) = self.shared.params.write() {
+            *p = params;
+        }
+    }
+
+    fn scanned_params(&self, key: &EffectKey) -> Vec<ParamDescriptor> {
+        self.shared
+            .params
+            .read()
+            .ok()
+            .and_then(|t| t.iter().find(|p| p.key == *key).map(|p| p.params.clone()))
+            .unwrap_or_default()
     }
 
     /// The current catalog.
@@ -299,11 +328,15 @@ impl EffectFactory for PluginEffectFactory {
         self.provider
     }
 
-    /// Lists catalog effects without instantiating them: `params` is empty
-    /// here and filled by `create`.
+    /// Lists catalog effects without instantiating them. `params` comes from
+    /// the scan (`PluginHost::set_param_table`); empty if the scan did not
+    /// record it. A created effect reports its own parameters.
     fn effects(&self) -> Vec<EffectInfo> {
         self.listed(PluginKind::Effect)
-            .map(|p| effect_info(&p, Vec::new()))
+            .map(|p| {
+                let params = self.host.scanned_params(&p.key);
+                effect_info(&p, params)
+            })
             .collect()
     }
 
@@ -317,13 +350,13 @@ impl InstrumentFactory for PluginEffectFactory {
         self.provider
     }
 
-    /// Lists catalog instruments; `params` is filled by `create`.
+    /// Lists catalog instruments; `params` as for `effects`.
     fn instruments(&self) -> Vec<InstrumentInfo> {
         self.listed(PluginKind::Instrument)
             .map(|p| InstrumentInfo {
+                params: self.host.scanned_params(&p.key),
                 key: p.key,
                 name: p.name,
-                params: Vec::new(),
             })
             .collect()
     }
