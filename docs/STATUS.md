@@ -1,6 +1,6 @@
 # Status
 
-MVP reached (v0.8.0). Milestone 9 (VST3/CLAP hosting) next, owner-approved.
+MVP reached (v0.8.0). v0.8.1 revamps the UI after owner feedback (stacked full-window layout, reference-style decks, slim mixer, 2x4 pad grids). Milestone 9 (VST3/CLAP hosting) next, owner-approved.
 
 ## Milestones
 
