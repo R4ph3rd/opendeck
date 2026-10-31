@@ -11,20 +11,20 @@ import {
   PanelBody,
   PanelHeader,
 } from "@opendeck/design-system";
-import { ChevronDown, ChevronUp } from "lucide-react";
-import { useState } from "react";
+import { X } from "lucide-react";
 import { BEAT_FX_UNITS_SHOWN, SEND_BUSES_SHOWN } from "../../lib/fx";
+import { useAppStore } from "../../state/app";
 import { useFxStore } from "../../state/fx";
 import { BeatFxUnit } from "./BeatFxUnit";
 import { PadFxEditor } from "./PadFxEditor";
 import { SendUnit } from "./SendUnit";
 
-/** Collapsible FX strip: two Beat FX units, the send buses and the pad FX editor. */
+/** FX band: two Beat FX units, the send buses and the pad FX editor. The top bar toggles it. */
 export function FxPanel() {
-  const [open, setOpen] = useState(true);
+  const setFxOpen = useAppStore((s) => s.setFxOpen);
   const ready = useFxStore((s) => s.state !== null);
   return (
-    <Panel aria-label="Effects" className="shrink-0">
+    <Panel flush aria-label="Effects" className="size-full">
       <PanelHeader
         title="Effects"
         actions={
@@ -39,40 +39,33 @@ export function FxPanel() {
                 <DialogHeader>
                   <DialogTitle>Pad FX</DialogTitle>
                   <DialogDescription>
-                    32 pad effects: two banks, each with a shift layer. Hold a pad to engage, release
-                    to stop.
+                    32 pad effects: two banks, each with a shift layer. Hold a pad to engage,
+                    release to stop.
                   </DialogDescription>
                 </DialogHeader>
                 <PadFxEditor />
               </DialogContent>
             </Dialog>
-            <IconButton
-              size="sm"
-              aria-label={open ? "Collapse effects" : "Expand effects"}
-              aria-expanded={open}
-              onClick={() => setOpen((v) => !v)}
-            >
-              {open ? <ChevronUp aria-hidden /> : <ChevronDown aria-hidden />}
+            <IconButton size="sm" aria-label="Close effects" onClick={() => setFxOpen(false)}>
+              <X aria-hidden />
             </IconButton>
           </div>
         }
       />
-      {open ? (
-        <PanelBody className="flex flex-wrap items-start gap-3">
-          {ready ? (
-            <>
-              {Array.from({ length: BEAT_FX_UNITS_SHOWN }, (_, i) => (
-                <BeatFxUnit key={i} index={i} />
-              ))}
-              {Array.from({ length: SEND_BUSES_SHOWN }, (_, i) => (
-                <SendUnit key={i} bus={i} />
-              ))}
-            </>
-          ) : (
-            <p className="text-sm text-fg-subtle">Effects are loading.</p>
-          )}
-        </PanelBody>
-      ) : null}
+      <PanelBody className="flex flex-wrap items-start gap-3">
+        {ready ? (
+          <>
+            {Array.from({ length: BEAT_FX_UNITS_SHOWN }, (_, i) => (
+              <BeatFxUnit key={i} index={i} />
+            ))}
+            {Array.from({ length: SEND_BUSES_SHOWN }, (_, i) => (
+              <SendUnit key={i} bus={i} />
+            ))}
+          </>
+        ) : (
+          <p className="text-sm text-fg-subtle">Effects are loading.</p>
+        )}
+      </PanelBody>
     </Panel>
   );
 }

@@ -31,3 +31,13 @@ export function formatTempo(fader: number, maxFraction: number): string {
 export function bufferLatencyMs(frames: number, sampleRate: number): number {
   return sampleRate > 0 ? (frames * 1000) / sampleRate : 0;
 }
+
+/** `mm:ss.t` with one decimal, for the large deck clocks. */
+export function formatClock(seconds: number): string {
+  const safe = Number.isFinite(seconds) ? Math.max(0, seconds) : 0;
+  const tenths = Math.floor(safe * 10) % 10;
+  const total = Math.floor(safe);
+  const minutes = Math.floor(total / SECONDS_PER_MINUTE);
+  const secs = total % SECONDS_PER_MINUTE;
+  return `${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}.${tenths}`;
+}

@@ -1,5 +1,12 @@
 import { cn } from "@opendeck/design-system";
-import { useCallback, useEffect, useId, useRef, type KeyboardEvent, type PointerEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  type KeyboardEvent,
+  type PointerEvent,
+} from "react";
 import { dragValue, keyValue, snapToStep, unitToAngle, valueToUnit, wheelValue } from "./knobMath";
 import { useCanvasLoop } from "./useCanvasLoop";
 
@@ -20,6 +27,8 @@ export interface KnobProps {
   /** Arc grows from the centre (EQ, filter). The knob snaps onto the centre. */
   bipolar?: boolean;
   disabled?: boolean;
+  /** Small dial with the label beside it and no readout, for dense strips. */
+  compact?: boolean;
   className?: string;
 }
 
@@ -45,16 +54,37 @@ export function Knob({
   format = (v) => v.toFixed(2),
   bipolar = false,
   disabled = false,
+  compact = false,
   className,
 }: KnobProps) {
   const id = useId();
   const wrapRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const view = useRef({ value, min, max, step, onChange, disabled, format, bipolar, defaultValue });
+  const view = useRef({
+    value,
+    min,
+    max,
+    step,
+    onChange,
+    disabled,
+    format,
+    bipolar,
+    defaultValue,
+  });
   const drag = useRef<{ y: number; start: number } | null>(null);
   const last = useRef("");
   useEffect(() => {
-    view.current = { value, min, max, step, onChange, disabled, format, bipolar, defaultValue };
+    view.current = {
+      value,
+      min,
+      max,
+      step,
+      onChange,
+      disabled,
+      format,
+      bipolar,
+      defaultValue,
+    };
   });
 
   const canvasRef = useCanvasLoop((f) => {
@@ -94,8 +124,14 @@ export function Knob({
       ctx.lineWidth = Math.max(1, dpr);
       const top = unitToAngle(0.5);
       ctx.beginPath();
-      ctx.moveTo(cx + Math.cos(top) * (radius + stroke * 0.9), cy + Math.sin(top) * (radius + stroke * 0.9));
-      ctx.lineTo(cx + Math.cos(top) * (radius + stroke * 1.6), cy + Math.sin(top) * (radius + stroke * 1.6));
+      ctx.moveTo(
+        cx + Math.cos(top) * (radius + stroke * 0.9),
+        cy + Math.sin(top) * (radius + stroke * 0.9),
+      );
+      ctx.lineTo(
+        cx + Math.cos(top) * (radius + stroke * 1.6),
+        cy + Math.sin(top) * (radius + stroke * 1.6),
+      );
       ctx.stroke();
     }
 
@@ -162,14 +198,28 @@ export function Knob({
   };
 
   return (
-    <div className={cn("flex w-full flex-col items-center gap-0.5", className)}>
-      <label htmlFor={id} className="text-xs font-medium uppercase text-fg-muted">
+    <div
+      className={cn(
+        "flex w-full items-center",
+        compact ? "flex-row justify-center gap-1" : "flex-col gap-0.5",
+        className,
+      )}
+    >
+      <label
+        htmlFor={id}
+        className={cn(
+          "text-xs font-medium uppercase text-fg-muted",
+          compact && "order-2 min-w-0 truncate leading-none",
+        )}
+        title={compact ? `${label} ${format(value)}` : undefined}
+      >
         {label}
       </label>
       <div
         ref={wrapRef}
         className={cn(
-          "relative size-10 touch-none select-none rounded-full outline-offset-1 focus-within:outline-2 focus-within:outline-focus-ring",
+          "relative touch-none select-none rounded-full outline-offset-1 focus-within:outline-2 focus-within:outline-focus-ring",
+          compact ? "size-6 shrink-0" : "size-10",
           disabled ? "opacity-50" : "cursor-ns-resize",
         )}
         onPointerDown={onPointerDown}
@@ -197,7 +247,10 @@ export function Knob({
           onKeyDown={onKeyDown}
         />
       </div>
-      <output htmlFor={id} className="font-mono text-xs tabular-nums text-fg-subtle">
+      <output
+        htmlFor={id}
+        className={cn("font-mono text-xs tabular-nums text-fg-subtle", compact && "sr-only")}
+      >
         {format(value)}
       </output>
     </div>

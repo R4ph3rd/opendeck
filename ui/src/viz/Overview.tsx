@@ -14,7 +14,7 @@ export interface OverviewProps {
   frameSource: DeckFrameSource;
   /** Click or drag: seek to this position, seconds. */
   onSeek: (seconds: number) => void;
-  className?: string;
+  className?: string | undefined;
 }
 
 /** Seconds a key press moves the playhead. */
@@ -54,7 +54,8 @@ export function Overview({ label, level, markers, frameSource, onSeek, className
     if (duration <= 0) {
       return;
     }
-    const target = fractionAt(event.clientX, event.currentTarget.getBoundingClientRect()) * duration;
+    const target =
+      fractionAt(event.clientX, event.currentTarget.getBoundingClientRect()) * duration;
     scrubRef.current = target;
     onSeek(target);
   };
@@ -84,7 +85,7 @@ export function Overview({ label, level, markers, frameSource, onSeek, className
       aria-valuenow={0}
       tabIndex={0}
       className={cn(
-        "relative h-10 min-w-0 cursor-pointer overflow-hidden rounded-md bg-surface outline-offset-1 focus-visible:outline-2 focus-visible:outline-focus-ring",
+        "relative h-10 min-w-0 cursor-pointer overflow-hidden bg-surface outline-offset-1 focus-visible:outline-2 focus-visible:outline-focus-ring",
         className,
       )}
       onPointerDown={(event) => {

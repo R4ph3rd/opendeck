@@ -3,6 +3,7 @@ import { commands, type CommandError, type SyncMode, type TempoRange } from "../
 import { framesToSeconds, telemetryStore } from "./telemetry";
 import { DEFAULT_JUMP_BEATS, selectDeckUi, useAppStore, type DeckUi } from "./app";
 import { errorMessage } from "../lib/errors";
+import { keySyncShift } from "../lib/keySync";
 import { notifyError } from "./notify";
 
 type Outcome<T> = { status: "ok"; data: T } | { status: "error"; error: CommandError | string };
@@ -232,6 +233,43 @@ export function setJumpBeats(deck: number, beats: number): void {
 export function beatJump(deck: number, direction: 1 | -1): void {
   const { jumpBeats } = selectDeckUi(deck)(useAppStore.getState());
   void report(commands.beatJump(deck, direction * jumpBeats));
+}
+
+// ----- key shift and key sync -----
+
+/** Largest key shift the engine accepts, semitones. */
+export const MAX_KEY_SHIFT = 12;
+
+/** Sets the key shift of a deck and reads the backend's value back. */
+export async function setKeyShiftTo(deck: number, semitones: number): Promise<void> {
+  const clamped = Math.min(MAX_KEY_SHIFT, Math.max(-MAX_KEY_SHIFT, Math.round(semitones)));
+  useAppStore.getState().patchDeck(deck, { keyShift: clamped });
+  await report(commands.setKeyShift(deck, clamped));
+  await hydrateDeck(deck);
+}
+
+/** Moves the key shift of a deck by `delta` semitones. */
+export function stepKeyShift(deck: number, delta: number): void {
+  void setKeyShiftTo(deck, selectDeckUi(deck)(useAppStore.getState()).keyShift + delta);
+}
+
+/**
+ * KEY SYNC: shifts `deck` so its key matches the sync leader, or the other
+ * deck when there is no leader. Does nothing when a key is unknown.
+ */
+export function keySync(deck: number): void {
+  const state = useAppStore.getState();
+  const other = state.leader !== null && state.leader !== deck ? state.leader : deck === 0 ? 1 : 0;
+  const mine = selectDeckUi(deck)(state);
+  const theirs = selectDeckUi(other)(state);
+  const shift = keySyncShift(
+    (mine.track ?? mine.incoming)?.key_musical,
+    (theirs.track ?? theirs.incoming)?.key_musical,
+    theirs.keyShift,
+  );
+  if (shift !== null) {
+    void setKeyShiftTo(deck, shift);
+  }
 }
 
 // ----- hot cues -----

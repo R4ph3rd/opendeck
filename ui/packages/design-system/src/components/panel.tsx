@@ -1,11 +1,17 @@
 import type { ComponentProps, ReactNode } from "react";
 import { cn } from "../lib/cn";
 
-export function Panel({ className, ...props }: ComponentProps<"section">) {
+export interface PanelProps extends ComponentProps<"section"> {
+  /** Edge-to-edge band: no border and square corners, separated by a resize handle instead. */
+  flush?: boolean;
+}
+
+export function Panel({ className, flush = false, ...props }: PanelProps) {
   return (
     <section
       className={cn(
-        "flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-surface text-fg",
+        "flex min-h-0 flex-col overflow-hidden bg-surface text-fg",
+        flush ? "rounded-none border-0" : "rounded-lg border border-border",
         className,
       )}
       {...props}

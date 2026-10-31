@@ -14,11 +14,31 @@ export const PREF = {
   library: "libraryOptions",
 } as const;
 
-/** localStorage key of the vertical split between stage, pads and collection. */
-export const LAYOUT_KEY = "opendeck.layout.main";
+/** localStorage key of the vertical split between the stacked bands. */
+export const LAYOUT_KEY = "opendeck.layout.main.v2";
 
-/** The two-deck layout the app starts with. */
-export const DEFAULT_LAYOUT: ResizableLayout = { stage: 45, pads: 25, library: 30 };
+/** Same split with the effects band open. */
+export const FX_LAYOUT_KEY = `${LAYOUT_KEY}.fx`;
+
+/** Other split layouts that reset together with the main one. */
+export const EXTRA_LAYOUT_KEYS = ["opendeck.layout.pads", "opendeck.layout.library"] as const;
+
+/** Bands top to bottom: zoomed waveforms, decks and mixer, pads, library (percent). */
+export const DEFAULT_LAYOUT: ResizableLayout = {
+  waves: 12,
+  decks: 44,
+  pads: 15,
+  library: 29,
+};
+
+/** Bands with the effects strip open between the decks and the pads. */
+export const DEFAULT_FX_LAYOUT: ResizableLayout = {
+  waves: 10.8,
+  decks: 44,
+  fx: 13.2,
+  pads: 14.2,
+  library: 17.8,
+};
 
 export type Theme = "dark" | "light";
 
@@ -45,15 +65,16 @@ export const DEFAULT_LIBRARY_OPTIONS: LibraryOptions = {
 };
 
 /** Reads a preference. `reachable` is false when the backend could not be asked. */
-export async function readPref<T>(
-  name: string,
-): Promise<{ reachable: boolean; value: T | null }> {
+export async function readPref<T>(name: string): Promise<{ reachable: boolean; value: T | null }> {
   try {
     const result = await commands.getUiPref(name);
     if (result.status !== "ok") {
       return { reachable: false, value: null };
     }
-    return { reachable: true, value: result.data === null ? null : (JSON.parse(result.data) as T) };
+    return {
+      reachable: true,
+      value: result.data === null ? null : (JSON.parse(result.data) as T),
+    };
   } catch {
     return { reachable: false, value: null };
   }
@@ -100,7 +121,10 @@ async function loadBpmRange(): Promise<Partial<LibraryOptions>> {
 /** Sends the BPM range to the analyzer. A refusal is logged; the field keeps the value. */
 async function saveBpmRange(bpmMin: number, bpmMax: number): Promise<void> {
   try {
-    const result = await commands.setBpmRange({ min_bpm: bpmMin, max_bpm: bpmMax });
+    const result = await commands.setBpmRange({
+      min_bpm: bpmMin,
+      max_bpm: bpmMax,
+    });
     if (result.status === "error") {
       console.warn("could not set the BPM range", result.error);
     }
@@ -221,7 +245,9 @@ export const usePrefsStore = create<PrefsState>()((set, get) => ({
   resetAll: () => {
     set({ ...initial(), loaded: true, firstRunDone: true });
     try {
-      globalThis.localStorage?.removeItem(LAYOUT_KEY);
+      for (const key of [LAYOUT_KEY, FX_LAYOUT_KEY, ...EXTRA_LAYOUT_KEYS]) {
+        globalThis.localStorage?.removeItem(key);
+      }
     } catch {
       // Storage may be blocked; the layout then resets on the next launch.
     }

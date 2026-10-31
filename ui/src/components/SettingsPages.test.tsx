@@ -132,14 +132,20 @@ describe("Interface page", () => {
   });
 
   it("saves the current layout and restores it", async () => {
-    localStorage.setItem(LAYOUT_KEY, JSON.stringify({ stage: 60, pads: 20, library: 20 }));
+    localStorage.setItem(
+      LAYOUT_KEY,
+      JSON.stringify({ waves: 30, decks: 30, pads: 20, library: 20 }),
+    );
     renderSettings("interface");
     fireEvent.change(screen.getByLabelText("Layout name"), {
       target: { value: "Wide stage" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Save current layout" }));
     expect(usePrefsStore.getState().layoutPresets).toEqual([
-      { name: "Wide stage", layout: { stage: 60, pads: 20, library: 20 } },
+      {
+        name: "Wide stage",
+        layout: { waves: 30, decks: 30, pads: 20, library: 20 },
+      },
     ]);
     await waitFor(() =>
       expect(commands.setUiPref).toHaveBeenCalledWith("layoutPresets", expect.any(String)),
@@ -148,14 +154,16 @@ describe("Interface page", () => {
     // Restore the built-in default, then the saved one.
     fireEvent.click(screen.getAllByRole("button", { name: "Restore" })[0] as HTMLElement);
     expect(JSON.parse(localStorage.getItem(LAYOUT_KEY) ?? "{}")).toEqual({
-      stage: 45,
-      pads: 25,
-      library: 30,
+      waves: 12,
+      decks: 44,
+      pads: 15,
+      library: 29,
     });
     expect(usePrefsStore.getState().layoutRevision).toBe(1);
     fireEvent.click(screen.getAllByRole("button", { name: "Restore" })[1] as HTMLElement);
     expect(JSON.parse(localStorage.getItem(LAYOUT_KEY) ?? "{}")).toEqual({
-      stage: 60,
+      waves: 30,
+      decks: 30,
       pads: 20,
       library: 20,
     });
@@ -295,7 +303,9 @@ describe("Audio page", () => {
       ])) as never);
     renderSettings("audio");
     fireEvent.click(await screen.findByRole("combobox", { name: "Host API" }));
-    const asio = await screen.findByRole("option", { name: "ASIO: build with the asio feature" });
+    const asio = await screen.findByRole("option", {
+      name: "ASIO: build with the asio feature",
+    });
     expect(asio.getAttribute("aria-disabled")).toBe("true");
   });
 
@@ -325,9 +335,15 @@ describe("Audio page", () => {
 
   it("plays the test tone through the engine and applies changes first", async () => {
     renderSettings("audio");
-    const master = await screen.findByRole("button", { name: "Test tone on master" });
+    const master = await screen.findByRole("button", {
+      name: "Test tone on master",
+    });
     expect(
-      (screen.getByRole("button", { name: "Test tone on booth" }) as HTMLButtonElement).disabled,
+      (
+        screen.getByRole("button", {
+          name: "Test tone on booth",
+        }) as HTMLButtonElement
+      ).disabled,
     ).toBe(true);
     fireEvent.click(master);
     await waitFor(() => expect(commands.playTestTone).toHaveBeenCalledWith("master"));
@@ -365,13 +381,19 @@ describe("Library BPM range", () => {
   it("sends the range to the analyzer", async () => {
     usePrefsStore.getState().setLibrary({ bpmMin: 80 });
     await waitFor(() =>
-      expect(commands.setBpmRange).toHaveBeenCalledWith({ min_bpm: 80, max_bpm: 180 }),
+      expect(commands.setBpmRange).toHaveBeenCalledWith({
+        min_bpm: 80,
+        max_bpm: 180,
+      }),
     );
   });
 
   it("loads the analyzer's range at startup", async () => {
     commands.getBpmRange.mockImplementationOnce((() => ok({ min_bpm: 90, max_bpm: 170 })) as never);
     await usePrefsStore.getState().hydrate();
-    expect(usePrefsStore.getState().library).toMatchObject({ bpmMin: 90, bpmMax: 170 });
+    expect(usePrefsStore.getState().library).toMatchObject({
+      bpmMin: 90,
+      bpmMax: 170,
+    });
   });
 });

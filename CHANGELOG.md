@@ -4,6 +4,22 @@ All notable changes are recorded here. Format follows [Keep a Changelog](https:/
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-10-31
+
+UI revamp after owner feedback. No engine, contract or IPC changes.
+
+### Changed
+
+- Full-window stacked layout: edge-to-edge waveform, deck, pad and library bands with resizable splits.
+- Reference-style decks: dense header row, central jog wheel with a BPM and tempo readout, transport and sync controls around it.
+- Slim mixer between the decks, with the crossfader below.
+- Pads: a 2x4 grid per deck; edit a pad from its context menu.
+
+### Added
+
+- Design system: flush variant for `Panel`.
+- `scripts/ui-screenshots.cjs`: reproducible UI screenshots with mocked IPC and a clipping report (`docs/BUILD.md`).
+
 ## [0.8.0] - 2026-10-31
 
 Milestone 8, the MVP: hardening, full audio routing, device reconnect, first run, error handling, settings pages and installer config.

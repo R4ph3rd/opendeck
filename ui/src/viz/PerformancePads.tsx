@@ -1,14 +1,26 @@
-import { cn } from "@opendeck/design-system";
-import { useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from "react";
+import { ContextMenu, ContextMenuContent, ContextMenuTrigger, cn } from "@opendeck/design-system";
+import {
+  useRef,
+  useState,
+  type CSSProperties,
+  type HTMLAttributes,
+  type KeyboardEvent,
+  type PointerEvent,
+  type ReactNode,
+} from "react";
 import type { TokenName } from "./colors";
 
 export interface PadSpec {
-  /** Text on the pad, usually its number. */
+  /** Main text on the pad: a cue name, an effect, a jump size. */
   label: string;
+  /** Second line, small mono text: a time, a division, a length. */
+  sublabel?: string | undefined;
   /** Colour token of the pad when lit. `null` uses the neutral accent. */
   color: TokenName | null;
   /** Lit: the slot holds something (a stored cue, an active loop). */
   lit: boolean;
+  /** Sounding right now (a playing sample): drawn with an inset ring. */
+  active?: boolean;
   /** Accessible name; defaults to `label`. */
   ariaLabel?: string;
   disabled?: boolean;
@@ -18,7 +30,7 @@ export interface PerformancePadsProps {
   /** Group name for assistive tech, for example "Hot cues". */
   label: string;
   pads: readonly PadSpec[];
-  /** Pointer or key went down on a pad. */
+  /** Pointer or key went down on a pad. `shift` is the SHIFT key at that moment. */
   onPress: (index: number, modifiers: { shift: boolean }) => void;
   /** Pointer or key came up. Called once per press, also when the pointer is lost. */
   onRelease?: (index: number) => void;
@@ -26,18 +38,26 @@ export interface PerformancePadsProps {
   columns?: 2 | 4 | 8;
   /** Disables every pad. */
   disabled?: boolean;
+  /** Content of the right-click menu of a pad (menu items). No menu when absent or `null`. */
+  renderMenu?: (index: number) => ReactNode;
+  /** Extra props per pad, for example drop handlers. */
+  padProps?: (index: number) => HTMLAttributes<HTMLButtonElement>;
   className?: string;
 }
 
-const GRID = { 2: "grid-cols-2", 4: "grid-cols-4", 8: "grid-cols-8" } as const;
+const GRID = {
+  2: "grid-cols-2 grid-rows-4",
+  4: "grid-cols-4 grid-rows-2",
+  8: "grid-cols-8 grid-rows-1",
+} as const;
 
 const token = (name: TokenName): string => `var(--${name})`;
 
 /**
- * Grid of velocity-less performance pads, generic over what they do: hot
- * cues now, loops, rolls and effects when pad modes arrive. A lit pad is
- * filled with its colour token; a pressed pad is inset and brighter. Press
- * and release are reported once each, including when the pointer is lost.
+ * Grid of velocity-less performance pads that fills its container: eight flat
+ * grey rectangles, each lit with its colour token when set. A pressed pad is
+ * brighter and inset. Press and release are reported once each, including
+ * when the pointer is lost. SHIFT while pressing is reported to the caller.
  */
 export function PerformancePads({
   label,
@@ -46,6 +66,8 @@ export function PerformancePads({
   onRelease,
   columns = 4,
   disabled = false,
+  renderMenu,
+  padProps,
   className,
 }: PerformancePadsProps) {
   const [pressed, setPressed] = useState<ReadonlySet<number>>(new Set());
@@ -64,15 +86,19 @@ export function PerformancePads({
   };
 
   return (
-    <div role="group" aria-label={label} className={cn("grid gap-1", GRID[columns], className)}>
+    <div
+      role="group"
+      aria-label={label}
+      className={cn("grid size-full min-h-0 gap-0.5", GRID[columns], className)}
+    >
       {pads.map((pad, index) => {
         const off = disabled || pad.disabled;
         const color = token(pad.color ?? "accent");
         const isPressed = pressed.has(index);
         const style: CSSProperties = pad.lit
-          ? { backgroundColor: color, borderColor: "transparent", color: token("cue-fg") }
-          : { borderColor: "var(--border)", color };
-        return (
+          ? { backgroundColor: color, color: token("cue-fg") }
+          : {};
+        const button = (
           <button
             key={index}
             type="button"
@@ -82,12 +108,13 @@ export function PerformancePads({
             disabled={off}
             style={style}
             className={cn(
-              "h-9 min-w-0 select-none rounded-md border text-sm font-semibold tabular-nums",
+              "relative flex min-h-0 min-w-0 select-none flex-col items-center justify-center gap-0.5 overflow-hidden px-1",
               "transition-[filter,transform] duration-[var(--duration-fast)] ease-standard",
-              "outline-offset-1 focus-visible:outline-2 focus-visible:outline-focus-ring",
+              "-outline-offset-2 focus-visible:outline-2 focus-visible:outline-focus-ring",
               "disabled:pointer-events-none disabled:opacity-50",
               "hover:brightness-110 data-[pressed]:translate-y-px data-[pressed]:brightness-125",
-              !pad.lit && "bg-surface-raised",
+              !pad.lit && "bg-surface-raised text-fg",
+              pad.active && "ring-2 ring-inset ring-fg",
             )}
             onPointerDown={(event: PointerEvent<HTMLButtonElement>) => {
               if (event.button !== 0) return;
@@ -107,9 +134,36 @@ export function PerformancePads({
               if (event.key === " " || event.key === "Enter") up(index);
             }}
             onBlur={() => up(index)}
+            {...padProps?.(index)}
           >
-            {pad.label}
+            <span
+              aria-hidden
+              className={cn(
+                "absolute left-1.5 top-1 font-mono text-xs tabular-nums",
+                pad.lit ? "text-cue-fg opacity-70" : "text-fg-subtle",
+              )}
+            >
+              {index + 1}
+            </span>
+            <span className="w-full truncate text-center text-sm font-semibold leading-tight">
+              {pad.label}
+            </span>
+            {pad.sublabel ? (
+              <span className="w-full truncate text-center font-mono text-xs leading-tight tabular-nums opacity-80">
+                {pad.sublabel}
+              </span>
+            ) : null}
           </button>
+        );
+        const menu = renderMenu?.(index);
+        if (menu === null || menu === undefined || menu === false) {
+          return button;
+        }
+        return (
+          <ContextMenu key={index}>
+            <ContextMenuTrigger asChild>{button}</ContextMenuTrigger>
+            <ContextMenuContent>{menu}</ContextMenuContent>
+          </ContextMenu>
         );
       })}
     </div>

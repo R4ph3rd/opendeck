@@ -14,6 +14,7 @@ const bindings = (await import("../../ipc/bindings")) as unknown as ReturnType<
 const { telemetryStore } = await import("../../state/telemetry");
 const { useFxStore, hydrateFx } = await import("../../state/fx");
 const { useMixerStore } = await import("../../state/mixer");
+const { useAppStore } = await import("../../state/app");
 const { FxPanel } = await import("./FxPanel");
 const { PadFxEditor } = await import("./PadFxEditor");
 const { ChannelStrip } = await import("../ChannelStrip");
@@ -55,18 +56,32 @@ describe("FxPanel", () => {
     const first = within(screen.getByRole("region", { name: "Beat FX 1" }));
     expect(first.getByText("Echo")).toBeTruthy();
     expect(first.getByRole("status", { name: "Beat FX 1 division" }).textContent).toBe("3/4");
-    expect(first.getByRole("radio", { name: "Beat FX 1 channel 1" }).getAttribute("aria-checked")).toBe("true");
+    expect(
+      first.getByRole("radio", { name: "Beat FX 1 channel 1" }).getAttribute("aria-checked"),
+    ).toBe("true");
   });
 
   it("sends channel assignment, mode, ON/OFF, release and beat steps", () => {
     render(<FxPanel />);
     const unit = within(screen.getByRole("region", { name: "Beat FX 1" }));
     fireEvent.click(unit.getByRole("radio", { name: "Beat FX 1 channel 1&2" }));
-    expect(commands.fxApply).toHaveBeenCalledWith({ kind: "set_assign", unit: 0, assign: "both" });
+    expect(commands.fxApply).toHaveBeenCalledWith({
+      kind: "set_assign",
+      unit: 0,
+      assign: "both",
+    });
     fireEvent.click(unit.getByRole("radio", { name: "Beat FX 1 single mode" }));
-    expect(commands.fxApply).toHaveBeenCalledWith({ kind: "set_mode", unit: 0, mode: "single" });
+    expect(commands.fxApply).toHaveBeenCalledWith({
+      kind: "set_mode",
+      unit: 0,
+      mode: "single",
+    });
     fireEvent.click(unit.getByRole("button", { name: "Beat FX 1 on/off" }));
-    expect(commands.fxApply).toHaveBeenCalledWith({ kind: "set_unit_on", unit: 0, on: true });
+    expect(commands.fxApply).toHaveBeenCalledWith({
+      kind: "set_unit_on",
+      unit: 0,
+      on: true,
+    });
     fireEvent.click(unit.getByRole("button", { name: "Beat FX 1 release" }));
     expect(commands.fxApply).toHaveBeenCalledWith({ kind: "release", unit: 0 });
     fireEvent.click(unit.getByRole("button", { name: "Beat FX 1 beat right" }));
@@ -89,9 +104,9 @@ describe("FxPanel", () => {
     act(() => telemetryStore.getState().push(on));
     expect(button().getAttribute("aria-pressed")).toBe("true");
     // Unit 2 sits on channel 2, which stays off.
-    expect(screen.getByRole("button", { name: "Beat FX 2 on/off" }).getAttribute("aria-pressed")).toBe(
-      "false",
-    );
+    expect(
+      screen.getByRole("button", { name: "Beat FX 2 on/off" }).getAttribute("aria-pressed"),
+    ).toBe("false");
   });
 
   it("drives the primary parameter from the level knob and shows it at once", () => {
@@ -142,10 +157,12 @@ describe("FxPanel", () => {
     expect(region.getByRole("slider", { name: "Beat FX 1 Echo Decay" })).toBeTruthy();
     expect(region.getByRole("slider", { name: "Beat FX 1 Echo Damping" })).toBeTruthy();
     expect(region.getByRole("slider", { name: "Beat FX 1 Echo mix" })).toBeTruthy();
-    expect(region.getByRole("slider", { name: "Beat FX 1 Echo Decay" }).getAttribute("aria-valuetext")).toBe(
-      "49%",
-    );
-    const damping = region.getByRole("slider", { name: "Beat FX 1 Echo Damping" });
+    expect(
+      region.getByRole("slider", { name: "Beat FX 1 Echo Decay" }).getAttribute("aria-valuetext"),
+    ).toBe("49%");
+    const damping = region.getByRole("slider", {
+      name: "Beat FX 1 Echo Damping",
+    });
     expect(damping.getAttribute("aria-valuetext")).toMatch(/kHz|Hz/);
     setKnob("Beat FX 1 Echo Time", 0.5);
     expect(commands.fxApply).toHaveBeenCalledWith({
@@ -201,7 +218,11 @@ describe("FxPanel", () => {
     fireEvent.change(screen.getByRole("textbox", { name: "Preset name" }), {
       target: { value: "Mine" },
     });
-    fireEvent.click(within(screen.getByRole("region", { name: "Effect presets" })).getByRole("button", { name: "Save" }));
+    fireEvent.click(
+      within(screen.getByRole("region", { name: "Effect presets" })).getByRole("button", {
+        name: "Save",
+      }),
+    );
     expect(commands.fxSavePreset).toHaveBeenCalledWith(
       { unit: { target: "beat", unit: 0 }, slot: 0 },
       "Mine",
@@ -213,15 +234,19 @@ describe("FxPanel", () => {
     const send = within(screen.getByRole("region", { name: "Send 1" }));
     expect(send.getByRole("combobox", { name: "Send 1 slot 1 effect" })).toBeTruthy();
     fireEvent.click(send.getByRole("button", { name: "Send 1 pre-fader" }));
-    expect(commands.fxApply).toHaveBeenCalledWith({ kind: "set_send_tap", bus: 0, post_fader: false });
+    expect(commands.fxApply).toHaveBeenCalledWith({
+      kind: "set_send_tap",
+      bus: 0,
+      post_fader: false,
+    });
   });
 
-  it("collapses", () => {
+  it("closes its band", () => {
+    useAppStore.getState().setFxOpen(true);
     render(<FxPanel />);
-    fireEvent.click(screen.getByRole("button", { name: "Collapse effects" }));
-    expect(screen.queryByRole("region", { name: "Beat FX 1" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Expand effects" }));
     expect(screen.getByRole("region", { name: "Beat FX 1" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Close effects" }));
+    expect(useAppStore.getState().fxOpen).toBe(false);
   });
 
   it("opens the pad FX editor from the panel", async () => {
@@ -236,7 +261,11 @@ describe("channel strip FX", () => {
     render(<ChannelStrip deck={1} />);
     useMixerStore.getState().apply(neutralMixer() as never);
     setKnob("Sound Color FX B", -0.5);
-    expect(commands.fxApply).toHaveBeenCalledWith({ kind: "set_cfx", deck: 1, amount: -0.5 });
+    expect(commands.fxApply).toHaveBeenCalledWith({
+      kind: "set_cfx",
+      deck: 1,
+      amount: -0.5,
+    });
     expect(screen.getByText("L 50%")).toBeTruthy();
     setKnob("Send 2 B", 0.4);
     expect(commands.fxApply).toHaveBeenCalledWith({
@@ -285,13 +314,21 @@ describe("PadFxEditor", () => {
     expect(commands.fxApply).toHaveBeenCalledWith({
       kind: "set_pad",
       index: 2,
-      pad: { effect: { provider: "builtin", id: "echo" }, division: 0.25, release: false },
+      pad: {
+        effect: { provider: "builtin", id: "echo" },
+        division: 0.25,
+        release: false,
+      },
     });
     fireEvent.click(settings.getByRole("button", { name: "Pad 3 release FX" }));
     expect(commands.fxApply).toHaveBeenLastCalledWith({
       kind: "set_pad",
       index: 2,
-      pad: { effect: { provider: "builtin", id: "echo" }, division: 0.5, release: true },
+      pad: {
+        effect: { provider: "builtin", id: "echo" },
+        division: 0.5,
+        release: true,
+      },
     });
   });
 
