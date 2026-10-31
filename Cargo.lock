@@ -2875,6 +2875,7 @@ dependencies = [
  "opendeck-library",
  "opendeck-media",
  "opendeck-midi",
+ "opendeck-plugin-host",
  "rusqlite",
  "serde",
  "serde_json",

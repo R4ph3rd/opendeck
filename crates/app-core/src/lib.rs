@@ -28,6 +28,7 @@ mod midi_bridge;
 mod midi_service;
 mod midi_types;
 mod pads;
+mod plugins;
 mod prefs;
 mod sampler;
 mod settings_store;
@@ -84,6 +85,10 @@ pub use crate::midi_types::{
 pub use crate::pads::{
     BEAT_JUMP_BASE, BEAT_LOOP_LENGTHS, DeckPadStateDto, PAD_SEMITONES, PadActions, PadContext,
     PadEvent, PadModes, PadOp, PadStateDto, beat_jump_beats, pad_semitones, plan,
+};
+pub use crate::plugins::{
+    FOLDERS_KEY as PLUGIN_FOLDERS_KEY, PluginFileDto, PluginScanProgressDto, PluginService,
+    PluginsStateDto, SCAN_KEY as PLUGIN_SCAN_KEY,
 };
 pub use crate::prefs::{get_pref, reset_prefs, set_pref};
 pub use crate::sampler::{
@@ -757,6 +762,7 @@ pub struct AppCore {
     audio: Option<AudioController>,
     library: Option<LibraryService>,
     actions: Option<PadActions>,
+    plugins: PluginService,
 }
 
 impl Default for AppCore {
@@ -773,12 +779,14 @@ impl AppCore {
             audio: None,
             library: None,
             actions: None,
+            plugins: PluginService::default(),
         }
     }
 
     /// Fresh state with the control and loader threads running.
     pub fn launch(opts: LaunchOptions) -> std::io::Result<Self> {
         let mut core = Self::new();
+        core.plugins = opts.plugins.clone();
         let audio = AudioController::launch(opts)?;
         let sampler = core.pad_modes.sampler();
         sampler.set_engine(Arc::new(EngineSampler::new(audio.clone())));
@@ -796,9 +804,11 @@ impl AppCore {
         library: LibraryService,
     ) -> std::io::Result<Self> {
         opts.library = Some(library.library());
+        let plugins = opts.plugins.clone();
         let audio = AudioController::launch(opts)?;
         library.attach_audio(audio.clone());
         let mut core = Self::new();
+        core.plugins = plugins;
         let sampler = core.pad_modes.sampler();
         sampler.set_engine(Arc::new(EngineSampler::new(audio.clone())));
         sampler.attach(audio.clone(), Some(library.clone()));
@@ -850,6 +860,11 @@ impl AppCore {
             library.forget_deck(deck);
         }
         self.audio()?.eject(deck)
+    }
+
+    /// The plugin scan service (disabled unless launched with one).
+    pub fn plugins(&self) -> PluginService {
+        self.plugins.clone()
     }
 
     /// The audio controller, if the core was launched with one.
