@@ -39,6 +39,7 @@ fn failed(error: String) -> ScanReport {
     ScanReport {
         protocol: SCAN_PROTOCOL,
         plugins: Vec::new(),
+        params: Vec::new(),
         error: Some(error),
     }
 }

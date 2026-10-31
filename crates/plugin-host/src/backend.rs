@@ -20,6 +20,7 @@
 //! with the descriptor).
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use opendeck_contracts::SampleRate;
 use opendeck_contracts::fx::{ParamDescriptor, ParamId, ProcessContext, StereoBufferMut};
@@ -37,6 +38,46 @@ pub const MAX_PARAM_EVENTS: usize = 256;
 /// Capacity of each parameter ring between the main thread and one
 /// instance's audio half (editor edits in, plugin output changes out).
 pub const PARAM_RING: usize = 1024;
+
+/// Called by a plugin instance (from any thread) when the plugin asks for the
+/// main thread (CLAP `request_callback`, `request_restart`). The host queues a
+/// main-thread job that calls [`PluginInstance::service`] on every live
+/// instance. Cheap and idempotent: repeated calls before the job runs queue
+/// one job. It allocates when it queues, so a plugin that calls it from its
+/// audio callback breaks the no-allocation rule outside our control (ADR 0008).
+pub type HostWake = Arc<dyn Fn() + Send + Sync>;
+
+/// What an instance asked of the host since the last
+/// [`PluginInstance::service`] call. All flags are sticky until read.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct InstanceRequests {
+    /// The plugin asked to be deactivated and activated again (CLAP
+    /// `request_restart`). app-core saves state, recreates and re-installs.
+    pub restart: bool,
+    /// The plugin reported a latency change (CLAP `latency.changed`).
+    pub latency_changed: bool,
+    /// The plugin's parameter list or values changed (CLAP `params.rescan`).
+    pub params_changed: bool,
+    /// The plugin state changed (CLAP `state.mark_dirty`).
+    pub state_dirty: bool,
+}
+
+impl InstanceRequests {
+    /// True if no request is pending.
+    pub fn is_empty(&self) -> bool {
+        *self == Self::default()
+    }
+
+    /// Union of two sets of requests.
+    pub fn merge(self, other: Self) -> Self {
+        Self {
+            restart: self.restart || other.restart,
+            latency_changed: self.latency_changed || other.latency_changed,
+            params_changed: self.params_changed || other.params_changed,
+            state_dirty: self.state_dirty || other.state_dirty,
+        }
+    }
+}
 
 /// One parameter change. RT-safe (`Copy`).
 ///
@@ -108,8 +149,13 @@ pub trait PluginBackend: Send + Sync {
     /// a crash here must not take the app down.
     fn scan_file(&self, path: &Path) -> Result<Vec<PluginInfo>, PluginError>;
 
-    /// Creates an instance of a scanned plugin. Main thread only.
-    fn instantiate(&self, info: &PluginInfo) -> Result<Box<dyn PluginInstance>, PluginError>;
+    /// Creates an instance of a scanned plugin. Main thread only. `wake` is
+    /// the instance's way to ask for a [`PluginInstance::service`] call.
+    fn instantiate(
+        &self,
+        info: &PluginInfo,
+        wake: HostWake,
+    ) -> Result<Box<dyn PluginInstance>, PluginError>;
 }
 
 /// Main-thread half of one plugin instance. Every method runs on the main
@@ -135,6 +181,19 @@ pub trait PluginInstance {
 
     /// Latency in frames at the active rate; 0 while inactive.
     fn latency_frames(&self) -> u32;
+
+    /// Tail length in frames as of the last activation: `Some(0)` for a
+    /// plugin that reports no tail, `None` if it does not say (treated as
+    /// "may have a tail"). `u32::MAX` means infinite.
+    fn tail_frames(&self) -> Option<u32> {
+        None
+    }
+
+    /// Runs the plugin's main-thread callback if it asked for one and
+    /// returns what it asked of the host since the last call.
+    fn service(&mut self) -> InstanceRequests {
+        InstanceRequests::default()
+    }
 
     /// Serializes the full plugin state (CLAP `state`, VST3 component and
     /// controller state). Opaque bytes, stored with presets.

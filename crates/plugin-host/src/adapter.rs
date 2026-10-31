@@ -8,8 +8,8 @@
 //!   through (wet = dry), an instrument outputs silence. The instance handle
 //!   reports [`InstanceStatus::Failed`].
 //! - `set_parameter` (audio thread) queues into a preallocated list of
-//!   [`MAX_PARAM_EVENTS`]; editor edits arrive on a ring and join it at the
-//!   next block.
+//!   [`MAX_PARAM_EVENTS`] at frame 0; editor edits arrive on a ring, keep
+//!   their frame offset and join the list at the next block (sorted by offset).
 //! - `latency_frames` returns the value read at activation. A plugin that
 //!   changes latency later asks for a restart; app-core then re-installs the
 //!   slot (the engine reads latency once at install, ADR 0006).
@@ -35,6 +35,7 @@ pub(crate) struct AudioHalf {
     pub timeout: Duration,
     processor: Option<Box<dyn PluginProcessor>>,
     latency: u32,
+    tail: Option<u32>,
     pending: Vec<ParamChange>,
     from_main: rtrb::Consumer<ParamChange>,
     to_main: rtrb::Producer<ParamChange>,
@@ -56,6 +57,7 @@ impl AudioHalf {
             timeout,
             processor: None,
             latency: 0,
+            tail: None,
             pending: Vec::with_capacity(MAX_PARAM_EVENTS),
             from_main,
             to_main,
@@ -76,7 +78,7 @@ impl AudioHalf {
                 match e.instance.activate(sample_rate, max_block_frames) {
                     Ok(p) => {
                         e.status = InstanceStatus::Active;
-                        Ok((p, e.instance.latency_frames()))
+                        Ok((p, e.instance.latency_frames(), e.instance.tail_frames()))
                     }
                     Err(err) => {
                         e.status = InstanceStatus::Failed(err.to_string());
@@ -86,9 +88,10 @@ impl AudioHalf {
             })
         });
         match result {
-            Ok(Ok(Ok((p, latency)))) => {
+            Ok(Ok(Ok((p, latency, tail)))) => {
                 self.processor = Some(p);
                 self.latency = latency;
+                self.tail = tail;
             }
             Ok(Ok(Err(_)) | Err(_)) => self.latency = 0,
             Err(err) => {
@@ -110,7 +113,7 @@ impl AudioHalf {
         if !normalized.is_finite() {
             return;
         }
-        queue(&mut self.pending, id, normalized.clamp(0.0, 1.0));
+        queue(&mut self.pending, id, normalized.clamp(0.0, 1.0), 0);
     }
 
     fn reset(&mut self) {
@@ -131,8 +134,23 @@ impl AudioHalf {
         effect: bool,
     ) -> bool {
         while let Ok(c) = self.from_main.pop() {
-            queue(&mut self.pending, c.id, c.normalized);
+            if c.normalized.is_finite() {
+                queue(
+                    &mut self.pending,
+                    c.id,
+                    c.normalized.clamp(0.0, 1.0),
+                    c.offset,
+                );
+            }
         }
+        // `ProcessBlock::params`: offsets inside the block, sorted. The sort
+        // is unstable so it does not allocate; changes with the same offset
+        // are for different ids.
+        let last = u32::try_from(io.frames().saturating_sub(1)).unwrap_or(u32::MAX);
+        for c in &mut self.pending {
+            c.offset = c.offset.min(last);
+        }
+        self.pending.sort_unstable_by_key(|c| c.offset);
         let Self {
             processor,
             pending,
@@ -172,15 +190,19 @@ impl AudioHalf {
     }
 }
 
-/// Coalescing push without reallocation. RT-safe.
-fn queue(pending: &mut Vec<ParamChange>, id: ParamId, normalized: f32) {
-    if let Some(p) = pending.iter_mut().find(|p| p.id == id) {
+/// Coalescing push without reallocation: a change for the same id at the
+/// same frame replaces the earlier one. RT-safe.
+fn queue(pending: &mut Vec<ParamChange>, id: ParamId, normalized: f32, offset: u32) {
+    if let Some(p) = pending
+        .iter_mut()
+        .find(|p| p.id == id && p.offset == offset)
+    {
         p.normalized = normalized;
     } else if pending.len() < pending.capacity() {
         pending.push(ParamChange {
             id,
             normalized,
-            offset: 0,
+            offset,
         });
     }
 }
@@ -212,6 +234,9 @@ impl Effect for PluginEffect {
 
     fn prepare(&mut self, sample_rate: SampleRate, max_block_frames: usize) {
         self.half.prepare(sample_rate, max_block_frames, true);
+        // A plugin that reports a zero tail needs no tail processing after
+        // bypass; one that reports none is assumed to have one.
+        self.info.has_tail = self.half.tail != Some(0);
     }
 
     fn reset(&mut self) {

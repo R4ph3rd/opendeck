@@ -143,3 +143,21 @@ Source for the FLX4 audio facts: manual p.161-162 (44.1 and 48 kHz, MASTER RCA o
 - [ ] Buffer sizes 64, 128, 256, 512, 1024 and sample rates 44.1 and 48 kHz: changing them keeps loaded decks, playheads and play state. Note the smallest buffer without xruns (status `xruns` stays at 0 over 10 minutes with 2 decks, FX and sampler).
 - [ ] Reported output latency (measured) is close to buffer size plus device latency on WASAPI, ASIO, CoreAudio and ALSA. Record the numbers.
 - [ ] Hosts: the list shows WASAPI (and ASIO in builds with `--features asio`) on Windows, CoreAudio on macOS, ALSA (and JACK in builds with `--features jack`) on Linux, with input, multichannel and buffer flags matching the machine.
+
+## M9a Plugins (wave 1: CLAP effects)
+
+No real CLAP plugin was available to the developers; everything below is untested with third-party code. Windows first, then macOS. Get a free CLAP effect, for example the Surge XT effects or Airwindows Consolidated CLAP builds. Put the `.clap` file in `%COMMONPROGRAMFILES%\CLAP` (or `%LOCALAPPDATA%\Programs\Common\CLAP`), or add its folder in the plugin folder settings. The scanner `opendeck-plugin-scan(.exe)` must sit next to the app executable (it is not bundled yet; build it with `cargo build --release -p opendeck-plugin-host`).
+
+- [ ] Scan: start the app. The plugin list shows the effect with the right name, vendor and version. A second launch does not rescan unchanged files (check the log for `reused`).
+- [ ] Load it in a Beat FX or send slot: the effect keys read `clap:<plugin id>`. Switching the slot to a built-in and back works.
+- [ ] Sound: audio passes, the effect is audible, and bypass and wet/dry behave like a built-in. No clicks when loading or unloading while a deck plays.
+- [ ] Parameters: every visible parameter moves the sound in the right direction; the value range matches the plugin's own window. Hidden and read-only parameters are not listed. Move a parameter while a loud loop plays: no zipper noise beyond what the plugin itself does.
+- [ ] Latency: for a plugin that reports latency (look-ahead limiter, linear-phase EQ), the dry/wet mix stays in phase: set wet to 50 % on a kick loop and listen for flamming or a phase hole. Record the reported latency.
+- [ ] Tail: a reverb or delay rings out after bypass instead of cutting off.
+- [ ] Presets: save a preset or chain with the plugin, restart, recall it. Parameter values return. Plugin state (internal presets) is stored but not yet restored automatically; note what is lost.
+- [ ] Sample rate and buffer changes: change the audio buffer size and sample rate with the plugin loaded. It keeps working after the engine restarts.
+- [ ] Crash blacklist: copy a file that is not a plugin to `crash-test.clap` (or use a plugin known to crash on load). It lands in the blacklist with its status and is not scanned again on the next launch; Retry scans it once more.
+- [ ] A plugin that hangs on load (or any file that takes over 30 s) is killed by the scanner timeout and blacklisted, and the app stays responsive.
+- [ ] Plugin that shows an error dialog or opens a window at load: note it. Editors are not supported yet (wave 9a-3).
+- [ ] Mono-only plugin: not listed (stereo main ports are required).
+- [ ] Unclean exit while a plugin runs (end the process): next launch starts normally. The session marker that lists active plugins is not implemented yet.

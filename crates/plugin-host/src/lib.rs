@@ -36,6 +36,7 @@ mod host;
 mod instances;
 pub mod main_thread;
 pub mod scan;
+pub mod scan_cache;
 #[cfg(feature = "vst3")]
 pub mod vst3;
 
@@ -44,7 +45,7 @@ use std::sync::Arc;
 pub use adapter::{PluginEffect, PluginInstrument};
 pub use backend::PluginBackend;
 pub use error::PluginError;
-pub use host::{InstanceHandle, InstanceStatus, PluginHost};
+pub use host::{InstanceHandle, InstanceStatus, PluginEffectFactory, PluginHost};
 pub use instances::InstanceId;
 
 /// The real formats compiled into this build (cargo features `clap`,

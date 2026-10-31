@@ -8,7 +8,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use crate::backend::{ParamChange, PluginInstance};
+use crate::backend::{InstanceRequests, ParamChange, PluginInstance};
 use crate::{InstanceStatus, PluginError};
 
 /// Process-unique instance id.
@@ -23,6 +23,8 @@ pub(crate) struct Entry {
     /// Changes the plugin made, coming from the audio half.
     pub from_audio: rtrb::Consumer<ParamChange>,
     pub status: InstanceStatus,
+    /// Requests the plugin made, until the control thread takes them.
+    pub requests: InstanceRequests,
 }
 
 thread_local! {
@@ -52,4 +54,15 @@ pub(crate) fn with<T>(id: InstanceId, f: impl FnOnce(&mut Entry) -> T) -> Result
 /// Removes and returns the entry. Main thread.
 pub(crate) fn remove(id: InstanceId) -> Option<Entry> {
     TABLE.with(|t| t.borrow_mut().remove(&id))
+}
+
+/// Services every live instance (plugin main-thread callbacks) and keeps
+/// what they ask of the host in their entries. Main thread.
+pub(crate) fn service_all() {
+    TABLE.with(|t| {
+        for entry in t.borrow_mut().values_mut() {
+            let asked = entry.instance.service();
+            entry.requests = entry.requests.merge(asked);
+        }
+    });
 }

@@ -13,9 +13,10 @@
 //! Every method here runs on the control thread and may block up to the
 //! host timeout waiting for the main thread.
 //!
-//! Known gap (wave 9a-1): if instantiation times out and the job runs
-//! later, the instance stays in the main-thread table until exit.
+//! If instantiation times out, the job still runs later on the main thread;
+//! a cleanup job queued behind it destroys the instance it made.
 
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
@@ -27,9 +28,10 @@ use opendeck_contracts::plugin::{PluginInfo, PluginKind};
 
 use crate::PluginError;
 use crate::adapter::{AudioHalf, PluginEffect, PluginInstrument};
-use crate::backend::{PARAM_RING, ParamChange, PluginBackend};
+use crate::backend::{HostWake, InstanceRequests, PARAM_RING, ParamChange, PluginBackend};
 use crate::instances::{self, Entry, InstanceId};
 use crate::main_thread::{DEFAULT_TIMEOUT, MainThread, run_blocking};
+use crate::scan::ScannedParams;
 
 /// State of an instance as the main thread last saw it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -47,6 +49,7 @@ struct Shared {
     main: Arc<dyn MainThread>,
     backends: Vec<Arc<dyn PluginBackend>>,
     catalog: RwLock<Vec<PluginInfo>>,
+    params: RwLock<Vec<ScannedParams>>,
     timeout: Duration,
 }
 
@@ -54,6 +57,14 @@ struct Shared {
 #[derive(Clone)]
 pub struct PluginHost {
     shared: Arc<Shared>,
+}
+
+impl std::fmt::Debug for PluginHost {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PluginHost")
+            .field("plugins", &self.catalog().len())
+            .finish_non_exhaustive()
+    }
 }
 
 impl PluginHost {
@@ -74,6 +85,7 @@ impl PluginHost {
                 main,
                 backends,
                 catalog: RwLock::new(Vec::new()),
+                params: RwLock::new(Vec::new()),
                 timeout,
             }),
         }
@@ -85,6 +97,24 @@ impl PluginHost {
         if let Ok(mut c) = self.shared.catalog.write() {
             *c = plugins;
         }
+    }
+
+    /// Replaces the parameter table: what the scanner read from each plugin.
+    /// Factories list these parameters in `effects()` without instantiating
+    /// the plugin. A plugin without an entry lists none until created.
+    pub fn set_param_table(&self, params: Vec<ScannedParams>) {
+        if let Ok(mut p) = self.shared.params.write() {
+            *p = params;
+        }
+    }
+
+    fn scanned_params(&self, key: &EffectKey) -> Vec<ParamDescriptor> {
+        self.shared
+            .params
+            .read()
+            .ok()
+            .and_then(|t| t.iter().find(|p| p.key == *key).map(|p| p.params.clone()))
+            .unwrap_or_default()
     }
 
     /// The current catalog.
@@ -103,7 +133,7 @@ impl PluginHost {
             .backends
             .iter()
             .map(|b| {
-                Box::new(Factory {
+                Box::new(PluginEffectFactory {
                     host: self.clone(),
                     provider: b.provider(),
                 }) as Box<dyn EffectFactory>
@@ -117,7 +147,7 @@ impl PluginHost {
             .backends
             .iter()
             .map(|b| {
-                Box::new(Factory {
+                Box::new(PluginEffectFactory {
                     host: self.clone(),
                     provider: b.provider(),
                 }) as Box<dyn InstrumentFactory>
@@ -147,6 +177,26 @@ impl PluginHost {
             params: half.1,
         };
         Ok((Box::new(PluginInstrument { info, half: half.0 }), handle))
+    }
+
+    /// The wake function handed to instances: queues one main-thread job
+    /// that services every instance, however often it is called before that
+    /// job runs.
+    fn wake(&self) -> HostWake {
+        let main = self.shared.main.clone();
+        let queued = Arc::new(AtomicBool::new(false));
+        Arc::new(move || {
+            if !queued.swap(true, Ordering::AcqRel) {
+                let in_job = queued.clone();
+                let job = Box::new(move || {
+                    in_job.store(false, Ordering::Release);
+                    instances::service_all();
+                });
+                if main.spawn(job).is_err() {
+                    queued.store(false, Ordering::Release);
+                }
+            }
+        })
     }
 
     fn find(&self, key: &EffectKey, kind: PluginKind) -> Result<PluginInfo, PluginError> {
@@ -183,22 +233,41 @@ impl PluginHost {
         let (to_audio, from_main) = rtrb::RingBuffer::<ParamChange>::new(PARAM_RING);
         let (to_main, from_audio) = rtrb::RingBuffer::<ParamChange>::new(PARAM_RING);
         let job_info = info.clone();
-        let (id, params) =
-            run_blocking(self.shared.main.as_ref(), self.shared.timeout, move || {
-                let instance = backend.instantiate(&job_info)?;
-                let params: Vec<_> = instance
-                    .params()
-                    .into_iter()
-                    .filter(ParamDescriptor::is_valid)
-                    .collect();
-                let id = instances::insert(Entry {
-                    instance,
-                    to_audio,
-                    from_audio,
-                    status: InstanceStatus::Inactive,
-                });
-                Ok::<_, PluginError>((id, params))
-            })??;
+        let wake = self.wake();
+        // Set by the job once the instance is in the table (0 = none).
+        let made = Arc::new(AtomicU64::new(0));
+        let job_made = made.clone();
+        let result = run_blocking(self.shared.main.as_ref(), self.shared.timeout, move || {
+            let instance = backend.instantiate(&job_info, wake)?;
+            let params: Vec<_> = instance
+                .params()
+                .into_iter()
+                .filter(ParamDescriptor::is_valid)
+                .collect();
+            let id = instances::insert(Entry {
+                instance,
+                to_audio,
+                from_audio,
+                status: InstanceStatus::Inactive,
+                requests: InstanceRequests::default(),
+            });
+            job_made.store(id.0, Ordering::Release);
+            Ok::<_, PluginError>((id, params))
+        });
+        let (id, params) = match result {
+            Ok(r) => r?,
+            Err(e) => {
+                // The job may still run (timeout). Jobs run in order, so a
+                // cleanup job queued now runs after it and destroys what it made.
+                let _ = self.shared.main.spawn(Box::new(move || {
+                    let id = made.load(Ordering::Acquire);
+                    if id != 0 {
+                        drop(instances::remove(InstanceId(id)));
+                    }
+                }));
+                return Err(e);
+            }
+        };
         let half = AudioHalf::new(
             id,
             self.shared.main.clone(),
@@ -229,13 +298,15 @@ fn effect_info(info: &PluginInfo, params: Vec<ParamDescriptor>) -> EffectInfo {
     }
 }
 
-/// Effect and instrument factory of one provider.
-struct Factory {
+/// Effect and instrument factory of one provider, from
+/// [`PluginHost::effect_factories`]. Registered in the `EffectRegistry` under
+/// the provider id, so plugin effects have keys `clap:<plugin id>`.
+pub struct PluginEffectFactory {
     host: PluginHost,
     provider: &'static str,
 }
 
-impl Factory {
+impl PluginEffectFactory {
     fn listed(&self, kind: PluginKind) -> impl Iterator<Item = PluginInfo> {
         let provider = self.provider;
         self.host
@@ -252,16 +323,20 @@ impl Factory {
     }
 }
 
-impl EffectFactory for Factory {
+impl EffectFactory for PluginEffectFactory {
     fn provider(&self) -> &str {
         self.provider
     }
 
-    /// Lists catalog effects without instantiating them: `params` is empty
-    /// here and filled by `create`.
+    /// Lists catalog effects without instantiating them. `params` comes from
+    /// the scan (`PluginHost::set_param_table`); empty if the scan did not
+    /// record it. A created effect reports its own parameters.
     fn effects(&self) -> Vec<EffectInfo> {
         self.listed(PluginKind::Effect)
-            .map(|p| effect_info(&p, Vec::new()))
+            .map(|p| {
+                let params = self.host.scanned_params(&p.key);
+                effect_info(&p, params)
+            })
             .collect()
     }
 
@@ -270,18 +345,18 @@ impl EffectFactory for Factory {
     }
 }
 
-impl InstrumentFactory for Factory {
+impl InstrumentFactory for PluginEffectFactory {
     fn provider(&self) -> &str {
         self.provider
     }
 
-    /// Lists catalog instruments; `params` is filled by `create`.
+    /// Lists catalog instruments; `params` as for `effects`.
     fn instruments(&self) -> Vec<InstrumentInfo> {
         self.listed(PluginKind::Instrument)
             .map(|p| InstrumentInfo {
+                params: self.host.scanned_params(&p.key),
                 key: p.key,
                 name: p.name,
-                params: Vec::new(),
             })
             .collect()
     }
@@ -321,6 +396,24 @@ impl InstanceHandle {
     /// Activation state.
     pub fn status(&self) -> Result<InstanceStatus, PluginError> {
         self.call(|e| Ok(e.status.clone()))
+    }
+
+    /// Latency in frames as of the last activation (0 before `prepare`).
+    pub fn latency_frames(&self) -> Result<u32, PluginError> {
+        self.call(|e| Ok(e.instance.latency_frames()))
+    }
+
+    /// Tail in frames as of the last activation (`None` if the plugin does
+    /// not report one, `u32::MAX` if infinite).
+    pub fn tail_frames(&self) -> Result<Option<u32>, PluginError> {
+        self.call(|e| Ok(e.instance.tail_frames()))
+    }
+
+    /// Takes what the plugin asked of the host since the last call (restart,
+    /// latency change, parameter rescan, dirty state). app-core polls this and
+    /// recreates the instance on `restart` or `latency_changed`.
+    pub fn take_requests(&self) -> Result<InstanceRequests, PluginError> {
+        self.call(|e| Ok(std::mem::take(&mut e.requests)))
     }
 
     /// Opaque plugin state for presets and saved sets.

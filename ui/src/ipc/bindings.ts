@@ -349,6 +349,18 @@ export const commands = {
 	samplerTrigger: (slot: number, pressed: boolean) => typedError<null, CommandError>(__TAURI_INVOKE("sampler_trigger", { slot, pressed })),
 	/**  Stops a sampler slot. */
 	samplerStop: (slot: number) => typedError<null, CommandError>(__TAURI_INVOKE("sampler_stop", { slot })),
+	/**  Plugin scan state: found plugins, blacklist, folders, progress. */
+	pluginsGetState: () => typedError<PluginsStateDto, CommandError>(__TAURI_INVOKE("plugins_get_state")),
+	/**
+	 *  Starts a plugin scan. Only new and changed files are scanned unless `all`
+	 *  is set; blacklisted files stay blacklisted. Progress arrives as
+	 *  `plugins-changed` events.
+	 */
+	pluginsRescan: (all: boolean) => typedError<null, CommandError>(__TAURI_INVOKE("plugins_rescan", { all })),
+	/**  Scans one file again, also if it is blacklisted and unchanged. */
+	pluginsRetry: (path: string) => typedError<null, CommandError>(__TAURI_INVOKE("plugins_retry", { path })),
+	/**  Replaces the user's plugin folders and rescans. */
+	pluginsSetFolders: (folders: string[]) => typedError<null, CommandError>(__TAURI_INVOKE("plugins_set_folders", { folders })),
 };
 
 /** Events */
@@ -370,6 +382,7 @@ export const events = {
 	mixerStateChanged: makeEvent<MixerStateChangedEvent, MixerStateChangedEvent>("mixer-state-changed"),
 	padModeChanged: makeEvent<PadModeChangedEvent, PadModeChangedEvent>("pad-mode-changed"),
 	padStateChanged: makeEvent<PadStateChangedEvent, PadStateChangedEvent>("pad-state-changed"),
+	pluginsChanged: makeEvent<PluginsChangedEvent, PluginsChangedEvent>("plugins-changed"),
 	samplerStateChanged: makeEvent<SamplerStateChangedEvent, SamplerStateChangedEvent>("sampler-state-changed"),
 	trackLoadFailed: makeEvent<TrackLoadFailedEvent, TrackLoadFailedEvent>("track-load-failed"),
 	trackLoaded: makeEvent<TrackLoadedEvent, TrackLoadedEvent>("track-loaded"),
@@ -2278,6 +2291,111 @@ export type PlaylistNodeDto = {
 	position: number,
 	/**  Tracks in the playlist (0 for folders). */
 	track_count: number,
+};
+
+/**  One scanned file, for the blacklist and failure lists. */
+export type PluginFileDto = {
+	/**  Provider id of the format (`"clap"`). */
+	provider: string,
+	/**  File or bundle path. */
+	path: string,
+	/**  Why it is listed. */
+	status: PluginScanStatus,
+	/**  Plugins it holds (0 unless the scan succeeded). */
+	plugins: number,
+};
+
+/**
+ *  One plugin found by the scanner.
+ * 
+ *  Invariants: `key.provider` is the format id; `name` is not empty;
+ *  `path` is the absolute path of the file or bundle that holds the plugin
+ *  (one file can hold several plugins), as text for display.
+ */
+export type PluginInfo = {
+	/**  Format and stable plugin id. */
+	key: EffectKey,
+	/**  Effect or instrument. */
+	kind: PluginKind,
+	/**  Display name. */
+	name: string,
+	/**  Vendor, empty if the plugin gives none. */
+	vendor: string,
+	/**  Plugin version string as the plugin reports it, empty if none. */
+	version: string,
+	/**  File or bundle path. */
+	path: string,
+	/**
+	 *  Format categories or features as reported (`"audio-effect"`,
+	 *  `"Fx|Delay"`), for browser filters. Never parsed for behaviour except
+	 *  to derive `kind`.
+	 */
+	categories: string[],
+	/**  The plugin offers an editor window. */
+	has_editor: boolean,
+};
+
+/**  What a plugin is used as. */
+export type PluginKind = 
+/**  Audio in, audio out: offered by the plugin effect factories. */
+"effect" | 
+/**  Notes in, audio out: offered by the plugin instrument factories. */
+"instrument";
+
+/**  Progress of a running scan. */
+export type PluginScanProgressDto = {
+	/**  Files handled before the current one. */
+	done: number,
+	/**  Files found in the folders. */
+	total: number,
+	/**  File being scanned. */
+	current: string,
+};
+
+/**  Outcome of scanning one plugin file in the scanner subprocess. */
+export type PluginScanStatus = 
+/**  Loaded, instantiated and processed a test block. */
+{ status: "ok" } | 
+/**
+ *  The scanner reported an error (not a plugin, wrong architecture,
+ *  unsupported format, failed validation). Not retried until the file
+ *  changes.
+ */
+{ status: "failed"; 
+/**  Short reason for the scan settings view. */
+reason: string } | 
+/**
+ *  The scanner process died. The file is blacklisted until the user
+ *  retries it or the file changes.
+ */
+{ status: "crashed" } | 
+/**
+ *  The scanner did not finish within the timeout and was killed.
+ *  Blacklisted like [`PluginScanStatus::Crashed`].
+ */
+{ status: "timed_out" };
+
+/**  The plugin scan started, advanced or finished. */
+export type PluginsChangedEvent = PluginsStateDto;
+
+/**  Everything the plugin settings view and the plugin browser show. */
+export type PluginsStateDto = {
+	/**  A scan is running. */
+	scanning: boolean,
+	/**  Progress of the running scan. */
+	progress: PluginScanProgressDto | null,
+	/**  Plugins found by the last scan, usable as FX. */
+	plugins: PluginInfo[],
+	/**  Files that crashed or hung the scanner; not loaded until retried or changed. */
+	blacklist: PluginFileDto[],
+	/**  Files that failed to scan without blacklisting (wrong architecture, not a plugin). */
+	failed: PluginFileDto[],
+	/**  Folders the user added. */
+	folders: string[],
+	/**  Default folders of the compiled formats on this OS. */
+	default_folders: string[],
+	/**  The `opendeck-plugin-scan` binary was found next to the app. */
+	scanner_available: boolean,
 };
 
 /**  A sample rate in Hz. Invariant: `> 0` wherever it is used as a divisor. */
