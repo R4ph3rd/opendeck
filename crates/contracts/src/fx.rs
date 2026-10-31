@@ -3,7 +3,7 @@
 //! - [`Effect`] is one effect instance. The engine owns it on the audio thread
 //!   and calls [`Effect::process`] once per block.
 //! - [`EffectFactory`] creates instances. Built-in effects (`dsp-fx`) are one
-//!   factory; a future VST3/CLAP host crate is another. The engine depends on
+//!   factory; the CLAP and VST3 host (`plugin-host`, ADR 0008) adds others. The engine depends on
 //!   neither: it only sees `Box<dyn Effect>`.
 //! - [`EffectRegistry`] collects factories on the control thread.
 //!
