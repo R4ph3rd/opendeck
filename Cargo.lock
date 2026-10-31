@@ -2809,7 +2809,7 @@ checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 
 [[package]]
 name = "opendeck-analysis"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "ebur128",
  "opendeck-contracts",
@@ -2819,7 +2819,7 @@ dependencies = [
 
 [[package]]
 name = "opendeck-app-core"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "crossbeam-channel",
  "opendeck-analysis",
@@ -2841,7 +2841,7 @@ dependencies = [
 
 [[package]]
 name = "opendeck-contracts"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -2850,7 +2850,7 @@ dependencies = [
 
 [[package]]
 name = "opendeck-desktop"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "crossbeam-channel",
  "opendeck-app-core",
@@ -2868,7 +2868,7 @@ dependencies = [
 
 [[package]]
 name = "opendeck-dsp-fx"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "assert_no_alloc",
  "opendeck-contracts",
@@ -2878,7 +2878,7 @@ dependencies = [
 
 [[package]]
 name = "opendeck-engine"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "assert_no_alloc",
  "cpal",
@@ -2891,7 +2891,7 @@ dependencies = [
 
 [[package]]
 name = "opendeck-library"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "blake3",
  "crossbeam-channel",
@@ -2907,7 +2907,7 @@ dependencies = [
 
 [[package]]
 name = "opendeck-media"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "audioadapter-buffers",
  "lofty",
@@ -2919,7 +2919,7 @@ dependencies = [
 
 [[package]]
 name = "opendeck-midi"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "crossbeam-channel",
  "midir",

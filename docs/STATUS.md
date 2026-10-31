@@ -1,6 +1,6 @@
 # Status
 
-Current milestone: **8 (next)**. Milestone 7 landed as v0.7.0 on 2026-10-31 (milestone 6 as v0.6.0, milestone 5 as v0.5.0, milestone 4 as v0.4.0, milestone 3 as v0.3.0, milestone 2 as v0.2.0, milestone 1 as v0.1.0, milestone 0 as v0.0.0).
+MVP reached (v0.8.0). Milestone 9 (VST3/CLAP hosting) next, owner-approved.
 
 ## Milestones
 
@@ -14,8 +14,8 @@ Current milestone: **8 (next)**. Milestone 7 landed as v0.7.0 on 2026-10-31 (mil
 | 5 | FX engine and FX UI with presets and chains | done (v0.5.0) |
 | 6 | MIDI layer, DDJ-FLX4 mapping, LED feedback, MIDI monitor, replay harness | done (v0.6.0) |
 | 7 | Pad modes with the dynamic middle panel, sampler | done (v0.7.0) |
-| 8 | Hardening: latency, error handling, settings, installer, first-run (MVP) | done |
-| 9 | Post-MVP: VST3/CLAP, 4 decks, recording, more controllers (needs owner confirmation) | not scheduled |
+| 8 | Hardening: latency, error handling, settings, installer, first-run (MVP) | done (v0.8.0) |
+| 9 | VST3/CLAP plugin hosting (owner-approved); later 4 decks, recording, more controllers | next |
 
 ## Milestone 0
 

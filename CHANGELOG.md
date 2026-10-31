@@ -4,6 +4,28 @@ All notable changes are recorded here. Format follows [Keep a Changelog](https:/
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-31
+
+Milestone 8, the MVP: hardening, full audio routing, device reconnect, first run, error handling, settings pages and installer config.
+
+### Added
+
+- Audio routing: master, headphones and booth on any channel pair of one device (up to 32 channels), mono per output, booth level, stereo fallback when the device cannot carry the request.
+- Inputs: mic and aux on a second stream with an input ring; mic level, low and high shelf EQ and on/off; aux level and fader; talk-over ducks decks, sampler and aux while the mic is above a threshold.
+- Device reconnect: a lost output reopens with backoff and restores loaded tracks, playheads, play state and cue points; a lost input reattaches without touching the decks. Returned track buffers are freed on the loader thread.
+- Latency and health: measured or estimated output latency, input latency, xrun counter and host capability flags (inputs, multichannel, settable buffer).
+- Test tone through the engine on master, headphones or booth, so it works while the engine holds the device.
+- First-run guide: audio output with DDJ-FLX4 preselect and test tones, controller check, music folders or rekordbox XML, a short tour.
+- Error handling: rotating log files, panic hook, database check with backup and recovery, typed error messages, an error boundary and a diagnostics copy.
+- Settings pages: Audio (host, device, rate, buffer, latency, dropouts, output routing, inputs, talk-over, test tones), MIDI, Library (folders, analysis, BPM range, key notation), Interface (theme, waveform zoom, layout presets), Keyboard (shortcut editor) and Advanced (logs, diagnostics, reset).
+- Analyzer BPM range from Settings, Library, applied to new imports and re-analysis.
+- Installer config: product metadata, deb desktop entry, per-user NSIS install, fixed WiX upgrade code (`docs/RELEASING.md`).
+- Contracts: `SetBoothLevel`, `SetMicLevel`, `SetMicEq`, `SetMicOn`, `SetAuxLevel`, `SetAuxFader` and `SetTalkOver` commands, booth and input telemetry, booth, input and talk-over audio settings (additive, older stored settings still load).
+
+### Changed
+
+- `play_test_tone` takes the output (`master`, `headphones`, `booth`) instead of a host, device and pair, and plays through the running engine.
+
 ## [0.7.0] - 2026-10-31
 
 Milestone 7: pad modes drive the middle panel, sampler, key shift and keyboard.
