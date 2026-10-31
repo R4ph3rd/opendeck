@@ -1,6 +1,6 @@
 # Keyboard shortcuts
 
-Milestone 2 defaults for both decks. There is no source for "standard" DJ-software shortcuts, so these are provisional; the editable shortcut map arrives in M8 (`get_shortcuts` / `set_shortcuts` in `docs/ipc.md`). The table lives in `ui/src/lib/shortcuts.ts`.
+Milestone 2 defaults for both decks. There is no source for "standard" DJ-software shortcuts, so these are provisional; these are the defaults. Settings, Keyboard lists every action, rebinds by key capture, flags conflicts (both actions show a badge) and resets to defaults. Overrides are stored as the UI preference `shortcuts` (library settings, via `get_ui_pref` / `set_ui_pref`). The defaults and lookups live in `ui/src/lib/shortcuts.ts`, the store in `ui/src/state/shortcuts.ts`. Modifier combinations, Escape and Tab cannot be bound.
 
 Keys are physical positions (`KeyboardEvent.code`), so they stay put on any keyboard layout.
 

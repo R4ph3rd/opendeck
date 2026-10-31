@@ -6,11 +6,12 @@ import {
   type TrackQueryDto,
 } from "../ipc/bindings";
 import type { DraggedFile } from "../lib/dnd";
-import { baseName } from "../lib/library";
+import { DEFAULT_SORT, NO_FILTERS, baseName, buildQuery } from "../lib/library";
 import { errorMessage, loadFile, report } from "./actions";
 import { VISIBLE_DECKS, useAppStore } from "./app";
 import { isTerminal, useLibraryStore } from "./library";
 import { notifyError, notifySuccess } from "./notify";
+import { usePrefsStore } from "./prefs";
 
 /** Fetches one collection page; `null` when the command failed (an error toast is shown). */
 export function fetchTrackPage(query: TrackQueryDto): Promise<TrackPageDto | null> {
@@ -55,6 +56,33 @@ export async function reanalyzeTracks(tracks: number[]): Promise<void> {
   if (job !== null) {
     notifySuccess(`Analysing ${tracks.length} ${tracks.length === 1 ? "track" : "tracks"}.`);
   }
+}
+
+/** Page size when collecting every track id. */
+const ID_PAGE = 2000;
+
+/** Queues an analysis of every track in the collection. */
+export async function reanalyzeAll(): Promise<void> {
+  const ids: number[] = [];
+  for (;;) {
+    const page = await fetchTrackPage({
+      ...buildQuery(NO_FILTERS, DEFAULT_SORT),
+      offset: ids.length,
+      limit: ID_PAGE,
+    });
+    if (!page) {
+      return;
+    }
+    ids.push(...page.rows.map((r) => r.id));
+    if (page.rows.length === 0 || ids.length >= page.total) {
+      break;
+    }
+  }
+  if (ids.length === 0) {
+    notifySuccess("The collection is empty.");
+    return;
+  }
+  await reanalyzeTracks(ids);
 }
 
 export function revealInExplorer(path: string): void {
@@ -158,7 +186,7 @@ async function pickPath(options: Parameters<typeof open>[0]): Promise<string | n
 /** Starts a folder import into `target` (a playlist) or the collection. */
 export async function importFolder(path: string, target: number | null = null): Promise<void> {
   await report(
-    commands.importFolder(path, { features: ALL_FEATURES, target_playlist: target }),
+    commands.importFolder(path, { features: importFeatures(), target_playlist: target }),
   );
 }
 
@@ -192,6 +220,12 @@ export async function pickAndImportRekordbox(): Promise<void> {
 }
 
 const ALL_FEATURES = { tempo: true, key: true, loudness: true, peaks: true };
+const NO_FEATURES = { tempo: false, key: false, loudness: false, peaks: false };
+
+/** Analysis an import runs: everything, or nothing when auto-analyse is off. */
+export function importFeatures() {
+  return usePrefsStore.getState().library.autoAnalyse ? ALL_FEATURES : NO_FEATURES;
+}
 
 /**
  * Imports what was dropped or chosen in the file explorer: folders as folder
@@ -209,7 +243,7 @@ export async function importDropped(
   }
   if (audio.length > 0) {
     jobs.push(
-      report(commands.importFiles(audio, { features: ALL_FEATURES, target_playlist: target })),
+      report(commands.importFiles(audio, { features: importFeatures(), target_playlist: target })),
     );
   }
   for (const list of files.filter((f) => f.kind === "playlist")) {

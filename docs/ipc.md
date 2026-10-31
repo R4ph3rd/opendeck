@@ -189,6 +189,13 @@ The FX model sits on the engine FX units (ADR 0006): two FLX4-style Beat FX unit
 | `get_saved_set` **done** | `set: i64` | `SavedSetDetailDto` (header, entries in play order) | 3 |
 | `rename_saved_set` **done** | `set: i64, name: String` | `()` | 3 |
 | `delete_saved_set` **done** | `set: i64` | `()` | 3 |
+| `get_ui_pref` **done** | `name: String` | `Option<String>` (JSON text) | 8 |
+| `set_ui_pref` **done** | `name: String`, `json: String` | `()` | 8 |
+| `reset_ui_prefs` **done** | none | `u32` (removed) | 8 |
+| `get_diagnostics` **done** | none | `DiagnosticsDto` (version, OS, devices, paths, recent errors, text) | 8 |
+| `open_logs_folder` **done** | none | `()` | 8 |
+| `get_startup_notices` **done** | none | `Vec<String>` (for example a replaced database) | 8 |
+| `play_test_tone` **done** | `host`, `device`, `pair: ChannelPair` | `()` (blocks about 1 s; own stream, see `tone.rs`) | 8 |
 
 ## Events
 

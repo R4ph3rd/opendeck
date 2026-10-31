@@ -17,15 +17,20 @@ import { TopBar } from "./components/TopBar";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { DECK_A, DECK_B } from "./state/app";
 import { readStored, writeStored } from "./lib/persist";
+import { commands } from "./ipc/bindings";
+import { applyTheme, DEFAULT_LAYOUT, LAYOUT_KEY, usePrefsStore } from "./state/prefs";
+import { useShortcutStore } from "./state/shortcuts";
+import { notifyWarning } from "./state/notify";
+import { FirstRunDialog } from "./components/FirstRun";
+import { useVizStore } from "./viz/useTrackData";
 import { startEventBridge } from "./state/events";
 import { WaveformStack } from "./viz/DeckWaveforms";
 
-/** localStorage key of the vertical split between stage, pads and collection. */
-export const LAYOUT_KEY = "opendeck.layout.main";
+export { LAYOUT_KEY };
 
 const defaultLayout = (): ResizableLayout => {
   const stored = readStored<ResizableLayout | null>(LAYOUT_KEY, null);
-  return stored && typeof stored === "object" ? stored : { stage: 45, pads: 25, library: 30 };
+  return stored && typeof stored === "object" ? stored : DEFAULT_LAYOUT;
 };
 
 /**
@@ -34,6 +39,26 @@ const defaultLayout = (): ResizableLayout => {
  */
 export function App() {
   useKeyboardShortcuts();
+  const theme = usePrefsStore((s) => s.theme);
+  const layoutRevision = usePrefsStore((s) => s.layoutRevision);
+
+  useEffect(() => {
+    void (async () => {
+      await Promise.all([usePrefsStore.getState().hydrate(), useShortcutStore.getState().hydrate()]);
+      const zoom = usePrefsStore.getState().waveformZoom;
+      for (let deck = 0; deck < 4; deck++) {
+        useVizStore.getState().setZoom(deck, zoom);
+      }
+      try {
+        const notices = await commands.getStartupNotices();
+        notices.forEach(notifyWarning);
+      } catch {
+        // No backend (tests, previews): nothing to report.
+      }
+    })();
+  }, []);
+
+  useEffect(() => applyTheme(theme), [theme]);
 
   useEffect(() => {
     let stop: (() => void) | null = null;
@@ -57,6 +82,7 @@ export function App() {
         <TopBar />
         <main className="min-h-0 flex-1 p-3">
           <ResizablePanelGroup
+            key={layoutRevision}
             orientation="vertical"
             id="main-layout"
             defaultLayout={defaultLayout()}
@@ -89,6 +115,7 @@ export function App() {
         </main>
         <SettingsDialog />
         <MidiMonitorDialog />
+        <FirstRunDialog />
       </div>
     </Toaster>
   );

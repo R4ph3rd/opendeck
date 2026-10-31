@@ -1,7 +1,8 @@
 import { Badge, IconButton } from "@opendeck/design-system";
-import { Activity, AudioLines, Piano, Settings } from "lucide-react";
+import { Activity, AudioLines, CircleHelp, Piano, Settings } from "lucide-react";
 import { useAppStore } from "../state/app";
 import { useMidiStore } from "../state/midi";
+import { usePrefsStore } from "../state/prefs";
 import { ImportMenu } from "./ImportMenu";
 
 const KHZ = 1000;
@@ -13,6 +14,7 @@ export function TopBar() {
   const openSettings = useAppStore((s) => s.openSettings);
   const setMonitorOpen = useAppStore((s) => s.setMidiMonitorOpen);
   const midi = useMidiStore((s) => s.status);
+  const openFirstRun = usePrefsStore((s) => s.openFirstRun);
 
   let status = "Audio starting";
   let variant: "success" | "danger" | "neutral" = "neutral";
@@ -65,6 +67,9 @@ export function TopBar() {
           <span className="truncate">{status}</span>
         </Badge>
       </button>
+      <IconButton aria-label="Setup guide" onClick={openFirstRun}>
+        <CircleHelp className="size-4" aria-hidden />
+      </IconButton>
       <IconButton aria-label="Settings" onClick={() => setSettingsOpen(true)}>
         <Settings className="size-4" aria-hidden />
       </IconButton>

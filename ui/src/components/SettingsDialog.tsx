@@ -15,7 +15,7 @@ import {
   SettingsNav,
   type SettingsNavItem,
 } from "@opendeck/design-system";
-import { AudioLines, Piano } from "lucide-react";
+import { AudioLines, Keyboard, Library, MonitorCog, Piano, Wrench } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   commands,
@@ -33,9 +33,13 @@ import {
 } from "../lib/audioOptions";
 import { bufferLatencyMs } from "../lib/format";
 import { errorMessage, report } from "../state/actions";
-import { useAppStore } from "../state/app";
+import { SETTINGS_PAGES, useAppStore, type SettingsPage } from "../state/app";
 import { notifyError, notifySuccess } from "../state/notify";
 import { MidiSettings } from "./MidiSettings";
+import { AdvancedSettings } from "./settings/AdvancedSettings";
+import { InterfaceSettings } from "./settings/InterfaceSettings";
+import { KeyboardSettings } from "./settings/KeyboardSettings";
+import { LibrarySettings } from "./settings/LibrarySettings";
 
 const DEFAULT = "default";
 const OFF = "off";
@@ -43,6 +47,10 @@ const OFF = "off";
 const PAGES: SettingsNavItem[] = [
   { id: "audio", label: "Audio", icon: <AudioLines aria-hidden /> },
   { id: "midi", label: "MIDI", icon: <Piano aria-hidden /> },
+  { id: "library", label: "Library", icon: <Library aria-hidden /> },
+  { id: "interface", label: "Interface", icon: <MonitorCog aria-hidden /> },
+  { id: "keyboard", label: "Keyboard", icon: <Keyboard aria-hidden /> },
+  { id: "advanced", label: "Advanced", icon: <Wrench aria-hidden /> },
 ];
 
 /** Settings dialog: a page list on the left, the page on the right. */
@@ -57,7 +65,7 @@ export function SettingsDialog() {
         <DialogHeader className="border-b border-border p-4">
           <DialogTitle>Settings</DialogTitle>
           <DialogDescription>
-            Changes to audio restart the output. MIDI changes apply at once.
+            Changes to audio restart the output. Other changes apply at once.
           </DialogDescription>
         </DialogHeader>
         <div className="min-h-0 flex-1">
@@ -66,12 +74,18 @@ export function SettingsDialog() {
               <SettingsNav
                 items={PAGES}
                 value={page}
-                onValueChange={(id) => setPage(id === "midi" ? "midi" : "audio")}
+                onValueChange={(id) =>
+                  setPage(SETTINGS_PAGES.find((p: SettingsPage) => p === id) ?? "audio")
+                }
               />
             }
           >
             {open && page === "audio" ? <AudioPage onClose={() => setOpen(false)} /> : null}
             {open && page === "midi" ? <MidiSettings /> : null}
+            {open && page === "library" ? <LibrarySettings /> : null}
+            {open && page === "interface" ? <InterfaceSettings /> : null}
+            {open && page === "keyboard" ? <KeyboardSettings /> : null}
+            {open && page === "advanced" ? <AdvancedSettings /> : null}
           </SettingsLayout>
         </div>
       </DialogContent>

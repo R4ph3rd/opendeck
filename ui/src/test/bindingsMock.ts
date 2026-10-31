@@ -229,9 +229,41 @@ export function createBindingsMock() {
       return Promise.resolve(() => listeners.delete(name));
     }),
   });
+  // The first-run guide is done unless a test removes the pref.
+  const prefs = new Map<string, string>([["firstRunDone", "true"]]);
   return {
+    prefs,
     commands: {
       appInfo: vi.fn(),
+      getUiPref: vi.fn((name: string) => ok(prefs.get(name) ?? null)),
+      setUiPref: vi.fn((name: string, json: string) => {
+        prefs.set(name, json);
+        return ok(null);
+      }),
+      resetUiPrefs: vi.fn(() => {
+        const removed = prefs.size;
+        prefs.clear();
+        return ok(removed);
+      }),
+      getStartupNotices: vi.fn(() => Promise.resolve([] as string[])),
+      getDiagnostics: vi.fn(() =>
+        ok({
+          version: "0.7.0",
+          os: "linux",
+          arch: "x86_64",
+          audio_host: "ALSA",
+          audio_device: "Test Device",
+          audio_error: null,
+          midi_device: null,
+          midi_error: null,
+          paths: { logs: "/logs", database: "/data/library.db", config: "/config" },
+          notices: [],
+          recent_errors: [],
+          text: "OpenDeck 0.7.0\nOS: linux x86_64",
+        }),
+      ),
+      openLogsFolder: vi.fn(() => ok(null)),
+      playTestTone: vi.fn(() => ok(null)),
       listAudioHosts: vi.fn(() => ok([{ kind: "alsa", name: "ALSA", available: true, is_default: true }])),
       listAudioDevices: vi.fn(() =>
         ok([

@@ -10,15 +10,16 @@ use std::path::Path;
 use std::sync::Mutex;
 
 use opendeck_app_core::{
-    AppCore, AudioController, AudioDeviceInfo, AudioStatus, Backend, BrowseContextDto,
-    BrowseCursorDto, CoreError, CoreEvent, DirListing, FxEffectDto, FxOp, FxPresetsDto, FxSlotRef,
-    FxStateDto, FxUnitRef, HotCues, ImportOptionsDto, JobInfo, LaunchOptions, LibraryChange,
-    LibraryEvent, LibraryService, MidiBindingDto, MidiEvent, MidiLearnResultDto, MidiMappingRowDto,
-    MidiMonitorEntryDto, MidiPortDto, MidiService, MidiStatusDto, PadEvent, PadModeChanged,
-    PadStateDto, PlaylistEntryDto, PlaylistNodeDto, SamplerLayout, SamplerSlotPatch,
-    SamplerStateDto, SavedSetDetailDto, SavedSetDto, SettingsStore, TrackAnalysisDto,
-    TrackDetailDto, TrackInfo, TrackLoadFailed, TrackLoaded, TrackMetaDto, TrackPageDto,
-    TrackQueryDto,
+    AppCore, AppPathsDto, AudioController, AudioDeviceInfo, AudioStatus, Backend, BrowseContextDto,
+    BrowseCursorDto, CoreError, CoreEvent, DbHealth, DiagnosticsDto, DirListing, FxEffectDto, FxOp,
+    FxPresetsDto, FxSlotRef, FxStateDto, FxUnitRef, HotCues, ImportOptionsDto, JobInfo,
+    LaunchOptions, LibraryChange, LibraryEvent, LibraryService, MidiBindingDto, MidiEvent,
+    MidiLearnResultDto, MidiMappingRowDto, MidiMonitorEntryDto, MidiPortDto, MidiService,
+    MidiStatusDto, PadEvent, PadModeChanged, PadStateDto, PlaylistEntryDto, PlaylistNodeDto,
+    SamplerLayout, SamplerSlotPatch, SamplerStateDto, SavedSetDetailDto, SavedSetDto,
+    SettingsStore, TrackAnalysisDto, TrackDetailDto, TrackInfo, TrackLoadFailed, TrackLoaded,
+    TrackMetaDto, TrackPageDto, TrackQueryDto, build_diagnostics, check_and_recover, get_pref,
+    play_test_tone as core_play_test_tone, recent_errors, reset_prefs, set_pref, unix_stamp,
 };
 use opendeck_contracts::analysis::AnalysisFeatures;
 use opendeck_contracts::beatgrid::BeatGrid;
@@ -29,7 +30,7 @@ use opendeck_contracts::ids::{JobId, PlaylistId, SamplerSlotId, TrackId};
 use opendeck_contracts::jobs::JobProgress;
 use opendeck_contracts::mixer::{CrossfaderAssign, CrossfaderCurve, EqBand, MixerState};
 use opendeck_contracts::pad::PadMode;
-use opendeck_contracts::settings::{AudioHostInfo, AudioHostKind, AudioSettings};
+use opendeck_contracts::settings::{AudioHostInfo, AudioHostKind, AudioSettings, ChannelPair};
 use opendeck_contracts::tempo::{SyncMode, TempoRange};
 use opendeck_contracts::{
     Beats, DeckId, EngineEvent, EngineTelemetry, Gain, MAX_DECKS, MVP_DECKS, Seconds,
@@ -1113,6 +1114,125 @@ async fn list_directory(path: Option<String>) -> Result<DirListing, CommandError
     blocking(move || opendeck_app_core::list_directory(path.as_deref().map(Path::new))).await
 }
 
+/// Locations of the app's files and messages from startup.
+#[derive(Debug, Clone, Default)]
+pub struct AppPaths {
+    logs: Option<std::path::PathBuf>,
+    database: Option<std::path::PathBuf>,
+    config: Option<std::path::PathBuf>,
+    notices: Vec<String>,
+}
+
+impl AppPaths {
+    fn dto(&self) -> AppPathsDto {
+        AppPathsDto::new(
+            self.logs.as_deref(),
+            self.database.as_deref(),
+            self.config.as_deref(),
+        )
+    }
+}
+
+/// Opens a directory in the system file manager.
+fn open_directory(dir: &Path) -> Result<(), CommandError> {
+    let program = if cfg!(target_os = "windows") {
+        "explorer"
+    } else if cfg!(target_os = "macos") {
+        "open"
+    } else {
+        "xdg-open"
+    };
+    std::process::Command::new(program)
+        .arg(dir)
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| CommandError::Internal(format!("could not open the file manager: {e}")))
+}
+
+/// Opens the log folder in the system file manager.
+#[tauri::command]
+#[specta::specta]
+fn open_logs_folder(paths: tauri::State<'_, AppPaths>) -> Result<(), CommandError> {
+    let dir = paths
+        .logs
+        .clone()
+        .ok_or_else(|| CommandError::Invalid("logging is not running".to_owned()))?;
+    open_directory(&dir)
+}
+
+/// Messages from startup (for example a replaced database). Shown once.
+#[tauri::command]
+#[specta::specta]
+fn get_startup_notices(paths: tauri::State<'_, AppPaths>) -> Vec<String> {
+    paths.notices.clone()
+}
+
+/// Version, OS, audio and MIDI devices, file locations and the last errors.
+#[tauri::command]
+#[specta::specta]
+async fn get_diagnostics(
+    state: tauri::State<'_, AppState>,
+    paths: tauri::State<'_, AppPaths>,
+) -> Result<DiagnosticsDto, CommandError> {
+    let audio = match state.audio() {
+        Ok(audio) => blocking(move || audio.status()).await.ok(),
+        Err(_) => None,
+    };
+    let midi = match state.midi() {
+        Ok(midi) => midi.status().ok(),
+        Err(_) => None,
+    };
+    Ok(build_diagnostics(
+        audio.as_ref(),
+        midi.as_ref(),
+        paths.dto(),
+        paths.notices.clone(),
+        recent_errors(),
+    ))
+}
+
+/// Plays a short test tone on one output channel pair of a device.
+#[tauri::command]
+#[specta::specta]
+async fn play_test_tone(
+    host: Option<AudioHostKind>,
+    device: Option<String>,
+    pair: ChannelPair,
+) -> Result<(), CommandError> {
+    blocking(move || core_play_test_tone(host, device.as_deref(), pair)).await
+}
+
+/// Reads a UI preference (JSON text) from the library settings.
+#[tauri::command]
+#[specta::specta]
+async fn get_ui_pref(
+    state: tauri::State<'_, AppState>,
+    name: String,
+) -> Result<Option<String>, CommandError> {
+    let library = state.library()?.library();
+    blocking(move || get_pref(&library, &name)).await
+}
+
+/// Stores a UI preference (JSON text) in the library settings.
+#[tauri::command]
+#[specta::specta]
+async fn set_ui_pref(
+    state: tauri::State<'_, AppState>,
+    name: String,
+    json: String,
+) -> Result<(), CommandError> {
+    let library = state.library()?.library();
+    blocking(move || set_pref(&library, &name, &json)).await
+}
+
+/// Removes every UI preference. Audio and MIDI settings stay. Returns how many were removed.
+#[tauri::command]
+#[specta::specta]
+async fn reset_ui_prefs(state: tauri::State<'_, AppState>) -> Result<u32, CommandError> {
+    let library = state.library()?.library();
+    blocking(move || reset_prefs(&library)).await
+}
+
 /// Shows a file in the system file manager.
 #[tauri::command]
 #[specta::specta]
@@ -1779,6 +1899,13 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             delete_saved_set,
             list_directory,
             reveal_in_explorer,
+            open_logs_folder,
+            get_startup_notices,
+            get_diagnostics,
+            play_test_tone,
+            get_ui_pref,
+            set_ui_pref,
+            reset_ui_prefs,
             midi_list_ports,
             midi_get_status,
             midi_connect,
@@ -1915,34 +2042,69 @@ fn forward_pad_events(app: tauri::AppHandle, events: crossbeam_channel::Receiver
     }
 }
 
-/// Opens the library in the app data dir. A library that cannot be opened
+/// Opens the library in the app data dir. A damaged database is backed up
+/// and replaced (`notices` says so). A library that cannot be opened
 /// (unreadable folder, a database from a newer version) is reported and
 /// replaced by an in-memory one, so the decks still work.
-fn open_library(dir: Option<std::path::PathBuf>) -> Result<LibraryService, CoreError> {
+fn open_library(
+    dir: Option<std::path::PathBuf>,
+    notices: &mut Vec<String>,
+) -> Result<LibraryService, CoreError> {
     let analyzers = LibraryService::default_analyzers();
     let config = opendeck_app_core::ImportConfig::default();
     if let Some(dir) = dir {
         let path = dir.join(opendeck_app_core::DATABASE_FILE_NAME);
+        match check_and_recover(&path, unix_stamp()) {
+            Ok(health @ DbHealth::Recovered { .. }) => notices.extend(health.notice()),
+            Ok(_) => {}
+            Err(err) => tracing::error!(%err, "database check failed"),
+        }
         match LibraryService::open(&path, analyzers.clone(), config.clone()) {
             Ok(service) => return Ok(service),
-            Err(err) => eprintln!(
-                "could not open {}: {err}; using a temporary library",
-                path.display()
-            ),
+            Err(err) => {
+                tracing::error!(%err, path = %path.display(), "could not open the library");
+                notices.push(format!(
+                    "The library could not be opened ({err}). A temporary library is in use and nothing is saved."
+                ));
+            }
         }
     }
     LibraryService::open_in_memory(analyzers, config)
 }
 
+/// Keeps the log writer alive for the life of the app.
+struct LogHolder(#[allow(dead_code)] opendeck_app_core::LogGuard);
+
 /// Starts the application.
 pub fn run() {
+    opendeck_app_core::install_panic_hook();
     let builder = specta_builder();
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             builder.mount_events(app);
-            let library = open_library(app.path().app_data_dir().ok())?;
+            let mut paths = AppPaths {
+                logs: app.path().app_log_dir().ok(),
+                database: app
+                    .path()
+                    .app_data_dir()
+                    .ok()
+                    .map(|d| d.join(opendeck_app_core::DATABASE_FILE_NAME)),
+                config: app.path().app_config_dir().ok(),
+                notices: Vec::new(),
+            };
+            if let Some(dir) = &paths.logs {
+                match opendeck_app_core::init_logging(dir) {
+                    Ok(guard) => app.manage(LogHolder(guard)),
+                    Err(err) => {
+                        eprintln!("logging is unavailable: {err}");
+                        false
+                    }
+                };
+            }
+            let library = open_library(app.path().app_data_dir().ok(), &mut paths.notices)?;
+            app.manage(paths);
             let store = match app.path().app_config_dir() {
                 Ok(dir) => SettingsStore::in_dir(&dir),
                 Err(_) => SettingsStore::memory(),
@@ -1991,7 +2153,7 @@ pub fn run() {
                     state.set_midi(midi);
                 }
                 // The decks work without MIDI; the settings page shows the state.
-                Err(err) => eprintln!("MIDI is unavailable: {err}"),
+                Err(err) => tracing::warn!(%err, "MIDI is unavailable"),
             }
             app.manage(state);
             Ok(())

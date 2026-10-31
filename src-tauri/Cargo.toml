@@ -37,6 +37,7 @@ specta-typescript.workspace = true
 crossbeam-channel.workspace = true
 opendeck-media.workspace = true
 serde.workspace = true
+tracing.workspace = true
 
 [lints]
 workspace = true

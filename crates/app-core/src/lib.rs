@@ -14,20 +14,25 @@
 //! and none touches the audio thread.
 
 mod control;
+mod db_guard;
+mod diagnostics;
 mod dto;
 mod fs_browser;
 mod fx;
 mod fx_types;
 mod library_service;
 mod loader;
+mod logging;
 mod midi_bridge;
 mod midi_service;
 mod midi_types;
 mod pads;
+mod prefs;
 mod sampler;
 mod settings_store;
 #[cfg(test)]
 mod tests_m8;
+mod tone;
 mod types;
 
 use std::path::Path;
@@ -47,6 +52,8 @@ use opendeck_engine::device;
 
 pub use crate::control::{Backend, LaunchOptions, TICK};
 use crate::control::{FxMsg, Msg};
+pub use crate::db_guard::{DbHealth, check_and_recover, quick_check, unix_stamp};
+pub use crate::diagnostics::{AppPathsDto, DiagnosticsDto, build_diagnostics};
 pub use crate::dto::{
     AnalysisStatusDto, DirListing, FsEntry, FsEntryKind, ImportOptionsDto, JobInfo, LibraryChange,
     PlaylistEntryDto, PlaylistKindDto, PlaylistNodeDto, SavedSetDetailDto, SavedSetDto,
@@ -60,6 +67,10 @@ pub use crate::fx_types::{
     FxTarget, FxUnitRef, PAD_FX_COUNT, PADS_PER_LAYER, PadFxAssignDto, SendUnitDto,
 };
 pub use crate::library_service::{LibraryEvent, LibraryService, PROGRESS_INTERVAL};
+pub use crate::logging::{
+    LOG_FILES_KEPT, LOG_PREFIX, LogGuard, init as init_logging, install_panic_hook, recent_errors,
+    record_error,
+};
 pub use crate::midi_bridge::{BridgeNotice, MidiBridge, Takeover};
 pub use crate::midi_service::{
     BackendMaker, MIDI_SETTINGS_KEY, MidiEvent, MidiService, MidiServiceOptions,
@@ -73,12 +84,14 @@ pub use crate::pads::{
     BEAT_JUMP_BASE, BEAT_LOOP_LENGTHS, DeckPadStateDto, PAD_SEMITONES, PadActions, PadContext,
     PadEvent, PadModes, PadOp, PadStateDto, beat_jump_beats, pad_semitones, plan,
 };
+pub use crate::prefs::{get_pref, reset_prefs, set_pref};
 pub use crate::sampler::{
     EngineSampler, SAMPLER_PADS, SAMPLER_PEAKS, SAMPLER_SETTINGS_KEY, SamplerEngine, SamplerLayout,
     SamplerPlayMode, SamplerService, SamplerSlotDto, SamplerSlotParams, SamplerSlotPatch,
     SamplerStateDto, StubSamplerEngine,
 };
 pub use crate::settings_store::{SETTINGS_FILE, SettingsStore, StoredSettings};
+pub use crate::tone::play_test_tone;
 pub use crate::types::{
     AudioDeviceInfo, AudioStatus, CoreError, CoreEvent, HotCues, InputState, OfflineAudio,
     TrackInfo, TrackLoadFailed, TrackLoaded,
