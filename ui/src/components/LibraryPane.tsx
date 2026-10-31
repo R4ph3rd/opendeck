@@ -1,6 +1,14 @@
-import { Panel, PanelHeader } from "@opendeck/design-system";
+import {
+  Panel,
+  PanelHeader,
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+  type ResizableLayout,
+} from "@opendeck/design-system";
 import type { DragEvent } from "react";
 import { dragKind, readDrag } from "../lib/dnd";
+import { readStored, writeStored } from "../lib/persist";
 import { importDropped } from "../state/libraryActions";
 import { useLibraryStore } from "../state/library";
 import { CollectionView } from "./CollectionView";
@@ -9,8 +17,13 @@ import { PlaylistView } from "./PlaylistView";
 import { SavedSetView } from "./SavedSetView";
 import { Sidebar } from "./Sidebar";
 
+/** Storage key of the split between the sidebar and the collection. */
+export const LIBRARY_LAYOUT_KEY = "opendeck.layout.library";
+
+const DEFAULT_LIBRARY_LAYOUT: ResizableLayout = { sidebar: 18, collection: 82 };
+
 /**
- * The bottom half of the window: sidebar on the left, the selected view on the
+ * The bottom band of the window: sidebar on the left, the selected view on the
  * right, the import panel under it. Files and folders dragged from the Files
  * tab onto the view are imported (into the playlist when one is open).
  */
@@ -47,28 +60,40 @@ export function LibraryPane() {
   };
 
   return (
-    <Panel aria-label="Library" className="min-h-40 flex-1 flex-row">
-      <Sidebar />
-      <div
-        className="flex min-h-0 min-w-0 flex-1 flex-col"
-        onDragOver={onDragOver}
-        onDrop={onDrop}
+    <Panel flush aria-label="Library" className="size-full">
+      <ResizablePanelGroup
+        orientation="horizontal"
+        id="library-layout"
+        defaultLayout={readStored<ResizableLayout>(LIBRARY_LAYOUT_KEY, DEFAULT_LIBRARY_LAYOUT)}
+        onLayoutChanged={(layout) => writeStored(LIBRARY_LAYOUT_KEY, layout)}
       >
-        <PanelHeader
-          title={title}
-          actions={
-            count === null ? null : (
-              <span className="text-xs text-fg-subtle">
-                {count} {count === 1 ? "track" : "tracks"}
-              </span>
-            )
-          }
-        />
-        {view.kind === "collection" ? <CollectionView /> : null}
-        {view.kind === "playlist" ? <PlaylistView id={view.id} name={title} /> : null}
-        {view.kind === "set" ? <SavedSetView id={view.id} /> : null}
-        <ImportPanel />
-      </div>
+        <ResizablePanel id="sidebar" minSize="160px" maxSize="50%">
+          <Sidebar />
+        </ResizablePanel>
+        <ResizableHandle />
+        <ResizablePanel id="collection" minSize="320px">
+          <div
+            className="flex size-full min-h-0 min-w-0 flex-col"
+            onDragOver={onDragOver}
+            onDrop={onDrop}
+          >
+            <PanelHeader
+              title={title}
+              actions={
+                count === null ? null : (
+                  <span className="text-xs text-fg-subtle">
+                    {count} {count === 1 ? "track" : "tracks"}
+                  </span>
+                )
+              }
+            />
+            {view.kind === "collection" ? <CollectionView /> : null}
+            {view.kind === "playlist" ? <PlaylistView id={view.id} name={title} /> : null}
+            {view.kind === "set" ? <SavedSetView id={view.id} /> : null}
+            <ImportPanel />
+          </div>
+        </ResizablePanel>
+      </ResizablePanelGroup>
     </Panel>
   );
 }

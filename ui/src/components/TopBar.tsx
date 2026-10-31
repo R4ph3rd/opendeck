@@ -1,4 +1,4 @@
-import { Badge, IconButton } from "@opendeck/design-system";
+import { Badge, IconButton, Toggle } from "@opendeck/design-system";
 import { Activity, AudioLines, CircleHelp, Piano, Settings } from "lucide-react";
 import { useAppStore } from "../state/app";
 import { useMidiStore } from "../state/midi";
@@ -15,6 +15,8 @@ export function TopBar() {
   const setMonitorOpen = useAppStore((s) => s.setMidiMonitorOpen);
   const midi = useMidiStore((s) => s.status);
   const openFirstRun = usePrefsStore((s) => s.openFirstRun);
+  const fxOpen = useAppStore((s) => s.fxOpen);
+  const setFxOpen = useAppStore((s) => s.setFxOpen);
 
   let status = "Audio starting";
   let variant: "success" | "danger" | "neutral" = "neutral";
@@ -38,9 +40,18 @@ export function TopBar() {
   }
 
   return (
-    <header className="flex h-10 shrink-0 items-center gap-3 border-b border-border bg-toolbar px-3">
+    <header className="flex h-9 shrink-0 items-center gap-3 border-b border-border bg-toolbar px-3">
       <h1 className="text-base font-semibold tracking-wide text-fg">OpenDeck</h1>
       <div className="flex-1" />
+      <Toggle
+        size="sm"
+        variant="outline"
+        aria-label="Show effects"
+        pressed={fxOpen}
+        onPressedChange={setFxOpen}
+      >
+        FX
+      </Toggle>
       <ImportMenu />
       <button
         type="button"

@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { Profiler } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Cue, DeckTelemetry } from "../ipc/bindings";
+import type { DeckTelemetry } from "../ipc/bindings";
 import type { createBindingsMock } from "../test/bindingsMock";
 import { deckState } from "../test/bindingsMock";
 import { RATE, runningAudio, telemetryFor, track } from "../test/fixtures";
@@ -23,20 +23,18 @@ const { commands } = bindings;
 function loadDeckB(patch: Partial<DeckTelemetry> = {}, leader: number | null = null) {
   act(() => {
     useAppStore.getState().patchDeck(1, { track });
-    telemetryStore.getState().push(
-      telemetryFor(1, 1, { loaded: true, position: 10 * RATE, duration: 200 * RATE, ...patch }, leader),
-    );
+    telemetryStore
+      .getState()
+      .push(
+        telemetryFor(
+          1,
+          1,
+          { loaded: true, position: 10 * RATE, duration: 200 * RATE, ...patch },
+          leader,
+        ),
+      );
   });
 }
-
-const cue = (index: number): Cue => ({
-  id: null,
-  kind: { kind: "hot", index },
-  start: 12,
-  end: null,
-  color: null,
-  name: "",
-});
 
 beforeEach(() => {
   useAppStore.getState().reset();
@@ -56,7 +54,6 @@ describe("DeckPanel for deck B", () => {
     const panel = within(screen.getByRole("region", { name: "Deck 2" }));
     expect(panel.getByRole("button", { name: "PLAY" })).toHaveProperty("disabled", true);
     expect(panel.getByRole("button", { name: "Sync" })).toHaveProperty("disabled", true);
-    expect(panel.getByRole("button", { name: "Hot cue 1 (empty)" })).toHaveProperty("disabled", true);
   });
 
   it("plays, cues and bends deck B, not deck A", () => {
@@ -64,19 +61,33 @@ describe("DeckPanel for deck B", () => {
     loadDeckB();
     fireEvent.click(screen.getByRole("button", { name: "PLAY" }));
     expect(commands.togglePlaying).toHaveBeenCalledWith(1);
-    fireEvent.pointerDown(screen.getByRole("button", { name: "Cue" }), { pointerId: 1 });
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Cue" }), {
+      pointerId: 1,
+    });
     expect(commands.cue).toHaveBeenCalledWith(1, true);
     fireEvent.pointerDown(screen.getByRole("button", { name: "Pitch bend up" }), { pointerId: 1 });
     expect(commands.pitchBend).toHaveBeenCalledWith(1, 1);
   });
 
-  it("reads BPM from telemetry and shows -- until one is known", () => {
+  it("shows the track BPM and key in the header", () => {
+    render(<DeckPanel deck={1} />);
+    expect(screen.getByText("No track loaded")).toBeTruthy();
+    loadDeckB();
+    expect(screen.getByTestId("track-bpm-1").textContent).toBe("126.00");
+    expect(screen.getByTestId("key-1").textContent).toBe("8A");
+  });
+
+  it("steps the key shift and syncs the key to the other deck", () => {
     render(<DeckPanel deck={1} />);
     loadDeckB();
-    expect(screen.getByTestId("bpm-1").textContent).toBe("--");
-    loadDeckB({ bpm: 128.04 });
-    act(() => telemetryStore.getState().push(telemetryFor(2, 1, { loaded: true, bpm: 128.04 })));
-    return vi.waitFor(() => expect(screen.getByTestId("bpm-1").textContent).toBe("128.0"));
+    fireEvent.click(screen.getByRole("button", { name: "Deck 2 key up" }));
+    expect(commands.setKeyShift).toHaveBeenLastCalledWith(1, 1);
+    fireEvent.click(screen.getByRole("button", { name: "Deck 2 key down" }));
+    expect(commands.setKeyShift).toHaveBeenLastCalledWith(1, 0);
+    act(() => useAppStore.getState().patchDeck(0, { track: { ...track, key_musical: "Cm" } }));
+    fireEvent.click(screen.getByRole("button", { name: "Deck 2 key sync" }));
+    // Am is relative to C, Cm to Eb: three semitones up.
+    expect(commands.setKeyShift).toHaveBeenLastCalledWith(1, 3);
   });
 });
 
@@ -93,7 +104,7 @@ describe("sync, master, quantize and slip", () => {
     loadDeckB({ sync_mode: "beat" });
     expect(sync.getAttribute("aria-pressed")).toBe("true");
 
-    fireEvent.click(screen.getByRole("radio", { name: "Sync Tempo" }));
+    fireEvent.click(sync, { shiftKey: true });
     expect(commands.setSync).toHaveBeenLastCalledWith(1, "tempo");
     fireEvent.click(sync);
     expect(commands.setSync).toHaveBeenLastCalledWith(1, "off");
@@ -135,72 +146,81 @@ describe("sync, master, quantize and slip", () => {
   it("applies the backend deck state at startup", async () => {
     commands.getDeckState.mockResolvedValueOnce({
       status: "ok",
-      data: { ...deckState(1), sync: "tempo", slip: true, quantize: false, is_leader: true },
+      data: {
+        ...deckState(1),
+        sync: "tempo",
+        slip: true,
+        quantize: false,
+        is_leader: true,
+      },
     } as never);
     render(<DeckPanel deck={1} />);
     loadDeckB({ sync_mode: "tempo" });
     await act(() => hydrateDeck(1));
     expect(screen.getByRole("button", { name: "Sync" }).getAttribute("aria-pressed")).toBe("true");
-    expect(screen.getByRole("radio", { name: "Sync Tempo" }).getAttribute("aria-checked")).toBe("true");
     expect(screen.getByRole("button", { name: "Slip" }).getAttribute("aria-pressed")).toBe("true");
-    expect(screen.getByRole("button", { name: "Quantize" }).getAttribute("aria-pressed")).toBe("false");
-    expect(screen.getByRole("button", { name: "Master" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("button", { name: "Quantize" }).getAttribute("aria-pressed")).toBe(
+      "false",
+    );
+    expect(screen.getByRole("button", { name: "Master" }).getAttribute("aria-pressed")).toBe(
+      "true",
+    );
   });
 });
 
 describe("loops", () => {
-  it("sets loop in, out and toggles reloop and exit from telemetry", () => {
+  it("sets loop in, out and toggles reloop and exit from telemetry in manual mode", () => {
     render(<DeckPanel deck={1} />);
     loadDeckB();
+    fireEvent.click(screen.getByRole("button", { name: "Manual loop" }));
     fireEvent.click(screen.getByRole("button", { name: "IN" }));
     fireEvent.click(screen.getByRole("button", { name: "OUT" }));
     expect(commands.loopIn).toHaveBeenCalledWith(1);
     expect(commands.loopOut).toHaveBeenCalledWith(1);
     fireEvent.click(screen.getByRole("button", { name: "RELOOP" }));
     expect(commands.loopToggle).toHaveBeenCalledWith(1);
-    expect(screen.queryByText("LOOP")).toBeNull();
 
     const loop = { start: 10 * RATE, end: 12 * RATE };
     act(() =>
-      telemetryStore
-        .getState()
-        .push(telemetryFor(4, 1, { loaded: true, loop_region: loop, loop_active: false })),
-    );
-    expect(screen.queryByText("LOOP")).toBeNull();
-    act(() =>
-      telemetryStore
-        .getState()
-        .push(telemetryFor(5, 1, { loaded: true, loop_region: loop, loop_active: true })),
+      telemetryStore.getState().push(
+        telemetryFor(5, 1, {
+          loaded: true,
+          loop_region: loop,
+          loop_active: true,
+        }),
+      ),
     );
     expect(screen.getByRole("button", { name: "EXIT" })).toBeTruthy();
-    expect(screen.getByText("LOOP")).toBeTruthy();
   });
 
-  it("starts auto loops of 1/4 to 32 beats", () => {
+  it("starts auto loops of 1/4 to 32 beats from the size display", () => {
     render(<DeckPanel deck={1} />);
     loadDeckB();
-    const group = within(screen.getByRole("group", { name: "Auto loop beats" }));
-    expect(group.getAllByRole("button").map((b) => b.textContent)).toEqual([
-      "1/4",
-      "1/2",
-      "1",
-      "2",
-      "4",
-      "8",
-      "16",
-      "32",
-    ]);
-    fireEvent.click(group.getByRole("button", { name: "Loop 1/4 beats" }));
-    fireEvent.click(group.getByRole("button", { name: "Loop 32 beats" }));
-    expect(commands.autoLoop.mock.calls).toEqual([
-      [1, 0.25],
-      [1, 32],
-    ]);
+    fireEvent.click(screen.getByRole("button", { name: "Loop 4 beats" }));
+    expect(commands.autoLoop).toHaveBeenLastCalledWith(1, 4);
+    for (let i = 0; i < 4; i++) fireEvent.click(screen.getByRole("button", { name: "Halve loop" }));
+    fireEvent.click(screen.getByRole("button", { name: "Loop 1/4 beats" }));
+    expect(commands.autoLoop).toHaveBeenLastCalledWith(1, 0.25);
+    for (let i = 0; i < 8; i++)
+      fireEvent.click(screen.getByRole("button", { name: "Double loop" }));
+    fireEvent.click(screen.getByRole("button", { name: "Loop 32 beats" }));
+    expect(commands.autoLoop).toHaveBeenLastCalledWith(1, 32);
+    expect(commands.resizeLoop).not.toHaveBeenCalled();
   });
 
   it("halves and doubles the active loop", () => {
     render(<DeckPanel deck={1} />);
     loadDeckB();
+    const loop = { start: 10 * RATE, end: 12 * RATE };
+    act(() =>
+      telemetryStore.getState().push(
+        telemetryFor(5, 1, {
+          loaded: true,
+          loop_region: loop,
+          loop_active: true,
+        }),
+      ),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Halve loop" }));
     fireEvent.click(screen.getByRole("button", { name: "Double loop" }));
     expect(commands.resizeLoop.mock.calls).toEqual([
@@ -227,15 +247,15 @@ describe("loops", () => {
   it("rolls with Shift held and releases on window blur", () => {
     render(<DeckPanel deck={1} />);
     loadDeckB();
-    const half = screen.getByRole("button", { name: "Loop 1/2 beats" });
-    fireEvent.pointerDown(half, { pointerId: 1, shiftKey: true });
-    expect(commands.loopRoll).toHaveBeenCalledWith(1, 0.5, true);
+    const four = screen.getByRole("button", { name: "Loop 4 beats" });
+    fireEvent.pointerDown(four, { pointerId: 1, shiftKey: true });
+    expect(commands.loopRoll).toHaveBeenCalledWith(1, 4, true);
     releaseAllHeld();
-    expect(commands.loopRoll).toHaveBeenLastCalledWith(1, 0.5, false);
+    expect(commands.loopRoll).toHaveBeenLastCalledWith(1, 4, false);
     // A plain click afterwards is an auto loop again.
-    fireEvent.click(half);
-    fireEvent.click(half);
-    expect(commands.autoLoop).toHaveBeenCalledWith(1, 0.5);
+    fireEvent.click(four);
+    fireEvent.click(four);
+    expect(commands.autoLoop).toHaveBeenCalledWith(1, 4);
   });
 });
 
@@ -252,65 +272,7 @@ describe("beat jump", () => {
     act(() => useAppStore.getState().patchDeck(1, { jumpBeats: 16 }));
     fireEvent.click(screen.getByRole("button", { name: "Beat jump back" }));
     expect(commands.beatJump).toHaveBeenLastCalledWith(1, -16);
-    expect(screen.getByRole("combobox", { name: "Beat jump size" }).textContent).toContain("16 beats");
-  });
-});
-
-describe("hot cues", () => {
-  it("has eight pads", () => {
-    render(<DeckPanel deck={1} />);
-    loadDeckB();
-    expect(within(screen.getByRole("group", { name: "Hot cues" })).getAllByRole("button")).toHaveLength(8);
-  });
-
-  it("sets an empty pad at the playhead", () => {
-    render(<DeckPanel deck={1} />);
-    loadDeckB();
-    fireEvent.pointerDown(screen.getByRole("button", { name: "Hot cue 3 (empty)" }), { pointerId: 1 });
-    expect(commands.setHotCue).toHaveBeenCalledWith(1, 2);
-    expect(commands.triggerHotCue).not.toHaveBeenCalled();
-  });
-
-  it("triggers a set pad on press and release", () => {
-    render(<DeckPanel deck={1} />);
-    loadDeckB();
-    act(() => useAppStore.getState().patchDeck(1, { hotCues: [null, cue(1), ...Array(6).fill(null)] }));
-    const pad = screen.getByRole("button", { name: "Hot cue 2" });
-    expect(pad.getAttribute("aria-pressed")).toBe("true");
-    expect(pad.getAttribute("style")).toContain("--cue-2");
-    fireEvent.pointerDown(pad, { pointerId: 1 });
-    fireEvent.pointerDown(pad, { pointerId: 1 });
-    fireEvent.pointerUp(pad, { pointerId: 1 });
-    fireEvent.pointerUp(pad, { pointerId: 1 });
-    expect(commands.triggerHotCue.mock.calls).toEqual([
-      [1, 1, true],
-      [1, 1, false],
-    ]);
-    expect(commands.setHotCue).not.toHaveBeenCalled();
-  });
-
-  it("deletes a set pad on shift+click without triggering it", () => {
-    render(<DeckPanel deck={1} />);
-    loadDeckB();
-    act(() => useAppStore.getState().patchDeck(1, { hotCues: [cue(0), ...Array(7).fill(null)] }));
-    const pad = screen.getByRole("button", { name: "Hot cue 1" });
-    fireEvent.pointerDown(pad, { pointerId: 1, shiftKey: true });
-    fireEvent.pointerUp(pad, { pointerId: 1 });
-    expect(commands.deleteHotCue).toHaveBeenCalledWith(1, 0);
-    expect(commands.triggerHotCue).not.toHaveBeenCalled();
-  });
-
-  it("works from the keyboard", () => {
-    render(<DeckPanel deck={1} />);
-    loadDeckB();
-    act(() => useAppStore.getState().patchDeck(1, { hotCues: [cue(0), ...Array(7).fill(null)] }));
-    const pad = screen.getByRole("button", { name: "Hot cue 1" });
-    fireEvent.keyDown(pad, { key: "Enter" });
-    fireEvent.keyUp(pad, { key: "Enter" });
-    expect(commands.triggerHotCue.mock.calls).toEqual([
-      [1, 0, true],
-      [1, 0, false],
-    ]);
+    expect(screen.getByRole("combobox", { name: "Beat jump size" }).textContent).toContain("16");
   });
 });
 

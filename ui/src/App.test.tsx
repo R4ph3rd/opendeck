@@ -14,6 +14,8 @@ const { useAppStore } = await import("./state/app");
 const { telemetryStore } = await import("./state/telemetry");
 const { releaseAllCues } = await import("./state/actions");
 const { App } = await import("./App");
+const { BAND_MIN_PX, DECK_COLUMN_MIN_PX, TOP_BAR_PX } = await import("./lib/layout");
+const { DEFAULT_FX_LAYOUT, DEFAULT_LAYOUT } = await import("./state/prefs");
 
 const { commands } = bindings;
 
@@ -37,15 +39,49 @@ async function mountApp() {
 }
 
 describe("App", () => {
-  it("lays out the top bar, two decks, the mixer, the pads panel and the collection", async () => {
+  it("lays out the top bar and the stacked bands: waveforms, decks with the mixer, pads, library", async () => {
     await mountApp();
     expect(screen.getByRole("heading", { name: "OpenDeck" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Waveforms" })).toBeTruthy();
     expect(screen.getByRole("region", { name: "Deck 1" })).toBeTruthy();
     expect(screen.getByRole("region", { name: "Deck 2" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Mixer" })).toBeTruthy();
     expect(screen.getByRole("region", { name: "Pads and effects" })).toBeTruthy();
     expect(screen.getByRole("region", { name: "Library" })).toBeTruthy();
     expect(screen.getAllByText("No track loaded")).toHaveLength(2);
-    expect(screen.getByRole("region", { name: "Mixer" })).toBeTruthy();
+    // One resizable band per section, in order.
+    const ids = [...document.querySelectorAll("main > div > [data-panel]")].map((el) => el.id);
+    expect(ids).toEqual(["waves", "decks", "pads", "library"]);
+    // Separators only: three between the four bands.
+    expect(document.querySelectorAll('main > div > [role="separator"]')).toHaveLength(3);
+  });
+
+  it("shows the effects band between the decks and the pads from the top bar", async () => {
+    await mountApp();
+    expect(screen.queryByRole("region", { name: "Effects" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Show effects" }));
+    expect(screen.getByRole("region", { name: "Effects" })).toBeTruthy();
+    const ids = [...document.querySelectorAll("main > div > [data-panel]")].map((el) => el.id);
+    expect(ids).toEqual(["waves", "decks", "fx", "pads", "library"]);
+    fireEvent.click(screen.getByRole("button", { name: "Show effects" }));
+    expect(screen.queryByRole("region", { name: "Effects" })).toBeNull();
+  });
+
+  it("keeps every band at or above its minimum size in a 1280 x 720 window", () => {
+    const usable = 720 - TOP_BAR_PX;
+    const base = BAND_MIN_PX.waves + BAND_MIN_PX.decks + BAND_MIN_PX.pads + BAND_MIN_PX.library;
+    expect(base).toBeLessThanOrEqual(usable);
+    expect(base + BAND_MIN_PX.fx).toBeLessThanOrEqual(usable);
+    for (const layout of [DEFAULT_LAYOUT, DEFAULT_FX_LAYOUT]) {
+      const total = Object.values(layout).reduce((sum, v) => sum + v, 0);
+      expect(total).toBeCloseTo(100, 6);
+      for (const [band, percent] of Object.entries(layout)) {
+        const min = BAND_MIN_PX[band as keyof typeof BAND_MIN_PX];
+        expect((percent / 100) * usable).toBeGreaterThanOrEqual(min);
+      }
+    }
+    // The deck row fits two decks and the mixer at 1280 px.
+    expect(2 * DECK_COLUMN_MIN_PX.deck + DECK_COLUMN_MIN_PX.mixer).toBeLessThanOrEqual(1280);
   });
 
   it("shows the output device in the top bar", async () => {
@@ -83,7 +119,11 @@ describe("App", () => {
     await mountApp();
     act(() => {
       bindings.emit("engine-event", { type: "device_lost" });
-      bindings.emit("audio-device-changed", { ...runningAudio, running: false, error: "Output device lost" });
+      bindings.emit("audio-device-changed", {
+        ...runningAudio,
+        running: false,
+        error: "Output device lost",
+      });
     });
     expect((await screen.findAllByText(/Audio device lost/)).length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: /Audio output: Audio off/ })).toBeTruthy();
@@ -230,7 +270,16 @@ describe("Keyboard shortcuts for both decks", () => {
     act(() =>
       bindings.emit("hot-cues-changed", {
         deck: 1,
-        slots: [{ id: null, kind: { kind: "hot", index: 0 }, start: 3, end: null, color: null, name: "" }],
+        slots: [
+          {
+            id: null,
+            kind: { kind: "hot", index: 0 },
+            start: 3,
+            end: null,
+            color: null,
+            name: "",
+          },
+        ],
       }),
     );
     fireEvent.keyDown(window, { code: "Numpad1", key: "1" });
@@ -262,7 +311,16 @@ describe("Keyboard shortcuts for both decks", () => {
     act(() =>
       bindings.emit("hot-cues-changed", {
         deck: 0,
-        slots: [{ id: null, kind: { kind: "hot", index: 0 }, start: 3, end: null, color: null, name: "" }],
+        slots: [
+          {
+            id: null,
+            kind: { kind: "hot", index: 0 },
+            start: 3,
+            end: null,
+            color: null,
+            name: "",
+          },
+        ],
       }),
     );
     fireEvent.keyDown(window, { code: "Digit1", key: "1" });
@@ -283,11 +341,28 @@ describe("Startup", () => {
 
   it("shows hot cues the backend reports and clears them with the next event", async () => {
     await mountApp();
-    const slot = { id: null, kind: { kind: "hot", index: 4 }, start: 3, end: null, color: null, name: "" };
-    act(() => bindings.emit("hot-cues-changed", { deck: 1, slots: [null, null, null, null, slot, null, null, null] }));
+    const slot = {
+      id: null,
+      kind: { kind: "hot", index: 4 },
+      start: 3,
+      end: null,
+      color: null,
+      name: "",
+    };
+    act(() =>
+      bindings.emit("hot-cues-changed", {
+        deck: 1,
+        slots: [null, null, null, null, slot, null, null, null],
+      }),
+    );
     expect(useAppStore.getState().decks[1]?.hotCues[4]).toEqual(slot);
     expect(useAppStore.getState().decks[0]?.hotCues[4]).toBeNull();
-    act(() => bindings.emit("hot-cues-changed", { deck: 1, slots: Array(8).fill(null) }));
+    act(() =>
+      bindings.emit("hot-cues-changed", {
+        deck: 1,
+        slots: Array(8).fill(null),
+      }),
+    );
     expect(useAppStore.getState().decks[1]?.hotCues[4]).toBeNull();
   });
 });

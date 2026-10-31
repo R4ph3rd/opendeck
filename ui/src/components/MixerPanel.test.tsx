@@ -122,7 +122,7 @@ describe("MixerPanel", () => {
     expect(commands.setCrossfaderAssign).not.toHaveBeenCalled();
   });
 
-  it("moves the crossfader and picks a curve", () => {
+  it("moves the crossfader and picks a curve", async () => {
     render(<MixerPanel />);
     fireEvent.keyDown(slider("Crossfader"), { key: "ArrowRight" });
     expect(commands.setCrossfader).toHaveBeenCalled();
@@ -131,9 +131,17 @@ describe("MixerPanel", () => {
     fireEvent.doubleClick(slider("Crossfader"));
     expect(commands.setCrossfader).toHaveBeenLastCalledWith(0);
 
-    fireEvent.click(screen.getByRole("radio", { name: "Curve Cut" }));
+    const openCurves = () =>
+      fireEvent.pointerDown(screen.getByRole("combobox", { name: "Crossfader curve" }), {
+        button: 0,
+        ctrlKey: false,
+        pointerType: "mouse",
+      });
+    openCurves();
+    fireEvent.click(await screen.findByRole("option", { name: "Cut" }));
     expect(commands.setCrossfaderCurve).toHaveBeenCalledWith("sharp");
-    fireEvent.click(screen.getByRole("radio", { name: "Curve Linear" }));
+    openCurves();
+    fireEvent.click(await screen.findByRole("option", { name: "Linear" }));
     expect(commands.setCrossfaderCurve).toHaveBeenLastCalledWith("linear");
   });
 
@@ -165,15 +173,20 @@ describe("MixerPanel", () => {
     mixer.crossfader = -0.5;
     mixer.crossfader_curve = "sharp";
     mixer.split_cue = true;
-    commands.getMixerState.mockResolvedValueOnce({ status: "ok", data: mixer } as never);
+    commands.getMixerState.mockResolvedValueOnce({
+      status: "ok",
+      data: mixer,
+    } as never);
     render(<MixerPanel />);
     await act(() => hydrateMixer());
     expect((slider("Channel fader B") as HTMLElement).getAttribute("aria-valuenow")).toBe("0.4");
-    expect(screen.getByRole("button", { name: "Headphone cue B" }).getAttribute("aria-pressed")).toBe(
+    expect(
+      screen.getByRole("button", { name: "Headphone cue B" }).getAttribute("aria-pressed"),
+    ).toBe("true");
+    expect(screen.getByRole("combobox", { name: "Crossfader curve" }).textContent).toContain("Cut");
+    expect(screen.getByRole("button", { name: "Split cue" }).getAttribute("aria-pressed")).toBe(
       "true",
     );
-    expect(screen.getByRole("radio", { name: "Curve Cut" }).getAttribute("aria-checked")).toBe("true");
-    expect(screen.getByRole("button", { name: "Split cue" }).getAttribute("aria-pressed")).toBe("true");
     expect(useMixerStore.getState().crossfader).toBe(-0.5);
     // Unity gains read back as the centre of the trim and EQ knobs.
     expect(useMixerStore.getState().channels[0]?.trim).toBeCloseTo(0.5, 6);

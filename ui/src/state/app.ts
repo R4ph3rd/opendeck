@@ -54,13 +54,7 @@ export interface DeckUi {
 }
 
 /** Pages of the settings dialog. */
-export type SettingsPage =
-  | "audio"
-  | "midi"
-  | "library"
-  | "interface"
-  | "keyboard"
-  | "advanced";
+export type SettingsPage = "audio" | "midi" | "library" | "interface" | "keyboard" | "advanced";
 
 export const SETTINGS_PAGES: readonly SettingsPage[] = [
   "audio",
@@ -81,6 +75,9 @@ export interface AppState {
   leader: number | null;
   audio: AudioStatus | null;
   settingsOpen: boolean;
+  /** The effects band between the decks and the pads is shown. */
+  fxOpen: boolean;
+  setFxOpen: (open: boolean) => void;
   patchDeck: (deck: number, patch: Partial<DeckUi>) => void;
   /** Applies a backend `DeckState` (startup hydration). */
   applyDeckState: (state: DeckState) => void;
@@ -132,6 +129,7 @@ const initial = () => ({
   leader: null,
   audio: null,
   settingsOpen: false,
+  fxOpen: false,
 });
 
 export const useAppStore = create<AppState>()((set) => ({
@@ -166,13 +164,19 @@ export const useAppStore = create<AppState>()((set) => ({
     }),
   setLeader: (leader) => set({ leader }),
   setAudio: (audio) => set({ audio }),
+  setFxOpen: (fxOpen) => set({ fxOpen }),
   setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
   openSettings: (page) =>
-    set((state) => ({ settingsOpen: true, settingsPage: page ?? state.settingsPage })),
+    set((state) => ({
+      settingsOpen: true,
+      settingsPage: page ?? state.settingsPage,
+    })),
   setSettingsPage: (settingsPage) => set({ settingsPage }),
   setMidiMonitorOpen: (midiMonitorOpen) => set({ midiMonitorOpen }),
   setPadMode: (deck, mode) =>
-    set((state) => ({ padModes: state.padModes.map((m, i) => (i === deck ? mode : m)) })),
+    set((state) => ({
+      padModes: state.padModes.map((m, i) => (i === deck ? mode : m)),
+    })),
   reset: () => set(initial()),
 }));
 

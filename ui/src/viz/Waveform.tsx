@@ -22,7 +22,7 @@ export interface WaveformProps {
   onScrub?: (seconds: number) => void;
   /** Drag started or ended; for engines that want a touch signal. */
   onScrubActive?: (active: boolean) => void;
-  className?: string;
+  className?: string | undefined;
 }
 
 /** Wheel distance that counts as one zoom step. */
