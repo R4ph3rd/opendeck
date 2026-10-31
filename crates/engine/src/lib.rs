@@ -22,6 +22,7 @@ mod handle;
 mod meter;
 mod mixer;
 mod offline;
+mod sampler;
 mod sync;
 mod track;
 
@@ -39,7 +40,9 @@ mod tests_playback;
 mod tests_support;
 
 pub use crate::audio::EngineCore;
-pub use crate::deck::{DeckStatus, Interpolation, MAX_PITCH_BEND, MAX_RATE, SyncStatus};
+pub use crate::deck::{
+    DeckStatus, Interpolation, MAX_KEY_SHIFT, MAX_PITCH_BEND, MAX_RATE, SyncStatus,
+};
 pub use crate::fx::{
     FxSlotStatus, FxTempoSource, FxUnitStatus, MAX_LATENCY_FRAMES, MAX_TAIL_FRAMES, SendTap,
 };
@@ -49,6 +52,7 @@ pub use crate::handle::{
 };
 pub use crate::mixer::{EQ_LOW_MID_HZ, EQ_MID_HIGH_HZ, FILTER_DEAD_ZONE, FILTER_Q};
 pub use crate::offline::{OfflineRenderer, RenderStats};
+pub use crate::sampler::SamplerSlotStatus;
 pub use crate::track::{TrackBuffer, TrackError};
 
 use opendeck_contracts::{MAX_DECKS, SampleRate};
