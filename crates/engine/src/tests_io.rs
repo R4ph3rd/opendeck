@@ -733,3 +733,33 @@ fn inputs_cost_little_at_the_target_block_size() {
         assert!(stats.realtime_fraction(SR) < 0.25);
     }
 }
+
+#[test]
+fn test_tone_plays_on_one_bus_through_the_engine() {
+    let mut r = OfflineRenderer::new(config(2)).expect("engine");
+    for (output, carries) in [
+        (crate::ToneOutput::Master, 0),
+        (crate::ToneOutput::Headphones, 1),
+        (crate::ToneOutput::Booth, 2),
+    ] {
+        r.handle().play_test_tone(output);
+        let frames = SR as usize / 4;
+        let mut buses = [
+            vec![0.0; frames * 2],
+            vec![0.0; frames * 2],
+            vec![0.0; frames * 2],
+        ];
+        let [m, h, b] = &mut buses;
+        r.render_all(m, h, b);
+        for (index, bus) in buses.iter().enumerate() {
+            let amp = tone_amp(bus, f64::from(crate::TEST_TONE_HZ));
+            if index == carries {
+                assert!(amp > 0.15, "{output:?} on bus {index}: {amp}");
+            } else {
+                assert!(amp < 1e-6, "{output:?} leaks to bus {index}: {amp}");
+            }
+        }
+        // Let the tone end before the next one.
+        r.render(SR as usize);
+    }
+}

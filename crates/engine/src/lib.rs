@@ -27,6 +27,7 @@ mod reopen;
 mod routing;
 mod sampler;
 mod sync;
+mod tone;
 mod track;
 
 #[cfg(test)]
@@ -64,6 +65,7 @@ pub use crate::mixer::{EQ_LOW_MID_HZ, EQ_MID_HIGH_HZ, FILTER_DEAD_ZONE, FILTER_Q
 pub use crate::offline::{OfflineRenderer, RenderStats};
 pub use crate::reopen::{REOPEN_INITIAL, REOPEN_MAX, ReopenOutcome, ReopenState, Reopener};
 pub use crate::sampler::SamplerSlotStatus;
+pub use crate::tone::{TEST_TONE_HZ, TEST_TONE_LEVEL, TEST_TONE_MS, ToneOutput};
 pub use crate::track::{TrackBuffer, TrackError};
 
 use opendeck_contracts::{MAX_DECKS, SampleRate};

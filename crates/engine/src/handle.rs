@@ -16,6 +16,7 @@ use rtrb::{Consumer, Producer, RingBuffer};
 use crate::audio::{CoreRings, EngineCore};
 use crate::fx::{FX_UNITS, FxEvent, FxHandoff, FxHost, FxTempoSource, SendTap, SlotRt};
 use crate::inputs::{InputProducer, InputShared, input_ring};
+use crate::tone::{ToneOutput, tone_request};
 use crate::track::{Handoff, TrackBuffer};
 use crate::{ConfigError, EngineConfig};
 
@@ -71,6 +72,7 @@ pub struct EngineHandle {
     dropped_commands: u32,
     input: Option<InputProducer>,
     input_shared: Arc<InputShared>,
+    tone: Arc<AtomicU32>,
     sample_rate: SampleRate,
     max_block_frames: usize,
 }
@@ -96,6 +98,7 @@ pub fn engine_with_xruns(
     let (telemetry_tx, telemetry_rx) = RingBuffer::new(TELEMETRY_RING);
     let (events_tx, events_rx) = RingBuffer::new(EVENT_RING);
     let (input_tx, input_rx, input_shared) = input_ring();
+    let tone = tone_request();
     let core = EngineCore::new(
         config,
         CoreRings {
@@ -108,6 +111,7 @@ pub fn engine_with_xruns(
             events: events_tx,
             input: input_rx,
             input_shared: Arc::clone(&input_shared),
+            tone: Arc::clone(&tone),
         },
         xruns,
     );
@@ -122,6 +126,7 @@ pub fn engine_with_xruns(
         dropped_commands: 0,
         input: Some(input_tx),
         input_shared,
+        tone,
         sample_rate: config.sample_rate,
         max_block_frames: config.max_block_frames as usize,
     };
@@ -132,6 +137,13 @@ impl EngineHandle {
     /// Engine sample rate; converts every `Frames` value to seconds.
     pub fn sample_rate(&self) -> SampleRate {
         self.sample_rate
+    }
+
+    /// Plays the test tone (about a second of 440 Hz at -14 dBFS) on
+    /// `output`, added after the mixer so only that bus carries it. A new
+    /// call restarts the tone. The request is taken at the next block.
+    pub fn play_test_tone(&mut self, output: ToneOutput) {
+        crate::tone::request(&self.tone, output);
     }
 
     /// Queues a command. On a full ring the command is dropped, counted in

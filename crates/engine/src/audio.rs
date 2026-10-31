@@ -16,6 +16,7 @@ use crate::inputs::{InputRt, InputShared};
 use crate::mixer::Mixer;
 use crate::sampler::{Sampler, SamplerSlotStatus};
 use crate::sync::SyncState;
+use crate::tone::ToneRt;
 use crate::track::{Handoff, TrackBuffer};
 
 /// Telemetry snapshots per second.
@@ -38,6 +39,7 @@ pub struct EngineCore {
     mixer: Mixer,
     sampler: Sampler,
     inputs: InputRt,
+    tone: ToneRt,
     sync: SyncState,
     fx: FxHost,
     fx_handoff: Consumer<FxHandoff>,
@@ -75,6 +77,7 @@ pub(crate) struct CoreRings {
     pub(crate) events: Producer<EngineEvent>,
     pub(crate) input: Consumer<f32>,
     pub(crate) input_shared: Arc<InputShared>,
+    pub(crate) tone: Arc<AtomicU32>,
 }
 
 impl EngineCore {
@@ -96,6 +99,7 @@ impl EngineCore {
                 config.sample_rate.as_f64(),
                 max_block,
             ),
+            tone: ToneRt::new(rings.tone, config.sample_rate.0),
             sync: SyncState::new(config.sample_rate.as_f64()),
             fx: FxHost::new(config.sample_rate, max_block),
             fx_handoff: rings.fx_handoff,
@@ -263,6 +267,7 @@ impl EngineCore {
         self.fx.process_master(out);
         self.inputs.mix_into(out);
         self.mixer.finish(out, headphones, booth);
+        self.tone.process(out, headphones, booth);
 
         self.engine_time = self.engine_time.saturating_add(frames as u64);
         self.frames_since_publish = self.frames_since_publish.saturating_add(frames as u32);
