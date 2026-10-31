@@ -15,7 +15,7 @@ use crate::types::CoreError;
 pub const SETTINGS_FILE: &str = "settings.json";
 
 /// Everything persisted today.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct StoredSettings {
     /// Audio output settings.
@@ -139,6 +139,23 @@ mod tests {
         s.audio.headphones = Some(ChannelPair { left: 4, right: 5 });
         store.save(&s).expect("save");
         assert_eq!(SettingsStore::in_dir(&d).load(), s);
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn settings_saved_before_m8_load_with_defaults_for_the_new_fields() {
+        let d = dir("legacy");
+        std::fs::create_dir_all(&d).unwrap();
+        let old = r#"{"audio":{"host":null,"device":"DDJ-FLX4","sample_rate":48000,
+            "buffer_frames":256,"master":{"left":0,"right":1},
+            "headphones":{"left":2,"right":3}}}"#;
+        std::fs::write(d.join(SETTINGS_FILE), old).unwrap();
+        let loaded = SettingsStore::in_dir(&d).load();
+        assert_eq!(loaded.audio.device.as_deref(), Some("DDJ-FLX4"));
+        assert_eq!(loaded.audio.buffer_frames, Some(256));
+        assert_eq!(loaded.audio.booth, None);
+        assert_eq!(loaded.audio.booth_level, 1.0);
+        assert!(!loaded.audio.wants_input());
         let _ = std::fs::remove_dir_all(&d);
     }
 
