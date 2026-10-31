@@ -13,6 +13,7 @@
 //! calls; every method either queues a message or waits for a short reply,
 //! and none touches the audio thread.
 
+mod bpm_range;
 mod control;
 mod db_guard;
 mod diagnostics;
@@ -50,6 +51,7 @@ use opendeck_contracts::tempo::{SyncMode, TempoRange};
 use opendeck_contracts::{Beats, DeckId, EngineCommand, Gain, Seconds, pad::PadMode};
 use opendeck_engine::device;
 
+pub use crate::bpm_range::{BPM_RANGE_MAX, BPM_RANGE_MIN, BpmRange, BpmRangeDto};
 pub use crate::control::{Backend, LaunchOptions, TICK};
 use crate::control::{FxMsg, Msg};
 pub use crate::db_guard::{DbHealth, check_and_recover, quick_check, unix_stamp};

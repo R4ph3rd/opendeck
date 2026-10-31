@@ -23,6 +23,7 @@ use opendeck_library::import::{ImportConfig, ImportManager};
 use opendeck_library::{Library, LibraryError, normalize_path_string};
 
 use crate::AudioController;
+use crate::bpm_range::{BPM_RANGE_KEY, BpmRange, BpmRangeDto};
 use crate::dto::{
     ImportOptionsDto, JobInfo, LibraryChange, PlaylistEntryDto, PlaylistNodeDto, SavedSetDetailDto,
     SavedSetDto, SavedSetEntryDto, TrackAnalysisDto, TrackDetailDto, TrackMetaDto, TrackPageDto,
@@ -80,6 +81,7 @@ struct Inner {
     audio: Mutex<Option<AudioController>>,
     subscribers: Mutex<Vec<Sender<LibraryEvent>>>,
     loaded: Mutex<[Option<LoadedDeck>; MAX_DECKS]>,
+    bpm_range: Mutex<Option<BpmRange>>,
 }
 
 impl Inner {
@@ -189,6 +191,7 @@ impl LibraryService {
             audio: Mutex::new(None),
             subscribers: Mutex::new(Vec::new()),
             loaded: Mutex::new([None; MAX_DECKS]),
+            bpm_range: Mutex::new(None),
         });
         match inner.imports.resume_pending() {
             Ok(jobs) if !jobs.is_empty() => tracing::info!(count = jobs.len(), "resumed jobs"),
@@ -211,6 +214,64 @@ impl LibraryService {
             .into_iter()
             .map(Arc::from)
             .collect()
+    }
+
+    /// The default analyzers with the tempo analyzer reading `range`, so a
+    /// [`set_bpm_range`](Self::set_bpm_range) applies to the next track
+    /// analysed. Pass the same range to
+    /// [`attach_bpm_range`](Self::attach_bpm_range).
+    pub fn analyzers_with_range(range: &BpmRange) -> Vec<Arc<dyn Analyzer>> {
+        let tempo = range.analyzer();
+        Self::default_analyzers()
+            .into_iter()
+            .map(|a| {
+                if a.id() == tempo.id() {
+                    Arc::clone(&tempo)
+                } else {
+                    a
+                }
+            })
+            .collect()
+    }
+
+    /// Connects the range the import analyzers read and loads the stored
+    /// value into it.
+    pub fn attach_bpm_range(&self, range: BpmRange) {
+        match self
+            .inner
+            .lib
+            .get_setting_json::<BpmRangeDto>(BPM_RANGE_KEY)
+        {
+            Ok(Some(stored)) => match stored.validate() {
+                Ok(stored) => range.set(stored),
+                Err(err) => tracing::warn!(%err, "stored BPM range ignored"),
+            },
+            Ok(None) => {}
+            Err(err) => tracing::warn!(%err, "could not read the BPM range"),
+        }
+        *lock(&self.inner.bpm_range) = Some(range);
+    }
+
+    /// The BPM range the analyzer uses (stored value, else 70 to 180).
+    pub fn bpm_range(&self) -> Result<BpmRangeDto, CoreError> {
+        if let Some(range) = lock(&self.inner.bpm_range).as_ref() {
+            return Ok(range.get());
+        }
+        Ok(self
+            .inner
+            .lib
+            .get_setting_json::<BpmRangeDto>(BPM_RANGE_KEY)?
+            .unwrap_or_default())
+    }
+
+    /// Stores the BPM range and applies it to new imports and re-analysis.
+    pub fn set_bpm_range(&self, range: BpmRangeDto) -> Result<(), CoreError> {
+        let range = range.validate()?;
+        self.inner.lib.set_setting_json(BPM_RANGE_KEY, &range)?;
+        if let Some(shared) = lock(&self.inner.bpm_range).as_ref() {
+            shared.set(range);
+        }
+        Ok(())
     }
 
     /// The underlying library handle (settings, cue persistence).

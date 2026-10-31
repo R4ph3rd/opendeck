@@ -332,3 +332,35 @@ fn analysis_finishing_after_the_load_reaches_the_deck() {
     );
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn bpm_range_is_stored_and_reaches_the_analyzer() {
+    use opendeck_app_core::{BpmRange, BpmRangeDto};
+
+    let range = BpmRange::default();
+    let service = LibraryService::open_in_memory(
+        LibraryService::analyzers_with_range(&range),
+        ImportConfig::default(),
+    )
+    .expect("library");
+    service.attach_bpm_range(range.clone());
+    assert_eq!(service.bpm_range().expect("range"), BpmRangeDto::default());
+    let wanted = BpmRangeDto {
+        min_bpm: 85.0,
+        max_bpm: 175.0,
+    };
+    service.set_bpm_range(wanted).expect("set");
+    assert_eq!(range.get(), wanted, "the analyzer reads the new range");
+    assert!(
+        service
+            .set_bpm_range(BpmRangeDto {
+                min_bpm: 150.0,
+                max_bpm: 100.0,
+            })
+            .is_err()
+    );
+    // A fresh range attached to the same library loads the stored value.
+    let fresh = BpmRange::default();
+    service.attach_bpm_range(fresh.clone());
+    assert_eq!(fresh.get(), wanted);
+}
