@@ -224,6 +224,20 @@ export const commands = {
 	listDirectory: (path: string | null) => typedError<DirListing, CommandError>(__TAURI_INVOKE("list_directory", { path })),
 	/**  Shows a file in the system file manager. */
 	revealInExplorer: (path: string) => typedError<null, CommandError>(__TAURI_INVOKE("reveal_in_explorer", { path })),
+	/**  Opens the log folder in the system file manager. */
+	openLogsFolder: () => typedError<null, CommandError>(__TAURI_INVOKE("open_logs_folder")),
+	/**  Messages from startup (for example a replaced database). Shown once. */
+	getStartupNotices: () => __TAURI_INVOKE<string[]>("get_startup_notices"),
+	/**  Version, OS, audio and MIDI devices, file locations and the last errors. */
+	getDiagnostics: () => typedError<DiagnosticsDto, CommandError>(__TAURI_INVOKE("get_diagnostics")),
+	/**  Plays a short test tone on one output channel pair of a device. */
+	playTestTone: (host: AudioHostKind | null, device: string | null, pair: ChannelPair) => typedError<null, CommandError>(__TAURI_INVOKE("play_test_tone", { host, device, pair })),
+	/**  Reads a UI preference (JSON text) from the library settings. */
+	getUiPref: (name: string) => typedError<string | null, CommandError>(__TAURI_INVOKE("get_ui_pref", { name })),
+	/**  Stores a UI preference (JSON text) in the library settings. */
+	setUiPref: (name: string, json: string) => typedError<null, CommandError>(__TAURI_INVOKE("set_ui_pref", { name, json })),
+	/**  Removes every UI preference. Audio and MIDI settings stay. Returns how many were removed. */
+	resetUiPrefs: () => typedError<number, CommandError>(__TAURI_INVOKE("reset_ui_prefs")),
 	/**  MIDI ports the system reports and which ones the mapping would use. */
 	midiListPorts: () => typedError<MidiPortDto[], CommandError>(__TAURI_INVOKE("midi_list_ports")),
 	/**  Connection state of the controller. */
@@ -368,6 +382,16 @@ export type AppInfo = {
 	max_decks: number,
 	/**  Decks the MVP UI shows. */
 	visible_decks: number,
+};
+
+/**  Where the app keeps its files. */
+export type AppPathsDto = {
+	/**  Log directory. */
+	logs: string | null,
+	/**  Library database file. */
+	database: string | null,
+	/**  Config directory. */
+	config: string | null,
 };
 
 /**
@@ -1045,6 +1069,34 @@ export type DeckTelemetry = {
 	loop_active: boolean,
 	/**  Post-fader channel level. */
 	meter: StereoMeter,
+};
+
+/**  Everything the report shows. */
+export type DiagnosticsDto = {
+	/**  App version. */
+	version: string,
+	/**  Target OS. */
+	os: string,
+	/**  Target architecture. */
+	arch: string,
+	/**  Audio host API in use. */
+	audio_host: string | null,
+	/**  Audio device in use. */
+	audio_device: string | null,
+	/**  Audio error, if the output is off. */
+	audio_error: string | null,
+	/**  MIDI input port in use. */
+	midi_device: string | null,
+	/**  MIDI error, if any. */
+	midi_error: string | null,
+	/**  File locations. */
+	paths: AppPathsDto,
+	/**  Startup messages (for example a replaced database). */
+	notices: string[],
+	/**  Last warnings, errors and panics, oldest first. */
+	recent_errors: string[],
+	/**  The report as plain text, ready to copy. */
+	text: string,
 };
 
 /**  A directory listing for the file explorer pane. */
