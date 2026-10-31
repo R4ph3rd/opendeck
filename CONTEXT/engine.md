@@ -57,6 +57,7 @@ Real-time audio engine: decks (2 shown, 4 supported), transport, CUE behaviour, 
   - Meters: per channel post fader, master after master level, headphone bus. Peak holds with 0.85 decay per snapshot.
 - CPU (release, 48 kHz, 512 frames): 2 decks key lock + EQ + filter + PFL: 0.61 ms per block (5.7 % of realtime), worst 2.9 ms; 1 deck key lock +8 %: 2.9 %.
 - Tests: `tests_deck.rs`, `tests_mixer.rs`, `tests_support.rs`; all through `EngineCore::render` under `assert_no_alloc`, plus a 3000 command fuzz on 4 decks.
+- Timing tests (`key_lock_start_block_cost_is_bounded`) assert only in release (`cargo test -p opendeck-engine --release`). They compare medians of 40 trials as a ratio and retry up to 5 rounds, so one loaded round does not fail them; a regression fails every round.
 
 ## M5 implementation notes (FX host)
 - Code: `fx.rs` (host, module docs have the signal flow), tests in `tests_fx.rs` plus `fx_host_makes_no_heap_calls` in `tests_heap.rs`.
