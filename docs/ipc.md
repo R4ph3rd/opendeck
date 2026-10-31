@@ -124,8 +124,18 @@ DTOs live in `crates/app-core/src/dto.rs` (plain copies of the `opendeck-library
 | `beat_jump` **done** | `deck, beats: Beats` | `()`; `0` is refused | 2 |
 | `set_slip` **done** | `deck, on: bool` | `()` | 2 |
 | `get_pad_mode` **done** | `deck: DeckId` | `PadMode` | 0 |
-| `set_pad_mode` | `deck, mode: PadMode` | `()`; emits `pad-mode-changed` | 7 |
-| `press_pad` | `deck, index: u8, pressed: bool, shifted: bool` | `()` (interpreted in the active mode) | 7 |
+| `set_pad_mode` **done** | `deck, mode: PadMode` | `bool` (changed); emits `pad-mode-changed`. Choosing KEYBOARD forgets its hot cue | 7 |
+| `pad_press` **done** | `deck, mode: PadMode, pad: u8, shift: bool, pressed: bool` | `()`; same interpreter as the controller's pads, ignored if `mode` is not the deck's mode | 7 |
+| `get_pad_state` **done** | | `PadStateDto` (per deck: mode, signed beat jump sizes, loop lengths, key shift and keyboard semitones, keyboard cue) | 7 |
+| `set_key_shift` **done** | `deck, semitones: i8` | `()`; `-12..=12`, else `invalid` | 7 |
+| `rename_hot_cue` **done** | `deck, index: HotCueIndex, name: String` | `()`; stored with the track, `hot-cues-changed` follows | 7 |
+| `get_sampler_state` **done** | | `SamplerStateDto` (16 slots, layout, level, PFL) | 7 |
+| `sampler_load_track` / `sampler_load_path` **done** | `slot: u8, track: TrackId` / `slot: u8, path: String` | `()`; decoded off-thread at the engine rate, then `sampler-state-changed` | 7 |
+| `sampler_clear` **done** | `slot: u8` | `()` | 7 |
+| `sampler_set_slot` **done** | `slot: u8, patch: SamplerSlotPatch` (name, colour, gain `0..=2`, play mode `one_shot`/`gate`/`loop`, sync; `null` keeps a field) | `()` | 7 |
+| `sampler_set_layout` **done** | `layout: SamplerLayout` (`split`: deck 1 slots 1-8, deck 2 slots 9-16; `shared`: both 1-8) | `()` | 7 |
+| `sampler_set_level` / `sampler_set_pfl` **done** | `level: f32` / `on: bool` | `()` | 7 |
+| `sampler_trigger` / `sampler_stop` **done** | `slot: u8, pressed: bool` / `slot: u8` | `()` | 7 |
 
 ### Effects
 
@@ -196,13 +206,14 @@ The FX model sits on the engine FX units (ADR 0006): two FLX4-style Beat FX unit
 | `analysis-ready` **done** | `TrackId` | once per track whose analysis was stored; a deck holding it already has the new grid | 3 |
 | `hot-cues-changed` **done** | `HotCues` *shell* (deck, 8 slots) | on change | 2 |
 | `cues-changed` **done** | `TrackId` | on every stored cue change | 3 |
-| `pad-mode-changed` **done** | `PadModeChanged` *shell* (deck, mode) | when a pad mode button on the controller changed it | 6 |
+| `pad-mode-changed` **done** | `PadModeChanged` *shell* (deck, mode) | when a pad mode button on the controller or `set_pad_mode` changed it | 6 |
 | `fx-state-changed` **done** | `FxStateDto` | on every FX model change | 5 |
 | `midi-monitor` **done** | `Vec<MidiMonitorEntryDto>` (timestamp, direction, bytes, text, mapped control and action, `verify`) | monitor on only, batched every 50 ms | 6 |
 | `midi-learned` **done** | `MidiLearnResultDto` (control id, accepted binding or error, description) | once per gesture | 6 |
 | `midi-connection-changed` **done** | `MidiStatusDto` | on change | 6 |
 | `browse-cursor-moved` **done** | `BrowseCursorDto` (row index, track) | per encoder step | 6 |
-| `sampler-state-changed` | `SamplerState` | on change | 7 |
+| `sampler-state-changed` **done** | `SamplerStateDto` | on change (load progress, edits, layout, level) | 7 |
+| `pad-state-changed` **done** | `PadStateDto` | when a beat jump scale, pitch layout or the keyboard cue changed (controller or UI) | 7 |
 
 Mixer values cross IPC as linear `Gain` (trim, EQ band, master, headphone) or normalised positions (`filter` in `[-1, 1]`, channel fader and headphone mix in `[0, 1]`, crossfader in `[-1, 1]`). The UI owns the knob-to-gain curves (`ui/src/lib/mixer.ts`, constants mirror `contracts::mixer`); app-core validates ranges and the engine clamps.
 
