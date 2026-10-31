@@ -264,6 +264,39 @@ export function createBindingsMock() {
       ),
       openLogsFolder: vi.fn(() => ok(null)),
       playTestTone: vi.fn(() => ok(null)),
+      listAudioInputDevices: vi.fn(() =>
+        ok([
+          {
+            name: "Test Device",
+            is_default: true,
+            max_channels: 4,
+            default_sample_rate: 48_000,
+            sample_rate_ranges: [[44_100, 96_000]],
+            buffer_frames: [64, 2048],
+          },
+        ]),
+      ),
+      getInputState: vi.fn(() =>
+        ok({
+          booth_level: 1,
+          mic_level: 1,
+          mic_eq_low: 1,
+          mic_eq_high: 1,
+          mic_on: false,
+          aux_level: 1,
+          aux_fader: 1,
+          talk_over: { enabled: false, depth_db: 12, threshold_db: -40 },
+        }),
+      ),
+      setBoothLevel: vi.fn(() => ok(null)),
+      setMicLevel: vi.fn(() => ok(null)),
+      setMicEq: vi.fn(() => ok(null)),
+      setMicOn: vi.fn(() => ok(null)),
+      setAuxLevel: vi.fn(() => ok(null)),
+      setAuxFader: vi.fn(() => ok(null)),
+      setTalkOver: vi.fn(() => ok(null)),
+      getBpmRange: vi.fn(() => ok({ min_bpm: 70, max_bpm: 180 })),
+      setBpmRange: vi.fn(() => ok(null)),
       listAudioHosts: vi.fn(() => ok([{ kind: "alsa", name: "ALSA", available: true, is_default: true }])),
       listAudioDevices: vi.fn(() =>
         ok([

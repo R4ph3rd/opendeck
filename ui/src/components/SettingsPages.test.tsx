@@ -285,3 +285,93 @@ describe("Advanced page", () => {
     expect(usePrefsStore.getState().firstRunOpen).toBe(true);
   });
 });
+
+describe("Audio page", () => {
+  it("shows unavailable hosts disabled with what they need", async () => {
+    commands.listAudioHosts.mockImplementationOnce((() =>
+      ok([
+        { kind: "wasapi", name: "WASAPI", available: true, is_default: true },
+        { kind: "asio", name: "ASIO", available: false, is_default: false },
+      ])) as never);
+    renderSettings("audio");
+    fireEvent.click(await screen.findByRole("combobox", { name: "Host API" }));
+    const asio = await screen.findByRole("option", { name: "ASIO: build with the asio feature" });
+    expect(asio.getAttribute("aria-disabled")).toBe("true");
+  });
+
+  it("reports measured latency and dropouts from the status", async () => {
+    useAppStore.getState().setAudio({
+      running: true,
+      backend: "device",
+      host: "ALSA",
+      device: "Test Device",
+      sample_rate: 48_000,
+      channels: 4,
+      buffer_frames: 256,
+      latency_ms: 10.66,
+      latency_measured: true,
+      master: { left: 0, right: 1 },
+      headphones: { left: 2, right: 3 },
+      stereo_fallback: false,
+      xruns: 3,
+      error: null,
+    });
+    renderSettings("audio");
+    expect((await screen.findByTestId("latency")).textContent).toBe(
+      "Output latency 10.7 ms (measured).",
+    );
+    expect(screen.getByTestId("xruns").textContent).toBe("3");
+  });
+
+  it("plays the test tone through the engine and applies changes first", async () => {
+    renderSettings("audio");
+    const master = await screen.findByRole("button", { name: "Test tone on master" });
+    expect(
+      (screen.getByRole("button", { name: "Test tone on booth" }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    fireEvent.click(master);
+    await waitFor(() => expect(commands.playTestTone).toHaveBeenCalledWith("master"));
+    expect(commands.setAudioSettings).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("switch", { name: "Headphones mono" }));
+    fireEvent.click(screen.getByRole("button", { name: "Test tone on headphones" }));
+    await waitFor(() => expect(commands.playTestTone).toHaveBeenCalledWith("headphones"));
+    expect(commands.setAudioSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ headphones_mono: true }),
+    );
+  });
+
+  it("sends talk-over and mic changes live and saves routing on apply", async () => {
+    renderSettings("audio");
+    fireEvent.click(await screen.findByRole("switch", { name: "Talk-over" }));
+    await waitFor(() =>
+      expect(commands.setTalkOver).toHaveBeenCalledWith({
+        enabled: true,
+        depth_db: 12,
+        threshold_db: -40,
+      }),
+    );
+    fireEvent.click(await screen.findByRole("switch", { name: "Mic on" }));
+    await waitFor(() => expect(commands.setMicOn).toHaveBeenCalledWith(true));
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    await waitFor(() => expect(commands.setAudioSettings).toHaveBeenCalledTimes(1));
+    expect((commands.setAudioSettings.mock.calls as unknown[][])[0]?.[0]).toMatchObject({
+      talkover: { enabled: true },
+    });
+  });
+});
+
+describe("Library BPM range", () => {
+  it("sends the range to the analyzer", async () => {
+    usePrefsStore.getState().setLibrary({ bpmMin: 80 });
+    await waitFor(() =>
+      expect(commands.setBpmRange).toHaveBeenCalledWith({ min_bpm: 80, max_bpm: 180 }),
+    );
+  });
+
+  it("loads the analyzer's range at startup", async () => {
+    commands.getBpmRange.mockImplementationOnce((() => ok({ min_bpm: 90, max_bpm: 170 })) as never);
+    await usePrefsStore.getState().hydrate();
+    expect(usePrefsStore.getState().library).toMatchObject({ bpmMin: 90, bpmMax: 170 });
+  });
+});
