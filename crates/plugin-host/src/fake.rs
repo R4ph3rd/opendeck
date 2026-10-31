@@ -25,7 +25,7 @@ use opendeck_contracts::instrument::NoteKind;
 use opendeck_contracts::plugin::{PluginInfo, PluginKind};
 
 use crate::PluginError;
-use crate::backend::{PluginBackend, PluginInstance, PluginProcessor, ProcessBlock};
+use crate::backend::{HostWake, PluginBackend, PluginInstance, PluginProcessor, ProcessBlock};
 
 /// Provider id of the fake format.
 pub const FAKE_PROVIDER: &str = "fake";
@@ -89,7 +89,11 @@ impl PluginBackend for FakeBackend {
         }
     }
 
-    fn instantiate(&self, info: &PluginInfo) -> Result<Box<dyn PluginInstance>, PluginError> {
+    fn instantiate(
+        &self,
+        info: &PluginInfo,
+        _wake: HostWake,
+    ) -> Result<Box<dyn PluginInstance>, PluginError> {
         match info.key.id.as_str() {
             FAKE_GAIN => Ok(Box::new(GainInstance {
                 gain: Arc::new(AtomicU32::new(1.0_f32.to_bits())),

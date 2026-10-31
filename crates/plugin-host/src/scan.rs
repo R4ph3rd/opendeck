@@ -228,7 +228,7 @@ pub fn scan_in_process(backend: &dyn PluginBackend, path: &Path) -> ScanReport {
 }
 
 fn validate(backend: &dyn PluginBackend, info: &PluginInfo) -> Result<(), PluginError> {
-    let mut instance = backend.instantiate(info)?;
+    let mut instance = backend.instantiate(info, std::sync::Arc::new(|| {}))?;
     let mut processor = instance.activate(VALIDATION_RATE, VALIDATION_FRAMES)?;
     let ctx = ProcessContext {
         sample_rate: VALIDATION_RATE,

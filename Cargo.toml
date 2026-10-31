@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/*", "src-tauri"]
+members = ["crates/*", "crates/plugin-host/tests/fixtures/clap-test-plugin", "src-tauri"]
 
 [workspace.package]
 version = "0.8.1"
@@ -60,6 +60,8 @@ midir = "0.11"
 
 # Plugin hosting (ADR 0008). Optional features of opendeck-plugin-host.
 clack-host = "0.2"
+clack-extensions = { version = "0.2", default-features = false }
+clap-sys = "0.5"
 vst3 = "0.3"
 
 # Common

@@ -44,7 +44,7 @@ use std::sync::Arc;
 pub use adapter::{PluginEffect, PluginInstrument};
 pub use backend::PluginBackend;
 pub use error::PluginError;
-pub use host::{InstanceHandle, InstanceStatus, PluginHost};
+pub use host::{InstanceHandle, InstanceStatus, PluginEffectFactory, PluginHost};
 pub use instances::InstanceId;
 
 /// The real formats compiled into this build (cargo features `clap`,

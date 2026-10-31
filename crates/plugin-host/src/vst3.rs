@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 use opendeck_contracts::plugin::PluginInfo;
 
 use crate::PluginError;
-use crate::backend::{PluginBackend, PluginInstance};
+use crate::backend::{HostWake, PluginBackend, PluginInstance};
 use crate::scan::{TargetOs, vst3_folders};
 
 /// Provider id of VST3 plugins.
@@ -44,7 +44,11 @@ impl PluginBackend for Vst3Backend {
         Err(PluginError::NotYetImplemented("9a-2"))
     }
 
-    fn instantiate(&self, _: &PluginInfo) -> Result<Box<dyn PluginInstance>, PluginError> {
+    fn instantiate(
+        &self,
+        _: &PluginInfo,
+        _: HostWake,
+    ) -> Result<Box<dyn PluginInstance>, PluginError> {
         Err(PluginError::NotYetImplemented("9a-2"))
     }
 }

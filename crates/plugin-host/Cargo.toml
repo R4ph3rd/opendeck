@@ -9,9 +9,10 @@ repository.workspace = true
 publish.workspace = true
 
 [features]
-default = []
+# CLAP shipped in wave 9a-1; VST3 follows in 9a-2.
+default = ["clap"]
 # CLAP hosting through clack-host (MIT OR Apache-2.0). Pure Rust, no SDK headers.
-clap = ["dep:clack-host"]
+clap = ["dep:clack-host", "dep:clack-extensions", "dep:clap-sys"]
 # VST3 hosting through the `vst3` bindings (MIT OR Apache-2.0, generated from
 # the MIT-licensed VST 3 SDK headers). Pre-generated, no SDK checkout needed.
 vst3 = ["dep:vst3"]
@@ -24,6 +25,8 @@ serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 clack-host = { workspace = true, optional = true }
+clap-sys = { workspace = true, optional = true }
+clack-extensions = { workspace = true, optional = true, features = ["clack-host", "params", "state", "latency", "tail", "audio-ports"] }
 vst3 = { workspace = true, optional = true }
 
 [dev-dependencies]
