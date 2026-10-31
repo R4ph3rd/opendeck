@@ -80,7 +80,7 @@ export function LibrarySettings() {
         </Row>
         <Row
           label="BPM range"
-          hint="Saved now. The analyzer uses its built-in 70 to 180 until it takes this option."
+          hint="Tempos outside fold into it. Applies to new imports and re-analysis."
         >
           <div className="flex items-center gap-2">
             <NumberField

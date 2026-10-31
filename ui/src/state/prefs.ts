@@ -30,7 +30,7 @@ export interface LayoutPreset {
 export interface LibraryOptions {
   /** Analyse tracks as they are imported. */
   autoAnalyse: boolean;
-  /** BPM range for analysis, kept for when the analyzer takes it. */
+  /** BPM range for analysis. The backend stores it too and the analyzer uses it. */
   bpmMin: number;
   bpmMax: number;
   /** Folders the user added as music sources. */
@@ -84,6 +84,31 @@ export async function savePref(name: string, value: unknown): Promise<void> {
   }
 }
 
+/** The analyzer's BPM range as stored by the backend; empty when it cannot be asked. */
+async function loadBpmRange(): Promise<Partial<LibraryOptions>> {
+  try {
+    const result = await commands.getBpmRange();
+    if (result.status === "ok" && result.data.min_bpm !== null && result.data.max_bpm !== null) {
+      return { bpmMin: result.data.min_bpm, bpmMax: result.data.max_bpm };
+    }
+  } catch {
+    // Not running in the app: keep the stored preference.
+  }
+  return {};
+}
+
+/** Sends the BPM range to the analyzer. A refusal is logged; the field keeps the value. */
+async function saveBpmRange(bpmMin: number, bpmMax: number): Promise<void> {
+  try {
+    const result = await commands.setBpmRange({ min_bpm: bpmMin, max_bpm: bpmMax });
+    if (result.status === "error") {
+      console.warn("could not set the BPM range", result.error);
+    }
+  } catch (error) {
+    console.warn("could not set the BPM range", error);
+  }
+}
+
 export interface PrefsState {
   loaded: boolean;
   firstRunDone: boolean;
@@ -128,12 +153,13 @@ export function applyTheme(theme: Theme): void {
 export const usePrefsStore = create<PrefsState>()((set, get) => ({
   ...initial(),
   hydrate: async () => {
-    const [done, theme, zoom, layouts, library] = await Promise.all([
+    const [done, theme, zoom, layouts, library, range] = await Promise.all([
       readPref<boolean>(PREF.firstRun),
       loadPref<Theme>(PREF.theme, "dark"),
       loadPref<number>(PREF.zoom, DEFAULT_ZOOM_INDEX),
       loadPref<LayoutPreset[]>(PREF.layouts, []),
       loadPref<Partial<LibraryOptions>>(PREF.library, {}),
+      loadBpmRange(),
     ]);
     // Without a backend (previews, tests) nothing is known, so no guide is shown.
     const firstRunDone = !done.reachable || done.value === true;
@@ -144,7 +170,7 @@ export const usePrefsStore = create<PrefsState>()((set, get) => ({
       theme: theme === "light" ? "light" : "dark",
       waveformZoom: clampZoom(Number.isFinite(zoom) ? zoom : DEFAULT_ZOOM_INDEX),
       layoutPresets: Array.isArray(layouts) ? layouts : [],
-      library: { ...DEFAULT_LIBRARY_OPTIONS, ...library },
+      library: { ...DEFAULT_LIBRARY_OPTIONS, ...library, ...range },
     });
   },
   setTheme: (theme) => {
@@ -160,6 +186,9 @@ export const usePrefsStore = create<PrefsState>()((set, get) => ({
     const library = { ...get().library, ...patch };
     set({ library });
     void savePref(PREF.library, library);
+    if (patch.bpmMin !== undefined || patch.bpmMax !== undefined) {
+      void saveBpmRange(library.bpmMin, library.bpmMax);
+    }
   },
   saveLayoutPreset: (name) => {
     const trimmed = name.trim();
