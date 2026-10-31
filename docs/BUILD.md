@@ -86,3 +86,9 @@ cargo run -p opendeck-desktop --example export-bindings
 ```
 
 Commit `ui/src/ipc/bindings.ts` with the change. CI fails if it is stale.
+
+## UI screenshots
+
+Build and serve the UI with `pnpm -C ui build && pnpm -C ui exec vite preview --port 4173`, then run `node scripts/ui-screenshots.cjs` (needs Playwright with Chromium; set `PLAYWRIGHT_PATH` if it is installed globally).
+PNGs land in `target/ui-screenshots/`; override with `OUT`, `SIZES=1440x900,1920x1080`, `MODES=hot_cue,pad_fx1`, `TAG`, `BASE`.
+Each shot prints a clipping report (`bad`); rows below the fold of scrolling lists are expected there.
