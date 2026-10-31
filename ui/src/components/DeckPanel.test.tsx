@@ -55,7 +55,10 @@ describe("DeckPanel", () => {
 
   it("opens the picker and loads the chosen file", async () => {
     vi.mocked(open).mockResolvedValue("/music/tone.wav");
-    commands.loadTrackPath.mockResolvedValue({ status: "ok", data: track } as never);
+    commands.loadTrackPath.mockResolvedValue({
+      status: "ok",
+      data: track,
+    } as never);
     render(<DeckPanel deck={0} />);
     fireEvent.click(screen.getByRole("button", { name: "Open file" }));
     await waitFor(() => expect(commands.loadTrackPath).toHaveBeenCalledWith(0, "/music/tone.wav"));
@@ -92,7 +95,9 @@ describe("DeckPanel", () => {
     loadDeckA();
     fireEvent.click(screen.getByRole("button", { name: "PLAY" }));
     expect(commands.togglePlaying).toHaveBeenCalledWith(0);
-    act(() => telemetryStore.getState().push(telemetry(2, { loaded: true, playing: true, duration: 1 })));
+    act(() =>
+      telemetryStore.getState().push(telemetry(2, { loaded: true, playing: true, duration: 1 })),
+    );
     expect(screen.getByRole("button", { name: "PAUSE" })).toBeTruthy();
   });
 
@@ -114,7 +119,7 @@ describe("DeckPanel", () => {
   it("updates elapsed and remaining time from telemetry", async () => {
     render(<DeckPanel deck={0} />);
     loadDeckA(0);
-    await waitFor(() => expect(screen.getByTestId("remaining-0").textContent).toBe("-3:20"));
+    await waitFor(() => expect(screen.getByTestId("remaining-0").textContent).toBe("03:20.0"));
     for (let sequence = 2; sequence < 40; sequence++) {
       act(() =>
         telemetryStore.getState().push(
@@ -127,8 +132,8 @@ describe("DeckPanel", () => {
         ),
       );
     }
-    await waitFor(() => expect(screen.getByTestId("elapsed-0").textContent).toBe("1:39"));
-    expect(screen.getByTestId("remaining-0").textContent).toBe("-1:41");
+    await waitFor(() => expect(screen.getByTestId("elapsed-0").textContent).toBe("01:39.0"));
+    expect(screen.getByTestId("remaining-0").textContent).toBe("01:41.0");
   });
 
   it("seeks to the clicked fraction of the track", () => {
@@ -136,15 +141,29 @@ describe("DeckPanel", () => {
     loadDeckA();
     const bar = screen.getByRole("slider", { name: "Deck 1 position" });
     bar.getBoundingClientRect = () =>
-      ({ left: 100, width: 400, top: 0, height: 10, right: 500, bottom: 10, x: 100, y: 0 }) as DOMRect;
+      ({
+        left: 100,
+        width: 400,
+        top: 0,
+        height: 10,
+        right: 500,
+        bottom: 10,
+        x: 100,
+        y: 0,
+      }) as DOMRect;
     fireEvent.pointerDown(bar, { clientX: 300 });
     expect(commands.seek).toHaveBeenCalledWith(0, 100);
   });
 
-  it("changes tempo range, key lock and bend", () => {
+  it("changes tempo range, key lock and bend", async () => {
     render(<DeckPanel deck={0} />);
     loadDeckA();
-    fireEvent.click(screen.getByRole("radio", { name: "Range 6%" }));
+    fireEvent.pointerDown(screen.getByRole("combobox", { name: "Tempo range" }), {
+      button: 0,
+      ctrlKey: false,
+      pointerType: "mouse",
+    });
+    fireEvent.click(await screen.findByRole("option", { name: "±6" }));
     expect(commands.setTempoRange).toHaveBeenCalledWith(0, "percent6");
     fireEvent.click(screen.getByRole("button", { name: "KEY LOCK" }));
     expect(commands.setKeyLock).toHaveBeenCalledWith(0, true);
