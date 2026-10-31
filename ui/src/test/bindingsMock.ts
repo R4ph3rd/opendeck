@@ -180,6 +180,40 @@ export const midiStatus = () => ({
   verify_count: 165,
 });
 
+/** Pad state as the backend reports it at startup. */
+export const neutralPadState = () => ({
+  decks: [0, 1].map((deck) => ({
+    deck,
+    mode: "hot_cue",
+    jump_beats: [-1, 1, -2, 2, -4, 4, -8, 8],
+    loop_beats: [0.25, 0.5, 1, 2, 4, 8, 16, 32],
+    key_semitones: [4, 5, 6, 7, 0, 1, 2, 3],
+    keyboard_cue: null as number | null,
+    keyboard_semitones: [4, 5, 6, 7, 0, 1, 2, 3],
+  })),
+});
+
+/** Sampler with sixteen empty slots. */
+export const neutralSampler = () => ({
+  layout: "split",
+  level: 1,
+  pfl: false,
+  slots: Array.from({ length: 16 }, (_, slot) => ({
+    slot,
+    name: "",
+    path: null as string | null,
+    track: null as number | null,
+    color: slot % 8,
+    gain: 1,
+    play_mode: "one_shot",
+    sync: false,
+    loaded: false,
+    loading: false,
+    duration_secs: 0,
+    peaks: [] as number[],
+  })),
+});
+
 /**
  * Mock of the generated `ipc/bindings` module. Use inside `vi.mock` with
  * `vi.hoisted`:
@@ -331,6 +365,21 @@ export function createBindingsMock() {
       midiImportMapping: vi.fn(() => ok([])),
       browseSetContext: vi.fn(() => ok(null)),
       browseSelect: vi.fn(() => ok(null)),
+      setPadMode: vi.fn(() => ok(true)),
+      getPadState: vi.fn(() => ok(neutralPadState())),
+      padPress: vi.fn(() => ok(null)),
+      setKeyShift: vi.fn(() => ok(null)),
+      renameHotCue: vi.fn(() => ok(null)),
+      getSamplerState: vi.fn(() => ok(neutralSampler())),
+      samplerLoadTrack: vi.fn(() => ok(null)),
+      samplerLoadPath: vi.fn(() => ok(null)),
+      samplerClear: vi.fn(() => ok(null)),
+      samplerSetSlot: vi.fn(() => ok(null)),
+      samplerSetLayout: vi.fn(() => ok(null)),
+      samplerSetLevel: vi.fn(() => ok(null)),
+      samplerSetPfl: vi.fn(() => ok(null)),
+      samplerTrigger: vi.fn(() => ok(null)),
+      samplerStop: vi.fn(() => ok(null)),
     },
     events: {
       analysisReady: event("analysis-ready"),
@@ -351,6 +400,8 @@ export function createBindingsMock() {
       padModeChanged: event("pad-mode-changed"),
       mixerStateChanged: event("mixer-state-changed"),
       deckStateChanged: event("deck-state-changed"),
+      padStateChanged: event("pad-state-changed"),
+      samplerStateChanged: event("sampler-state-changed"),
     },
     /** Delivers `payload` to the listener registered for `name`. */
     emit(name: string, payload: unknown) {

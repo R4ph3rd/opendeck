@@ -6,6 +6,7 @@ import { useLibraryStore } from "./library";
 import { hydrateJobs, onImportProgress, refreshPlaylists } from "./libraryActions";
 import { hydrateFx, useFxStore } from "./fx";
 import { hydrateMixer, useMixerStore } from "./mixer";
+import { hydratePads, usePadStore } from "./pads";
 import { hydrateMidi, onLearned, useMidiStore } from "./midi";
 import { notifyError } from "./notify";
 import { telemetryStore } from "./telemetry";
@@ -80,6 +81,8 @@ export async function startEventBridge(): Promise<() => void> {
       ),
       await events.mixerStateChanged.listen((e) => useMixerStore.getState().apply(e.payload)),
       await events.deckStateChanged.listen((e) => useAppStore.getState().applyDeckState(e.payload)),
+      await events.padStateChanged.listen((e) => usePadStore.getState().setPad(e.payload)),
+      await events.samplerStateChanged.listen((e) => usePadStore.getState().setSampler(e.payload)),
     );
     // Subscribe first, then read: a change between the two is not lost.
     const status = await commands.getAudioStatus();
@@ -91,6 +94,7 @@ export async function startEventBridge(): Promise<() => void> {
       hydrateFx(),
       hydrateJobs(),
       hydrateMidi(),
+      hydratePads(),
       ...VISIBLE_DECKS.map((deck) => hydrateDeck(deck)),
     ]);
   } catch (error) {

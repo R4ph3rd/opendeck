@@ -42,7 +42,7 @@ impl Deck {
     fn leave_loop(&mut self) {
         self.loop_active = false;
         let jumped = self.end_slip(SLIP_LOOP);
-        if !jumped && self.key_lock && self.audible() && self.scratch.is_none() {
+        if !jumped && self.stretching() && self.audible() && self.scratch.is_none() {
             self.move_to(self.pos);
         }
     }
@@ -186,7 +186,7 @@ impl Deck {
         self.loop_stored = saved.stored;
         self.loop_active = saved.active;
         let jumped = self.end_slip(SLIP_ROLL);
-        if !jumped && self.key_lock && self.audible() && self.scratch.is_none() {
+        if !jumped && self.stretching() && self.audible() && self.scratch.is_none() {
             self.move_to(self.pos);
         }
     }

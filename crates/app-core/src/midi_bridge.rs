@@ -23,12 +23,10 @@
 //!   returned.
 
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 
 use opendeck_contracts::control::{
     ControlAction, ControlEvent, ControlValue, FeedbackTarget, FeedbackValue,
 };
-use opendeck_contracts::cue::HotCueIndex;
 use opendeck_contracts::deck::DeckState;
 use opendeck_contracts::ids::{FxUnit, TrackId};
 use opendeck_contracts::mixer::MixerState;
@@ -43,21 +41,12 @@ use crate::fx_types::{
     FxAssign, FxBpmSource, FxOp, FxSlotRef, FxStateDto, FxTarget, FxUnitRef, PADS_PER_LAYER,
 };
 use crate::midi_types::{BrowseContextDto, BrowseCursorDto, BrowseSourceDto, PadModeChanged};
+use crate::pads::{BEAT_LOOP_LENGTHS, PadActions, PadModes, pad_semitones};
 use crate::types::CoreEvent;
 use crate::{AudioController, LibraryService};
 
 /// Rows the browse cursor moves per encoder tick.
 pub const BROWSE_PAGE: u32 = 1;
-
-/// Pad index to auto loop length in BEAT LOOP mode (beats).
-/// Project choice: the message list gives the notes, not the lengths.
-/// TODO(verify): compare with the manual's pad legend on hardware.
-pub const BEAT_LOOP_LENGTHS: [f64; 8] = [0.25, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0];
-
-/// Pad index to beat jump distance in BEAT JUMP mode (beats, signed).
-/// Project choice: pads 1 to 4 jump back 1, 2, 4, 8 beats, pads 5 to 8 jump
-/// forward. TODO(verify): compare with the manual's pad legend on hardware.
-pub const BEAT_JUMP_DISTANCES: [f64; 8] = [-1.0, -2.0, -4.0, -8.0, 1.0, 2.0, 4.0, 8.0];
 
 /// Fast search distance of one SHIFT + jog revolution, in beats.
 /// Placeholder until the jog resolution is measured (open question Q02).
@@ -75,29 +64,6 @@ const METER_RANGE_DB: f32 = 36.0;
 
 /// The tempo fader soft takeover zone, in fader positions (`0..1`).
 const TAKEOVER_ZONE: f32 = 0.02;
-
-/// Pad modes of every deck, shared between the shell and the MIDI service.
-#[derive(Debug, Clone, Default)]
-pub struct PadModes(Arc<Mutex<[PadMode; MAX_DECKS]>>);
-
-impl PadModes {
-    fn lock(&self) -> std::sync::MutexGuard<'_, [PadMode; MAX_DECKS]> {
-        self.0.lock().unwrap_or_else(|e| e.into_inner())
-    }
-
-    /// Active mode of `deck`.
-    pub fn get(&self, deck: DeckId) -> PadMode {
-        self.lock()[deck.index()]
-    }
-
-    /// Sets the mode; true if it changed.
-    pub fn set(&self, deck: DeckId, mode: PadMode) -> bool {
-        let mut modes = self.lock();
-        let changed = modes[deck.index()] != mode;
-        modes[deck.index()] = mode;
-        changed
-    }
-}
 
 /// Something the shell should tell the UI about after a control event.
 #[derive(Debug, Clone, PartialEq)]
@@ -337,8 +303,7 @@ pub struct MidiBridge {
     ch_select: [bool; 2],
     takeover: [Takeover; MAX_DECKS],
     cue_held: [bool; MAX_DECKS],
-    /// Hot cue pads whose press triggered a cue (so the release stops it).
-    pad_triggered: [[bool; opendeck_contracts::HOT_CUES_PER_DECK]; MAX_DECKS],
+    pads: PadActions,
     taps: [Vec<u64>; MAX_DECKS],
     browse: BrowseCursor,
     view: View,
@@ -359,6 +324,7 @@ impl MidiBridge {
         pad_modes: PadModes,
     ) -> Self {
         Self {
+            pads: PadActions::new(audio.clone(), pad_modes.clone()),
             audio,
             library,
             pad_modes,
@@ -366,7 +332,6 @@ impl MidiBridge {
             ch_select: [true, false],
             takeover: [Takeover::default(); MAX_DECKS],
             cue_held: [false; MAX_DECKS],
-            pad_triggered: [[false; opendeck_contracts::HOT_CUES_PER_DECK]; MAX_DECKS],
             taps: std::array::from_fn(|_| Vec::new()),
             browse: BrowseCursor::default(),
             view: View::default(),
@@ -618,7 +583,7 @@ impl MidiBridge {
                 shifted,
             } if button => self.pad(deck, mode, index, shifted, pressed),
             ControlAction::HotCue { deck, index } if button => {
-                self.hot_cue_pad(deck, index.index() as u8, false, pressed);
+                self.pads.hot_cue(deck, index.index() as u8, false, pressed);
             }
             ControlAction::HotCueDelete { deck, index } if pressed => {
                 log("hot cue delete", audio.delete_hot_cue(deck, index));
@@ -912,57 +877,11 @@ impl MidiBridge {
     }
 
     fn pad(&mut self, deck: DeckId, mode: PadMode, index: u8, shifted: bool, pressed: bool) {
-        if mode != self.pad_modes.get(deck) || usize::from(index) >= PADS_PER_LAYER {
-            return;
-        }
-        match mode {
-            PadMode::HotCue => self.hot_cue_pad(deck, index, shifted, pressed),
-            PadMode::PadFx1 | PadMode::PadFx2 => {
-                let bank = u8::from(mode == PadMode::PadFx2);
-                let _ = self.audio.fx_pad(deck, bank, shifted, index, pressed);
-            }
-            PadMode::BeatJump if pressed && !shifted => {
-                let _ = self
-                    .audio
-                    .beat_jump(deck, Beats(BEAT_JUMP_DISTANCES[usize::from(index)]));
-            }
-            PadMode::BeatLoop if pressed && !shifted => {
-                let _ = self
-                    .audio
-                    .auto_loop(deck, Beats(BEAT_LOOP_LENGTHS[usize::from(index)]));
-            }
-            // TODO(M7): sampler, keyboard and key shift have no engine
-            // support yet; their presses are dropped.
-            _ => {}
-        }
-    }
-
-    fn hot_cue_pad(&mut self, deck: DeckId, index: u8, shifted: bool, pressed: bool) {
-        let Some(slot) = HotCueIndex::new(index) else {
-            return;
-        };
-        let triggered = &mut self.pad_triggered[deck.index()][usize::from(index)];
-        if shifted {
-            if pressed {
-                let _ = self.audio.delete_hot_cue(deck, slot);
-            }
-            return;
-        }
-        if pressed {
-            let set = self
-                .audio
-                .hot_cues(deck)
-                .is_ok_and(|c| c.slots.get(usize::from(index)).is_some_and(Option::is_some));
-            if set {
-                *triggered = true;
-                let _ = self.audio.trigger_hot_cue(deck, slot, true);
-            } else {
-                *triggered = false;
-                let _ = self.audio.set_hot_cue(deck, slot);
-            }
-        } else if std::mem::take(triggered) {
-            let _ = self.audio.trigger_hot_cue(deck, slot, false);
-        }
+        let browse = self
+            .library
+            .as_ref()
+            .and_then(|library| self.browse.selected(library));
+        self.pads.press(deck, mode, index, shifted, pressed, browse);
     }
 
     // ----- feedback -----
@@ -1037,7 +956,8 @@ impl MidiBridge {
                     light(mode == active),
                 );
                 for pad in 0..PADS_PER_LAYER as u8 {
-                    let on = mode == active && pad_lit(&self.view, deck, mode, pad, state);
+                    let on = mode == active
+                        && pad_lit(&self.view, &self.pad_modes, deck, mode, pad, state);
                     put(
                         FeedbackTarget::Pad {
                             deck,
@@ -1071,7 +991,14 @@ impl MidiBridge {
     }
 }
 
-fn pad_lit(view: &View, deck: DeckId, mode: PadMode, pad: u8, state: Option<&DeckState>) -> bool {
+fn pad_lit(
+    view: &View,
+    pads: &PadModes,
+    deck: DeckId,
+    mode: PadMode,
+    pad: u8,
+    state: Option<&DeckState>,
+) -> bool {
     let i = deck.index();
     match mode {
         PadMode::HotCue => view.hot_cues[i][usize::from(pad)],
@@ -1097,7 +1024,19 @@ fn pad_lit(view: &View, deck: DeckId, mode: PadMode, pad: u8, state: Option<&Dec
             let beats = (end.0.saturating_sub(region.start.0)) as f64 / frames_per_beat;
             (beats - BEAT_LOOP_LENGTHS[usize::from(pad)]).abs() < 0.02
         }
-        PadMode::Sampler | PadMode::Keyboard | PadMode::KeyShift => false,
+        PadMode::Sampler => pads
+            .sampler()
+            .slot_for_pad(deck, pad)
+            .is_some_and(|slot| pads.sampler().loaded_mask()[slot.index()]),
+        // Before a cue is chosen the pads show which cues exist; then every
+        // pad is a note.
+        PadMode::Keyboard => {
+            pads.keyboard_cue(deck).is_some() || view.hot_cues[i][usize::from(pad)]
+        }
+        // The pad whose pitch is the deck's current key shift.
+        PadMode::KeyShift => {
+            state.is_some_and(|s| pad_semitones(pad, pads.key_offset(deck)) == s.key_shift)
+        }
     }
 }
 
@@ -1180,5 +1119,18 @@ mod tests {
         assert!(modes.set(deck, PadMode::Sampler));
         assert_eq!(other.get(deck), PadMode::Sampler);
         assert!(!other.set(deck, PadMode::Sampler));
+    }
+
+    #[test]
+    fn keyboard_pads_show_cues_then_light_as_notes() {
+        let mut view = View::default();
+        view.hot_cues[0][2] = true;
+        let pads = PadModes::default();
+        let deck = DeckId::new(0).expect("deck");
+        let lit = |pads: &PadModes, pad| pad_lit(&view, pads, deck, PadMode::Keyboard, pad, None);
+        assert!(lit(&pads, 2));
+        assert!(!lit(&pads, 3));
+        pads.set_keyboard_cue(deck, Some(2));
+        assert!(lit(&pads, 3), "every pad is a note once a cue is chosen");
     }
 }

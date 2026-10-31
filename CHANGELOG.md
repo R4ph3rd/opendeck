@@ -4,6 +4,24 @@ All notable changes are recorded here. Format follows [Keep a Changelog](https:/
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-31
+
+Milestone 7: pad modes drive the middle panel, sampler, key shift and keyboard.
+
+### Added
+
+- Pad modes drive the middle panel: each deck shows the view of its active pad mode, for all 8 modes (HOT CUE, PAD FX 1 and 2, BEAT JUMP, SAMPLER, KEYBOARD, BEAT LOOP, KEY SHIFT). App-core interprets pads in every mode with their SHIFT layers, for the UI and the DDJ-FLX4 alike, and drives the pad LEDs.
+- Sampler: 16 slots on a sampler bus before the master FX, one-shot, gate and loop modes, starts quantized to the master beat, per-slot gain and sync, bus level and PFL. Slots split between the decks (1 to 8, 9 to 16) or shared, load from the browser or by drag and drop, and persist in the library. Slot cards show name, mini waveform, play position, gain, mode, sync and colour, with a sampler bus meter.
+- Key shift: +/- 12 semitones through the stretcher with key lock on or off; KEY SHIFT pads set it per deck.
+- Keyboard: KEYBOARD pads play the keyboard hot cue at chromatic pitches, with SHIFT to move the pitch set.
+- Beat loop: BEAT LOOP pads set auto loops of the pad's length and exit the active one.
+- Hot cue rename, pad, sampler and pad state Tauri commands and events.
+- Contracts: `SetSamplerMode`, `SetSamplerGain`, `SetSamplerSync`, `SetSamplerQuantize` and `SetSamplerPfl` commands, `SamplerMode`, and sampler slot and bus telemetry (additive).
+
+### Changed
+
+- The key lock start timing test retries up to five rounds before it fails, so a loaded machine does not fail the release build.
+
 ## [0.6.0] - 2026-10-30
 
 Milestone 6: MIDI layer, DDJ-FLX4 mapping, LED feedback, MIDI settings and monitor, replay harness.

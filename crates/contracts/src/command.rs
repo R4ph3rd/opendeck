@@ -18,6 +18,7 @@ use crate::cue::{FrameRegion, HotCueIndex};
 use crate::fx::ParamId;
 use crate::ids::{DeckId, FxSlotId, SamplerSlotId};
 use crate::mixer::{CrossfaderAssign, CrossfaderCurve, EqBand};
+use crate::sampler::SamplerMode;
 use crate::tempo::{SyncMode, TempoRange};
 use crate::units::{Beats, Frames, Gain};
 
@@ -377,6 +378,41 @@ pub enum EngineCommand {
     SetSamplerLevel {
         /// Linear gain.
         gain: Gain,
+    },
+    /// Play mode of a sampler slot (default `OneShot`). Changing it does not
+    /// interrupt a sound that is already playing.
+    SetSamplerMode {
+        /// Slot.
+        slot: SamplerSlotId,
+        /// New mode.
+        mode: SamplerMode,
+    },
+    /// Gain of one sampler slot (default unity), applied before the bus level.
+    SetSamplerGain {
+        /// Slot.
+        slot: SamplerSlotId,
+        /// Linear gain.
+        gain: Gain,
+    },
+    /// Follow the master tempo: the slot plays at `master BPM / sample BPM`
+    /// (varispeed, so pitch follows) when it has a sample BPM and a master
+    /// tempo exists. Default off.
+    SetSamplerSync {
+        /// Slot.
+        slot: SamplerSlotId,
+        /// `true` to follow the master tempo.
+        on: bool,
+    },
+    /// Quantize sampler starts to the next beat of the master deck (default
+    /// on; no effect without a playing deck with a beat grid).
+    SetSamplerQuantize {
+        /// `true` to wait for the next beat.
+        on: bool,
+    },
+    /// Send the sampler bus to the headphone cue bus (default off).
+    SetSamplerPfl {
+        /// `true` to monitor the sampler in the headphones.
+        on: bool,
     },
 }
 

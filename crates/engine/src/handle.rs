@@ -8,7 +8,9 @@ use opendeck_contracts::beatgrid::BeatGrid;
 use opendeck_contracts::fx::Effect;
 use opendeck_contracts::ids::FX_SLOTS_PER_UNIT;
 use opendeck_contracts::telemetry::{EngineEvent, EngineTelemetry};
-use opendeck_contracts::{DeckId, EngineCommand, Frames, FxSlotId, FxUnit, SampleRate};
+use opendeck_contracts::{
+    Bpm, DeckId, EngineCommand, Frames, FxSlotId, FxUnit, SampleRate, SamplerSlotId,
+};
 use rtrb::{Consumer, Producer, RingBuffer};
 
 use crate::audio::{CoreRings, EngineCore};
@@ -162,6 +164,35 @@ impl EngineHandle {
     /// the hand-off ring is full; retry on the next tick.
     pub fn set_beat_grid(&mut self, deck: DeckId, grid: Option<BeatGrid>) -> bool {
         self.handoff.push(Handoff::Grid { deck, grid }).is_ok()
+    }
+
+    /// Hands a decoded sample to the audio thread for sampler `slot`. Same
+    /// buffer type and rings as [`load_track`](Self::load_track): interleaved
+    /// stereo `f32` at the engine rate; a replaced sample comes back through
+    /// [`reclaim`](Self::reclaim). A sound playing in the slot is cut. Gain,
+    /// mode and sync of the slot stay.
+    ///
+    /// `bpm` is the tempo of the sample, needed for `SetSamplerSync`; a
+    /// non-finite or non-positive value counts as `None`.
+    ///
+    /// Returns the buffer when the hand-off ring is full so the caller can retry.
+    pub fn load_sampler(
+        &mut self,
+        slot: SamplerSlotId,
+        track: TrackBuffer,
+        bpm: Option<Bpm>,
+    ) -> Result<(), TrackBuffer> {
+        let backup = track.clone();
+        self.handoff
+            .push(Handoff::Sampler { slot, track, bpm })
+            .map_err(|_| backup)
+    }
+
+    /// Empties sampler `slot`; the old sample comes back through
+    /// [`reclaim`](Self::reclaim). Returns `false` when the hand-off ring is
+    /// full; retry on the next tick.
+    pub fn clear_sampler(&mut self, slot: SamplerSlotId) -> bool {
+        self.handoff.push(Handoff::SamplerClear { slot }).is_ok()
     }
 
     /// Installs `effect` into `slot`, replacing the effect there (a hard cut:

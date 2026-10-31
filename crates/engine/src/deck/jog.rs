@@ -113,7 +113,7 @@ impl Deck {
             self.begin_slip(SLIP_SCRATCH);
         }
         // Key lock cannot scratch: leave the stretcher for plain varispeed.
-        let hand_over = self.key_lock && self.audible();
+        let hand_over = self.stretching() && self.audible();
         if hand_over {
             self.start_tail();
         }
