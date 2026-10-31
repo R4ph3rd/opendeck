@@ -182,6 +182,22 @@ describe("sampler view", () => {
     expect(screen.queryByLabelText("Sampler slot 1")).toBeNull();
   });
 
+  it("shows the slot the engine plays and its position", () => {
+    act(() => usePadStore.getState().setSampler(loadedState() as never));
+    render(<PadModeView deck={0} mode="sampler" />);
+    expect(pad("Play slot 1").getAttribute("aria-pressed")).toBe("false");
+    expect(screen.queryByTestId("slot-0-position")).toBeNull();
+    const snapshot = telemetryFor(2, 0);
+    // The fixture shares its slot array between snapshots: copy before editing.
+    const slots = [...snapshot.sampler] as typeof snapshot.sampler;
+    slots[0] = { loaded: true, playing: true, progress: 0.5 };
+    snapshot.sampler = slots;
+    act(() => telemetryStore.getState().push(snapshot));
+    expect(pad("Play slot 1").getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByTestId("slot-0-position").style.left).toBe("50%");
+    expect(screen.getByLabelText("Deck 1 sampler level meter")).toBeTruthy();
+  });
+
   it("follows the shared layout", () => {
     act(() => usePadStore.getState().setSampler({ ...neutralSampler(), layout: "shared" } as never));
     render(<PadModeView deck={1} mode="sampler" />);

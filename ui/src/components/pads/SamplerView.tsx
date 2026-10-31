@@ -8,6 +8,7 @@ import {
 } from "@opendeck/design-system";
 import { X } from "lucide-react";
 import { useState, type DragEvent } from "react";
+import { useStore } from "zustand";
 import type { SamplerPlayMode, SamplerSlotDto } from "../../ipc/bindings";
 import { dragKind, readDrag } from "../../lib/dnd";
 import { PLAY_MODES, deckSlots, sampleLength } from "../../lib/pads";
@@ -23,8 +24,10 @@ import {
   samplerPfl,
   usePadStore,
 } from "../../state/pads";
+import { selectSamplerPlaying, selectSamplerProgress, telemetryStore } from "../../state/telemetry";
 import { cueToken } from "../../viz/colors";
 import { Knob } from "../Knob";
+import { LevelMeter } from "../LevelMeter";
 
 /** Largest slot gain (`SamplerSlotPatch.gain` range `0..=2`). */
 const MAX_GAIN = 2;
@@ -53,14 +56,23 @@ function SlotName({ slot }: { slot: SamplerSlotDto }) {
   );
 }
 
-/** Peak bars of the sample, or a flat bar while empty or decoding. */
+/** Peak bars of the sample, or a flat bar while empty or decoding, with the play position. */
 function MiniWave({ slot }: { slot: SamplerSlotDto }) {
+  const progress = useStore(telemetryStore, (s) => selectSamplerProgress(s, slot.slot));
+  const playing = useStore(telemetryStore, (s) => selectSamplerPlaying(s, slot.slot));
   return (
     <div
       role="img"
       aria-label={`Slot ${slot.slot + 1} ${slot.loaded ? sampleLength(slot.duration_secs ?? 0) : "empty"}`}
-      className="flex h-6 items-center gap-px"
+      className="relative flex h-6 items-center gap-px"
     >
+      {playing ? (
+        <span
+          data-testid={`slot-${slot.slot}-position`}
+          className="pointer-events-none absolute inset-y-0 w-px bg-fg"
+          style={{ left: `${progress * 100}%` }}
+        />
+      ) : null}
       {slot.peaks.length === 0 ? (
         <span className="h-px flex-1 bg-border" />
       ) : (
@@ -104,6 +116,7 @@ function SlotCard({ deck, slot, index }: { deck: number; slot: SamplerSlotDto; i
     }
   };
   const color = `var(--${cueToken(slot.color)})`;
+  const playing = useStore(telemetryStore, (s) => selectSamplerPlaying(s, slot.slot));
   return (
     <li
       aria-label={`Sampler slot ${slot.slot + 1}`}
@@ -119,13 +132,14 @@ function SlotCard({ deck, slot, index }: { deck: number; slot: SamplerSlotDto; i
         <button
           type="button"
           aria-label={`Play slot ${slot.slot + 1}`}
-          aria-pressed={slot.loaded}
+          aria-pressed={playing}
           disabled={!slot.loaded}
           style={slot.loaded ? { backgroundColor: color, color: "var(--cue-fg)" } : undefined}
           className={cn(
             "h-7 w-8 shrink-0 select-none rounded-md border border-border text-xs font-semibold tabular-nums",
             "disabled:opacity-50",
             !slot.loaded && "bg-surface-raised text-fg-muted",
+            playing && "ring-2 ring-fg ring-offset-1 ring-offset-bg-subtle",
           )}
           onPointerDown={(event) => {
             event.currentTarget.setPointerCapture?.(event.pointerId);
@@ -229,6 +243,9 @@ export function SamplerView({ deck }: { deck: number }) {
         >
           PFL
         </Toggle>
+        <div className="h-8 w-3">
+          <LevelMeter source="sampler" label={`Deck ${deck + 1} sampler level meter`} />
+        </div>
       </div>
       <ul aria-label={`Deck ${deck + 1} sampler slots`} className="grid grid-cols-1 gap-1 xl:grid-cols-2">
         {slots.map((n, i) => {

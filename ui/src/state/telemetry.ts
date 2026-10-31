@@ -77,3 +77,14 @@ export function selectLeader(state: TelemetryState): number | null {
 export function selectBpm(state: TelemetryState, deck: number): number | null {
   return state.telemetry?.decks[deck]?.bpm ?? null;
 }
+
+/** Sampler slot `slot` is sounding (a start waiting for its beat is not). */
+export function selectSamplerPlaying(state: TelemetryState, slot: number): boolean {
+  return state.telemetry?.sampler[slot]?.playing ?? false;
+}
+
+/** Position inside a playing sampler slot, `0..1` in steps of `1 / steps`; 0 when idle. */
+export function selectSamplerProgress(state: TelemetryState, slot: number, steps = 50): number {
+  const s = state.telemetry?.sampler[slot];
+  return s?.playing ? Math.floor((s.progress ?? 0) * steps) / steps : 0;
+}
