@@ -121,6 +121,12 @@ pub(crate) enum Msg {
         deck: DeckId,
         index: HotCueIndex,
     },
+    /// Renames a hot cue.
+    RenameHotCue {
+        deck: DeckId,
+        index: HotCueIndex,
+        name: String,
+    },
     /// Stores the playhead as a memory cue.
     AddMemoryCue {
         deck: DeckId,
@@ -427,6 +433,7 @@ impl Control {
                 let _ = reply.send(self.set_hot_cue(deck, index));
             }
             Msg::DeleteHotCue { deck, index } => self.delete_hot_cue(deck, index),
+            Msg::RenameHotCue { deck, index, name } => self.rename_hot_cue(deck, index, name),
             Msg::AddMemoryCue { deck, reply } => {
                 let _ = reply.send(self.add_memory_cue(deck));
             }
@@ -633,6 +640,22 @@ impl Control {
             self.publish_hot_cues(deck);
             self.cues_changed(deck);
         }
+    }
+
+    fn rename_hot_cue(&mut self, deck: DeckId, index: HotCueIndex, name: String) {
+        let Some(cue) = self.hot_cues[deck.index()][index.index()].as_mut() else {
+            return;
+        };
+        cue.name = name;
+        let cue = cue.clone();
+        if let Some((lib, _)) = self.cue_target(deck)
+            && cue.id.is_some()
+            && let Err(err) = lib.update_cue(&cue)
+        {
+            tracing::warn!(%err, "could not rename hot cue");
+        }
+        self.publish_hot_cues(deck);
+        self.cues_changed(deck);
     }
 
     /// Records a hot cue the engine set itself (pad press on an empty slot).

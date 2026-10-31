@@ -35,6 +35,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::AudioController;
 use crate::fx_types::PADS_PER_LAYER;
+use crate::midi_types::PadModeChanged;
 use crate::sampler::{SamplerService, SamplerStateDto};
 
 /// Pad index to auto loop length in BEAT LOOP mode (beats), manual p.64.
@@ -94,6 +95,9 @@ pub struct PadStateDto {
 /// Something the shell forwards to the UI.
 #[derive(Debug, Clone, PartialEq)]
 pub enum PadEvent {
+    /// The mode of a deck was changed from the UI (the controller's own mode
+    /// buttons are reported by the MIDI service).
+    Mode(PadModeChanged),
     /// Beat jump, pitch or keyboard cue changed.
     State(PadStateDto),
     /// The sampler changed.
@@ -180,6 +184,17 @@ impl PadModes {
         };
         if forgot {
             self.publish();
+        }
+        changed
+    }
+
+    /// Like [`set`](Self::set), and tells subscribers when the mode changed.
+    /// For changes that start in the UI.
+    pub fn select(&self, deck: DeckId, mode: PadMode) -> bool {
+        let changed = self.set(deck, mode);
+        if changed {
+            self.notifier
+                .send(PadEvent::Mode(PadModeChanged { deck, mode }));
         }
         changed
     }
@@ -988,6 +1003,22 @@ mod tests {
         assert!(!b.set(deck(0), PadMode::Sampler));
         assert_eq!(b.get(deck(1)), PadMode::HotCue);
         assert_eq!(b.state().decks[0].mode, PadMode::Sampler);
+    }
+
+    #[test]
+    fn select_announces_only_real_changes() {
+        let pads = PadModes::default();
+        let rx = pads.subscribe();
+        assert!(pads.select(deck(0), PadMode::KeyShift));
+        assert!(!pads.select(deck(0), PadMode::KeyShift));
+        assert_eq!(
+            rx.try_recv().expect("event"),
+            PadEvent::Mode(PadModeChanged {
+                deck: deck(0),
+                mode: PadMode::KeyShift
+            })
+        );
+        assert!(rx.try_recv().is_err());
     }
 
     #[test]

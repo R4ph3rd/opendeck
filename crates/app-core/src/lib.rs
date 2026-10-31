@@ -360,6 +360,16 @@ impl AudioController {
         self.post(Msg::DeleteHotCue { deck, index })
     }
 
+    /// Renames a hot cue (stored with the track).
+    pub fn rename_hot_cue(
+        &self,
+        deck: DeckId,
+        index: HotCueIndex,
+        name: String,
+    ) -> Result<(), CoreError> {
+        self.post(Msg::RenameHotCue { deck, index, name })
+    }
+
     /// The deck's hot cue slots.
     pub fn hot_cues(&self, deck: DeckId) -> Result<HotCues, CoreError> {
         self.ask(|reply| Msg::GetHotCues(deck, reply))
@@ -786,7 +796,7 @@ impl AppCore {
     /// Returns true if it changed, so the caller emits a change event and LED
     /// feedback only when needed.
     pub fn set_pad_mode(&mut self, deck: DeckId, mode: PadMode) -> bool {
-        self.pad_modes.set(deck, mode)
+        self.pad_modes.select(deck, mode)
     }
 
     /// Control state of `deck`, with the pad mode this core owns.
