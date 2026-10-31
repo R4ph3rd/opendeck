@@ -33,9 +33,13 @@ mod tests_fx;
 #[cfg(all(test, target_os = "linux", target_env = "gnu"))]
 mod tests_heap;
 #[cfg(test)]
+mod tests_keyshift;
+#[cfg(test)]
 mod tests_mixer;
 #[cfg(test)]
 mod tests_playback;
+#[cfg(test)]
+mod tests_sampler;
 #[cfg(test)]
 mod tests_support;
 
