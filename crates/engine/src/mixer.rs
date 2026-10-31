@@ -8,6 +8,7 @@
 //! # Signal flow
 //!
 //! ```text
+//! sampler bus -> master bus (and cue bus with sampler PFL), before the master FX
 //! deck -> trim -> EQ -> filter -> FX insert -+-> (PFL on) cue bus
 //!                                            '-> channel fader -> meter -> crossfader side -> master bus
 //! master bus -> master level -> master out (and its meter)
@@ -452,6 +453,19 @@ impl Mixer {
         strip.post_fx(buf, master, cue, tap);
         if tapped {
             fx.send_post(index, frames);
+        }
+    }
+
+    /// Adds the sampler bus to `master` and, with `pfl`, to the cue bus.
+    /// Call after the decks and sends, before the master FX.
+    pub(crate) fn add_sampler(&mut self, bus: &[f32], master: &mut [f32], pfl: bool) {
+        for (m, s) in master.iter_mut().zip(bus) {
+            *m += *s;
+        }
+        if pfl && let Some(cue) = self.cue_bus.get_mut(..bus.len()) {
+            for (c, s) in cue.iter_mut().zip(bus) {
+                *c += *s;
+            }
         }
     }
 

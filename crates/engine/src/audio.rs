@@ -6,13 +6,14 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Instant;
 
 use opendeck_contracts::telemetry::{EngineEvent, EngineTelemetry};
-use opendeck_contracts::{DeckId, EngineCommand, FxSlotId, FxUnit, MAX_DECKS};
+use opendeck_contracts::{DeckId, EngineCommand, FxSlotId, FxUnit, MAX_DECKS, SamplerSlotId};
 use rtrb::{Consumer, Producer};
 
 use crate::EngineConfig;
 use crate::deck::{Deck, DeckStatus, EventSink};
 use crate::fx::{FxHandoff, FxHost, FxSlotStatus, FxUnitStatus, FxView, SlotRt};
 use crate::mixer::Mixer;
+use crate::sampler::{Sampler, SamplerSlotStatus};
 use crate::sync::SyncState;
 use crate::track::{Handoff, TrackBuffer};
 
@@ -34,6 +35,7 @@ pub struct EngineCore {
     config: EngineConfig,
     decks: Vec<Deck>,
     mixer: Mixer,
+    sampler: Sampler,
     sync: SyncState,
     fx: FxHost,
     fx_handoff: Consumer<FxHandoff>,
@@ -81,6 +83,7 @@ impl EngineCore {
             config,
             decks,
             mixer: Mixer::new(config.sample_rate.as_f64(), max_block),
+            sampler: Sampler::new(config.sample_rate, max_block, config.interpolation),
             sync: SyncState::new(config.sample_rate.as_f64()),
             fx: FxHost::new(config.sample_rate, max_block),
             fx_handoff: rings.fx_handoff,
@@ -115,6 +118,12 @@ impl EngineCore {
     /// the control thread uses telemetry instead.
     pub fn deck_status(&self, deck: DeckId) -> Option<DeckStatus> {
         self.decks.get(deck.index()).map(Deck::status)
+    }
+
+    /// State of one sampler slot as of the last rendered block. Same-thread
+    /// read for offline tools and tests.
+    pub fn sampler_status(&self, slot: SamplerSlotId) -> SamplerSlotStatus {
+        self.sampler.status(slot)
     }
 
     /// State of one FX slot as of the last rendered block. Same-thread read
@@ -210,6 +219,11 @@ impl EngineCore {
             self.mixer.process_deck(index, buf, out, &mut self.fx);
         }
         self.fx.process_sends(out);
+        self.sampler.render(frames, &master_view);
+        if self.sampler.is_active() {
+            let (pfl, bus) = (self.sampler.pfl(), self.sampler.bus(frames));
+            self.mixer.add_sampler(bus, out, pfl);
+        }
         self.fx.process_master(out);
         self.mixer.finish(out, headphones);
 
@@ -228,6 +242,7 @@ impl EngineCore {
             engine_time: opendeck_contracts::Frames(self.engine_time),
             sample_rate: self.config.sample_rate,
             master: self.mixer.master_meter.take(),
+            sampler_meter: self.sampler.take_meter(),
             headphones: self.mixer.headphone_meter.take(),
             leader: self.sync.leader(),
             dsp_load: self.dsp_load,
@@ -242,6 +257,7 @@ impl EngineCore {
             slot.meter = self.mixer.take_channel_meter(index);
         }
         self.fx.fill_telemetry(&mut snapshot);
+        self.sampler.fill_telemetry(&mut snapshot);
         // A full ring means the reader is behind; the next snapshot is complete anyway.
         if self.telemetry.push(snapshot).is_ok() {
             self.sequence = self.sequence.wrapping_add(1);
@@ -345,6 +361,16 @@ impl EngineCore {
                         target.set_grid(grid);
                     }
                 }
+                Ok(Handoff::Sampler { slot, track, bpm }) => {
+                    if let Some(old) = self.sampler.load(slot, track, bpm) {
+                        self.return_buffer(old);
+                    }
+                }
+                Ok(Handoff::SamplerClear { slot }) => {
+                    if let Some(old) = self.sampler.clear(slot) {
+                        self.return_buffer(old);
+                    }
+                }
                 Err(_) => return,
             }
         }
@@ -358,7 +384,7 @@ impl EngineCore {
 
     fn apply(&mut self, command: EngineCommand) {
         use EngineCommand as C;
-        if self.mixer.apply(command) || self.fx.apply(command) {
+        if self.mixer.apply(command) || self.fx.apply(command) || self.sampler.apply(command) {
             return;
         }
         if let C::SetLeader { deck } = command {
@@ -378,7 +404,6 @@ impl EngineCore {
             return;
         }
         let Some(index) = deck_of(&command) else {
-            // TODO(M7): sampler, key shift.
             return;
         };
         let Some(d) = self.decks.get_mut(index) else {
@@ -393,6 +418,7 @@ impl EngineCore {
             C::SetTempoFader { position, .. } => d.set_tempo_fader(position),
             C::SetTempoRange { range, .. } => d.set_tempo_range(range),
             C::SetKeyLock { on, .. } => d.set_key_lock(on),
+            C::SetKeyShift { semitones, .. } => d.set_key_shift(semitones),
             C::PitchBend { amount, .. } => d.set_pitch_bend(amount),
             C::SetSync { mode, .. } => d.set_sync_mode(mode),
             C::JogTouch { touched, .. } => d.jog_touch(touched),
@@ -427,6 +453,7 @@ fn deck_of(command: &EngineCommand) -> Option<usize> {
         | C::SetTempoFader { deck, .. }
         | C::SetTempoRange { deck, .. }
         | C::SetKeyLock { deck, .. }
+        | C::SetKeyShift { deck, .. }
         | C::PitchBend { deck, .. }
         | C::SetSync { deck, .. }
         | C::JogTouch { deck, .. }

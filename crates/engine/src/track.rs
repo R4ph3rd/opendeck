@@ -9,7 +9,7 @@
 use std::sync::Arc;
 
 use opendeck_contracts::beatgrid::BeatGrid;
-use opendeck_contracts::{DeckId, Frames};
+use opendeck_contracts::{Bpm, DeckId, Frames, SamplerSlotId};
 
 /// Why a [`TrackBuffer`] could not be built.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
@@ -81,6 +81,15 @@ pub(crate) enum Handoff {
         deck: DeckId,
         grid: Option<BeatGrid>,
     },
+    /// Load `track` into sampler `slot`.
+    Sampler {
+        slot: SamplerSlotId,
+        track: TrackBuffer,
+        /// Tempo of the sample, for sampler sync.
+        bpm: Option<Bpm>,
+    },
+    /// Empty sampler `slot`.
+    SamplerClear { slot: SamplerSlotId },
 }
 
 #[cfg(test)]

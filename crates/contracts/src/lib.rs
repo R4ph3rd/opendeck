@@ -32,6 +32,7 @@ pub mod key;
 pub mod mixer;
 pub mod pad;
 pub mod peaks;
+pub mod sampler;
 pub mod settings;
 pub mod telemetry;
 pub mod tempo;

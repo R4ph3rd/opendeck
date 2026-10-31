@@ -444,3 +444,193 @@ fn fx_host_makes_no_heap_calls() {
     );
     assert_eq!(heap_calls, 0, "{heap_calls} heap calls in {blocks} blocks");
 }
+
+/// Key shift on every path: key lock on and off, shifts across the range,
+/// tempo moves, hot cue jumps and starts while shifted. The stretcher runs
+/// its peak finder here, so this is the guard the `deck` module docs name.
+#[test]
+fn key_shift_makes_no_heap_calls() {
+    use opendeck_contracts::cue::{FrameRegion, HotCueIndex};
+
+    let config = EngineConfig {
+        sample_rate: SampleRate(SR),
+        max_block_frames: 512,
+        deck_count: 2,
+        interpolation: Interpolation::Cubic,
+    };
+    let mut r = OfflineRenderer::new(config)
+        .expect("valid config")
+        .with_block_frames(333);
+    for d in 0..2u8 {
+        let track = TrackBuffer::from_vec(noise(SR as usize * 12)).expect("track");
+        r.handle()
+            .load_track(DeckId::new(d).expect("deck"), track, None)
+            .expect("hand-off ring has room");
+    }
+    let pad = HotCueIndex::new(0).expect("pad");
+    r.render_into(&mut vec![0.0; 1024]);
+    for d in 0..2u8 {
+        let deck = DeckId::new(d).expect("deck");
+        r.handle()
+            .send(EngineCommand::SetHotCue {
+                deck,
+                index: pad,
+                cue: Some(FrameRegion {
+                    start: Frames(SR as u64),
+                    end: None,
+                }),
+            })
+            .expect("ring");
+        r.handle()
+            .send(EngineCommand::SetPlaying {
+                deck,
+                playing: true,
+            })
+            .expect("ring");
+    }
+    let mut seed = 0xBADC_0DE1_u32;
+    let mut next = move || {
+        seed ^= seed << 13;
+        seed ^= seed >> 17;
+        seed ^= seed << 5;
+        seed
+    };
+    let mut buf = vec![0.0; 333 * 2];
+    let mut heap_calls = 0;
+    let mut audible = 0;
+    for _ in 0..600 {
+        let deck = DeckId::new((next() % 2) as u8).expect("deck");
+        let command = match next() % 7 {
+            0..=2 => EngineCommand::SetKeyShift {
+                deck,
+                semitones: (next() % 31) as i8 - 15,
+            },
+            3 => EngineCommand::SetKeyLock {
+                deck,
+                on: next() % 2 == 0,
+            },
+            4 => EngineCommand::SetTempoFader {
+                deck,
+                position: (next() % 2001) as f32 / 1000.0 - 1.0,
+            },
+            5 => EngineCommand::HotCue {
+                deck,
+                index: pad,
+                pressed: next() % 2 == 0,
+            },
+            _ => EngineCommand::SetPlaying {
+                deck,
+                playing: next() % 4 != 0,
+            },
+        };
+        r.handle().send(command).expect("ring");
+        let (_, calls) = count_heap_calls(|| r.render_into(&mut buf));
+        heap_calls += calls;
+        audible += usize::from(buf.iter().any(|s| s.abs() > 0.01));
+        r.handle().poll_telemetry();
+    }
+    assert!(audible > 300, "only {audible} of 600 blocks played");
+    assert_eq!(heap_calls, 0, "{heap_calls} heap calls");
+}
+
+/// The sampler on every path: triggers in every mode, stops, gain, sync,
+/// quantize, PFL, sample swaps and clears (the callback side of the
+/// hand-off), against a playing master deck.
+#[test]
+fn sampler_makes_no_heap_calls() {
+    use opendeck_contracts::sampler::SamplerMode;
+    use opendeck_contracts::{Bpm, Gain, SamplerSlotId};
+
+    let config = EngineConfig {
+        sample_rate: SampleRate(SR),
+        max_block_frames: 512,
+        deck_count: 2,
+        interpolation: Interpolation::Cubic,
+    };
+    let mut r = OfflineRenderer::new(config)
+        .expect("valid config")
+        .with_block_frames(333);
+    let (track, grid) = crate::tests_support::click_track(120.0, 30.0);
+    r.handle()
+        .load_track_with_grid(deck0(), track, None, Some(grid))
+        .expect("ring");
+    r.handle()
+        .send(EngineCommand::SetPlaying {
+            deck: deck0(),
+            playing: true,
+        })
+        .expect("ring");
+    let slot = |i: u32| SamplerSlotId::new((i % 16) as u8).expect("slot");
+    for i in 0..16 {
+        let sample = TrackBuffer::from_vec(noise(SR as usize / 4 + 1000 * i as usize)).expect("s");
+        r.handle()
+            .load_sampler(slot(i), sample, Some(Bpm(90.0 + f64::from(i))))
+            .expect("ring");
+        r.render_into(&mut vec![0.0; 1024]);
+    }
+    let mut seed = 0x5EED_5EED_u32;
+    let mut next = move || {
+        seed ^= seed << 13;
+        seed ^= seed >> 17;
+        seed ^= seed << 5;
+        seed
+    };
+    let mut buf = vec![0.0; 333 * 2];
+    let mut heap_calls = 0;
+    let mut audible = 0;
+    for _ in 0..800 {
+        let s = slot(next());
+        let command = match next() % 12 {
+            0..=3 => EngineCommand::SamplerTrigger {
+                slot: s,
+                pressed: next() % 3 != 0,
+            },
+            4 => EngineCommand::SamplerStop { slot: s },
+            5 => EngineCommand::SetSamplerMode {
+                slot: s,
+                mode: [SamplerMode::OneShot, SamplerMode::Gate, SamplerMode::Loop]
+                    [(next() % 3) as usize],
+            },
+            6 => EngineCommand::SetSamplerGain {
+                slot: s,
+                gain: Gain((next() % 1501) as f32 / 1000.0),
+            },
+            7 => EngineCommand::SetSamplerSync {
+                slot: s,
+                on: next() % 2 == 0,
+            },
+            8 => EngineCommand::SetSamplerQuantize {
+                on: next() % 2 == 0,
+            },
+            9 => EngineCommand::SetSamplerPfl {
+                on: next() % 2 == 0,
+            },
+            10 => EngineCommand::SetSamplerLevel {
+                gain: Gain((next() % 1201) as f32 / 1000.0),
+            },
+            _ => EngineCommand::SetTempoFader {
+                deck: deck0(),
+                position: (next() % 2001) as f32 / 1000.0 - 1.0,
+            },
+        };
+        r.handle().send(command).expect("ring");
+        match next() % 10 {
+            0 => {
+                let sample = TrackBuffer::from_vec(noise(2000 + (next() % 20_000) as usize))
+                    .expect("sample");
+                let _ = r.handle().load_sampler(s, sample, Some(Bpm(100.0)));
+            }
+            1 => {
+                let _ = r.handle().clear_sampler(s);
+            }
+            _ => {}
+        }
+        let (_, calls) = count_heap_calls(|| r.render_into(&mut buf));
+        heap_calls += calls;
+        audible += usize::from(buf.iter().any(|s| s.abs() > 0.01));
+        r.handle().reclaim();
+        r.handle().poll_telemetry();
+    }
+    assert!(audible > 400, "only {audible} of 800 blocks played");
+    assert_eq!(heap_calls, 0, "{heap_calls} heap calls");
+}

@@ -112,7 +112,7 @@ impl Deck {
             return;
         }
         self.pos = (self.pos + delta).clamp(0.0, self.len_frames());
-        if self.key_lock && self.audible() && self.scratch.is_none() {
+        if self.stretching() && self.audible() && self.scratch.is_none() {
             self.begin_priming();
         }
     }

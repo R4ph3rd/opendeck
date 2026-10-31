@@ -14,7 +14,8 @@
 
 use crate::MAX_DECKS;
 use crate::cue::{FrameRegion, HotCueIndex};
-use crate::ids::{DeckId, FX_SEND_BUSES};
+use crate::ids::{DeckId, FX_SEND_BUSES, SAMPLER_SLOTS};
+use crate::sampler::SamplerSlotTelemetry;
 use crate::tempo::SyncMode;
 use crate::units::{Bpm, Frames, SampleRate};
 
@@ -110,6 +111,10 @@ pub struct EngineTelemetry {
     pub fx_master: FxUnitTelemetry,
     /// Send FX units, indexed by bus.
     pub fx_sends: [FxUnitTelemetry; FX_SEND_BUSES],
+    /// Sampler slots, indexed by [`SamplerSlotId::index`](crate::ids::SamplerSlotId::index).
+    pub sampler: [SamplerSlotTelemetry; SAMPLER_SLOTS],
+    /// Sampler bus level (after slot gains and the sampler level).
+    pub sampler_meter: StereoMeter,
     /// Current sync leader. See `EngineCommand::SetLeader` for the election.
     pub leader: Option<DeckId>,
     /// Callback time divided by block duration, smoothed, `0..` (1.0 = overrun).
@@ -175,6 +180,7 @@ mod tests {
         assert_eq!(t.decks.len(), MAX_DECKS);
         assert_eq!(t.fx_decks.len(), MAX_DECKS);
         assert_eq!(t.fx_sends.len(), FX_SEND_BUSES);
+        assert_eq!(t.sampler.len(), SAMPLER_SLOTS);
         assert_eq!(t.sample_rate, SampleRate(48_000));
     }
 }

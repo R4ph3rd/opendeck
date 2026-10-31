@@ -37,8 +37,20 @@
 //! scratch vectors are sized in `configure`; `process`, `seek` and `reset`
 //! stay inside that capacity. Its peak list is reserved at `bands / 2`, enough
 //! because `bands` is always even (see `tests_heap`); that list is only used
-//! when transposing, which this deck never does. Key shift (M7) must keep
-//! `tests_heap::transposed_stretcher_makes_no_heap_calls` green.
+//! when transposing, which key shift does. `tests_heap::key_shift_makes_no_heap_calls`
+//! and `transposed_stretcher_makes_no_heap_calls` guard it.
+//!
+//! # Key shift
+//!
+//! `SetKeyShift` (semitones, clamped to +/- [`MAX_KEY_SHIFT`]) sends the deck
+//! through the stretcher with a transpose factor of `2^(shift / 12)`, whether
+//! key lock is on or not. With key lock off the factor is also multiplied by
+//! the playback rate, so pitch still follows tempo as in varispeed. Changing
+//! the shift while playing only moves the factor (the stretcher glides to it);
+//! crossing zero with key lock off switches between varispeed and the
+//! stretcher with the usual jump tail. The 30 ms warm-up of a start or jump
+//! (see Key lock start) is varispeed, so the first 30 ms after a start or a
+//! cue jump are not shifted. Scratching bypasses the stretcher and the shift.
 //!
 //! # Click-free jumps
 //!
@@ -86,6 +98,9 @@ mod loops;
 mod sync;
 
 pub use sync::SyncStatus;
+
+/// Largest key shift in semitones, either way.
+pub const MAX_KEY_SHIFT: i8 = 12;
 
 /// Largest playback rate the deck renders, as a ratio of original speed.
 pub const MAX_RATE: f64 = 4.0;
@@ -282,6 +297,11 @@ pub(crate) struct Deck {
     fader: f32,
     range: TempoRange,
     key_lock: bool,
+    /// Key shift in semitones, `-MAX_KEY_SHIFT..=MAX_KEY_SHIFT`. Non-zero
+    /// routes the deck through the stretcher even with key lock off.
+    key_shift: i8,
+    /// Transpose factor last given to the stretcher.
+    transpose: f32,
     bend: f32,
     /// Rate used for the last rendered frame; ramps to the target per block.
     rate_cur: f64,
@@ -367,6 +387,8 @@ impl Deck {
             fader: 0.0,
             range: TempoRange::default(),
             key_lock: false,
+            key_shift: 0,
+            transpose: 1.0,
             bend: 0.0,
             rate_cur: 1.0,
             interpolation,
@@ -411,6 +433,22 @@ impl Deck {
 
     fn len_frames(&self) -> f64 {
         self.track.as_ref().map_or(0.0, |t| t.frames() as f64)
+    }
+
+    /// The stretcher renders this deck: key lock or a key shift is on.
+    pub(crate) fn stretching(&self) -> bool {
+        self.key_lock || self.key_shift != 0
+    }
+
+    /// Gives the stretcher the pitch factor for playback at `rate`: the key
+    /// shift, times the rate when key lock is off (pitch follows tempo).
+    fn apply_transpose(&mut self, rate: f64) {
+        let shift = 2.0_f64.powf(f64::from(self.key_shift) / 12.0);
+        let factor = if self.key_lock { shift } else { shift * rate } as f32;
+        if factor.is_finite() && factor > 0.0 && factor != self.transpose {
+            self.transpose = factor;
+            self.stretch.set_transpose_factor(factor, None);
+        }
     }
 
     fn audible(&self) -> bool {
@@ -612,6 +650,27 @@ impl Deck {
         }
     }
 
+    /// Key shift in semitones, clamped to `+/- MAX_KEY_SHIFT`. Works with key
+    /// lock on (pitch moves, tempo stays) and off (pitch is the shift plus the
+    /// tempo change). Moving between zero and non-zero with key lock off
+    /// switches between varispeed and the stretcher, with the usual jump tail.
+    pub(crate) fn set_key_shift(&mut self, semitones: i8) {
+        let semitones = semitones.clamp(-MAX_KEY_SHIFT, MAX_KEY_SHIFT);
+        if semitones == self.key_shift {
+            return;
+        }
+        let was_stretching = self.stretching();
+        let was_audible = self.audible();
+        let switches = was_stretching != (self.key_lock || semitones != 0);
+        if was_audible && switches {
+            self.start_tail();
+        }
+        self.key_shift = semitones;
+        if was_audible && switches {
+            self.begin_audible();
+        }
+    }
+
     pub(crate) fn set_quantize(&mut self, on: bool) {
         self.quantize = on;
     }
@@ -666,7 +725,7 @@ impl Deck {
         self.rate_cur = self.target_rate();
         self.fade_in_left = self.declick;
         self.priming = None;
-        if self.key_lock && self.scratch.is_none() {
+        if self.stretching() && self.scratch.is_none() {
             self.begin_priming();
         }
     }
@@ -754,6 +813,7 @@ impl Deck {
     /// output. Advances `self.head`.
     fn stretch_discard(&mut self, data: &[f32], work: usize, rate: f64) {
         let input_loop = self.input_loop();
+        self.apply_transpose(rate);
         let mut remaining = work;
         while remaining > 0 {
             let n = remaining.min(PRIME_CHUNK);
@@ -776,6 +836,7 @@ impl Deck {
     /// `self.head`. Does not touch `self.pos`.
     fn stretch_live(&mut self, data: &[f32], out: &mut [f32], n: usize, rate: f64) {
         let input_loop = self.input_loop();
+        self.apply_transpose(rate);
         let i0 = self.head.floor();
         let next = self.head + n as f64 * rate;
         let count = (next.floor() - i0) as usize;
@@ -948,7 +1009,7 @@ impl Deck {
         plan: Option<Plan>,
     ) -> Rendered {
         let scratching = self.scratch.is_some();
-        if !self.key_lock || scratching {
+        if !self.stretching() || scratching {
             let stop = plan.map(|p| p.at);
             let opts = Varispeed {
                 stop_at: stop,
@@ -1244,7 +1305,7 @@ fn fill_input(data: &[f32], start: i64, dst: &mut [f32], input_loop: Option<Inpu
 }
 
 #[inline]
-fn frame_at(data: &[f32], index: i64) -> (f32, f32) {
+pub(crate) fn frame_at(data: &[f32], index: i64) -> (f32, f32) {
     if index < 0 {
         return (0.0, 0.0);
     }
@@ -1257,7 +1318,7 @@ fn frame_at(data: &[f32], index: i64) -> (f32, f32) {
 
 /// Reads a stereo frame at fractional position `pos`.
 #[inline]
-fn interpolate(data: &[f32], pos: f64, mode: Interpolation) -> (f32, f32) {
+pub(crate) fn interpolate(data: &[f32], pos: f64, mode: Interpolation) -> (f32, f32) {
     let base = pos.floor();
     let t = (pos - base) as f32;
     let i = base as i64;
@@ -1280,7 +1341,7 @@ fn interpolate(data: &[f32], pos: f64, mode: Interpolation) -> (f32, f32) {
 }
 
 #[inline]
-fn catmull_rom(p0: f32, p1: f32, p2: f32, p3: f32, t: f32) -> f32 {
+pub(crate) fn catmull_rom(p0: f32, p1: f32, p2: f32, p3: f32, t: f32) -> f32 {
     let a = -p0 + 3.0 * p1 - 3.0 * p2 + p3;
     let b = 2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3;
     let c = p2 - p0;

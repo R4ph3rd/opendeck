@@ -1,10 +1,20 @@
-import type { AudioStatus, DeckTelemetry, EngineTelemetry, TrackInfo } from "../ipc/bindings";
+import type {
+  AudioStatus,
+  DeckTelemetry,
+  EngineTelemetry,
+  SamplerSlotTelemetry,
+  TrackInfo,
+} from "../ipc/bindings";
 
 export const RATE = 48_000;
 
 const meter = { peak_l: 0, peak_r: 0, rms_l: 0, rms_r: 0 };
 
 const fxUnit = { enabled: false, active: false, level: 0 };
+
+const samplerSlot: SamplerSlotTelemetry = { loaded: false, playing: false, progress: 0 };
+
+const samplerSlots = Array.from({ length: 16 }, () => samplerSlot) as EngineTelemetry["sampler"];
 
 export function deckTelemetry(patch: Partial<DeckTelemetry> = {}): DeckTelemetry {
   return {
@@ -38,6 +48,8 @@ export function telemetry(sequence: number, deckA: Partial<DeckTelemetry> = {}):
     fx_decks: [fxUnit, fxUnit, fxUnit, fxUnit],
     fx_master: fxUnit,
     fx_sends: [fxUnit, fxUnit],
+    sampler: samplerSlots,
+    sampler_meter: meter,
     leader: null,
     dsp_load: 0,
     xruns: 0,
