@@ -121,6 +121,9 @@ KEYBOARD and KEY SHIFT
 - [ ] Round-trip latency measured and recorded per device.
 - [ ] First-run flow on a clean user profile.
 - [ ] Installer upgrade keeps the library.
+- [ ] Windows MSI: installing v0.8.0 over v0.7.0 replaces it (one OpenDeck entry in Apps, same upgrade code, `docs/RELEASING.md`).
+- [ ] Test tone: in Settings, Audio, and in the first-run guide, each Test button sounds only on its pair (master, headphones, booth) while the engine runs and a track plays. A changed routing is applied before the tone.
+- [ ] Library BPM range: set 60 to 140, re-analyse a 150 BPM track; it shows 75. Reset to 70 to 180.
 
 ### M8 audio routing, inputs and robustness
 

@@ -14,7 +14,8 @@ The `M` column follows the milestone table in `docs/STATUS.md`: M1 engine with o
 | `list_audio_hosts` **done** | | `Vec<AudioHostInfo>` (cpal hosts the settings enum models) | 1 |
 | `list_audio_devices` **done** | `host: Option<AudioHostKind>` (`None` = platform default) | `Vec<AudioDeviceInfo>` *shell* (name, channels, rate ranges, buffer range) | 1 |
 | `get_audio_settings` **done** | | `AudioSettings` | 1 |
-| `get_audio_status` **done** | | `AudioStatus` *shell* (running, device, rate, buffer, latency, routing, error) | 1 |
+| `get_audio_status` **done** | | `AudioStatus` *shell* (running, device, rate, buffer, measured or estimated latency, master, headphone and booth pairs with mono flags, stereo fallback, input device, input latency and error, xruns, reconnecting, error) | 1, 8 |
+| `list_audio_input_devices` **done** | `host: Option<AudioHostKind>` | `Vec<AudioDeviceInfo>` (mic and aux pickers) | 8 |
 | `supported_audio_extensions` **done** | | `Vec<String>` (decoder extensions, for the file picker) | 1 |
 | `set_audio_settings` **done** | `settings: AudioSettings` | `AudioStatus`; restarts the stream, reloads loaded tracks at the new rate, persists to the library's `settings` table (key `app.settings`); a `settings.json` from an older install is migrated on the first start | 1 |
 | `get_setting` | `key: String` | `Option<serde_json::Value>` | 8 |
@@ -195,7 +196,13 @@ The FX model sits on the engine FX units (ADR 0006): two FLX4-style Beat FX unit
 | `get_diagnostics` **done** | none | `DiagnosticsDto` (version, OS, devices, paths, recent errors, text) | 8 |
 | `open_logs_folder` **done** | none | `()` | 8 |
 | `get_startup_notices` **done** | none | `Vec<String>` (for example a replaced database) | 8 |
-| `play_test_tone` **done** | `host`, `device`, `pair: ChannelPair` | `()` (blocks about 1 s; own stream, see `tone.rs`) | 8 |
+| `play_test_tone` **done** | `output: TestToneOutput` (`master`, `headphones`, `booth`) | `()` after the tone (about 1 s). Plays through the running engine on that bus only; `audio` error when audio is off, `invalid` when the output is not routed | 8 |
+| `get_input_state` **done** | none | `InputState` (booth level, mic level, EQ and on, aux level and fader, talk-over) | 8 |
+| `set_booth_level` **done** | `gain: Gain` | `()`; live, persisted by `set_audio_settings` | 8 |
+| `set_mic_level`, `set_mic_on`, `set_aux_level`, `set_aux_fader` **done** | `gain: Gain` / `on: bool` / `position: f32` | `()` | 8 |
+| `set_mic_eq` **done** | `band: EqBand` (`low` or `high`), `gain: Gain` | `()`; `mid` is `invalid` | 8 |
+| `set_talk_over` **done** | `settings: TalkOverSettings` | `()`; live, persisted by `set_audio_settings` | 8 |
+| `get_bpm_range`, `set_bpm_range` **done** | `range: BpmRangeDto` (30 to 300, lowest first) | stored under `analysis.bpm_range`; the tempo analyzer reads it for new imports and re-analysis | 8 |
 
 ## Events
 
