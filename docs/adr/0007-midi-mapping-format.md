@@ -117,3 +117,13 @@ Status: accepted.
 - **Fader start** is off by default (setting). **Overrides** are stored as JSON in the library settings (`midi.settings`), not in the `midi_mapping_overrides` table, which has no API in the library crate. A learned input that another control already uses is refused.
 - Controller-side changes the UI cannot see otherwise are pushed as `mixer-state-changed` and `deck-state-changed` (mixer and deck state are re-read at 4 Hz and after button presses).
 
+
+## Addendum: M7, pad interpretation and sampler (2026-10-31)
+
+Status: accepted.
+
+- `PadActions::press` (app-core `pads.rs`) is the one pad interpreter. The MIDI bridge and the `pad_press` command both call it, so a controller pad and an on-screen pad do the same thing. `PadModes` is the shared state: per-deck mode, beat jump scale, pitch layouts, KEYBOARD cue, and the sampler. `set_pad_mode` and the controller's mode buttons change the same state and the same LEDs.
+- Pad layouts follow the manual (French PDF pages): BEAT JUMP 1, 1, 2, 2, 4, 4, 8, 8 beats alternating left and right (p.60), SHIFT + pad 7 halves and pad 8 doubles (range 1/4 to 32 beats, per deck). BEAT LOOP 1/4 to 32 beats, the same pad again exits the loop (p.64). KEY SHIFT and KEYBOARD: +4 to +7 on pads 1-4, 0 to +3 on pads 5-8, SHIFT + pad 7 and 8 move the layout by one semitone, clamped to the engine's `-12..=12` (p.63, p.65). SAMPLER: pad plays, SHIFT + pad stops, or loads the track selected in the browser into an empty slot (p.61-62).
+- KEYBOARD has no per-trigger pitch in the engine: a pad sets the deck's key shift, then triggers the hot cue (`TODO(verify)`: a pitched hot cue command would remove the sticky shift).
+- Sampler slots: 16, split between decks by default (Q05), persisted in the library settings (`sampler.settings`). Samples are decoded in app-core at the engine rate and handed to the engine through the `SamplerEngine` trait (`sampler.rs`); the default `StubSamplerEngine` only records calls until the engine sampler is wired. Triggers use `SamplerTrigger`/`SamplerStop`/`SetSamplerLevel`. Gate slots send the release edge, one-shot and loop slots send the press only.
+- LED feedback: SAMPLER pads are lit for loaded slots, KEYBOARD pads show set cues until a cue is chosen and then all light, KEY SHIFT lights the pad of the current shift. MASTER CUE is not in the mapping and stays unmapped.

@@ -14,8 +14,9 @@ use opendeck_app_core::{
     BrowseCursorDto, CoreError, CoreEvent, DirListing, FxEffectDto, FxOp, FxPresetsDto, FxSlotRef,
     FxStateDto, FxUnitRef, HotCues, ImportOptionsDto, JobInfo, LaunchOptions, LibraryChange,
     LibraryEvent, LibraryService, MidiBindingDto, MidiEvent, MidiLearnResultDto, MidiMappingRowDto,
-    MidiMonitorEntryDto, MidiPortDto, MidiService, MidiStatusDto, PadModeChanged, PlaylistEntryDto,
-    PlaylistNodeDto, SavedSetDetailDto, SavedSetDto, SettingsStore, TrackAnalysisDto,
+    MidiMonitorEntryDto, MidiPortDto, MidiService, MidiStatusDto, PadEvent, PadModeChanged,
+    PadStateDto, PlaylistEntryDto, PlaylistNodeDto, SamplerLayout, SamplerSlotPatch,
+    SamplerStateDto, SavedSetDetailDto, SavedSetDto, SettingsStore, TrackAnalysisDto,
     TrackDetailDto, TrackInfo, TrackLoadFailed, TrackLoaded, TrackMetaDto, TrackPageDto,
     TrackQueryDto,
 };
@@ -24,7 +25,7 @@ use opendeck_contracts::beatgrid::BeatGrid;
 use opendeck_contracts::cue::{Cue, HotCueIndex};
 use opendeck_contracts::deck::DeckState;
 use opendeck_contracts::fx::EffectKey;
-use opendeck_contracts::ids::{JobId, PlaylistId, TrackId};
+use opendeck_contracts::ids::{JobId, PlaylistId, SamplerSlotId, TrackId};
 use opendeck_contracts::jobs::JobProgress;
 use opendeck_contracts::mixer::{CrossfaderAssign, CrossfaderCurve, EqBand, MixerState};
 use opendeck_contracts::pad::PadMode;
@@ -1401,6 +1402,175 @@ async fn browse_select(state: tauri::State<'_, AppState>, index: u32) -> Result<
     blocking(move || midi.browse_select(index)).await
 }
 
+/// Switches the pad mode of a deck (a mode tab click; SHIFT-click picks the
+/// shifted mode). Emits `pad-mode-changed` when it changed.
+#[tauri::command]
+#[specta::specta]
+fn set_pad_mode(
+    state: tauri::State<'_, AppState>,
+    deck: DeckId,
+    mode: PadMode,
+) -> Result<bool, CommandError> {
+    with_core(&state, |core| core.set_pad_mode(deck, mode))
+}
+
+/// Pad state of every deck: mode, beat jump sizes, pitch layouts, keyboard cue.
+#[tauri::command]
+#[specta::specta]
+fn get_pad_state(state: tauri::State<'_, AppState>) -> Result<PadStateDto, CommandError> {
+    with_core(&state, |core| core.pad_modes().state())
+}
+
+/// A performance pad edge from the screen. Does what the controller's pad
+/// does; ignored if `mode` is not the deck's active mode.
+#[tauri::command]
+#[specta::specta]
+fn pad_press(
+    state: tauri::State<'_, AppState>,
+    deck: DeckId,
+    mode: PadMode,
+    pad: u8,
+    shift: bool,
+    pressed: bool,
+) -> Result<(), CommandError> {
+    if usize::from(pad) >= opendeck_contracts::PADS_PER_DECK {
+        return Err(CommandError::Invalid(format!("pad {pad} is out of range")));
+    }
+    state
+        .snapshot()?
+        .pad_actions()?
+        .press(deck, mode, pad, shift, pressed, None);
+    Ok(())
+}
+
+/// Key shift of a deck in semitones, `-12..=12`.
+#[tauri::command]
+#[specta::specta]
+fn set_key_shift(
+    state: tauri::State<'_, AppState>,
+    deck: DeckId,
+    semitones: i8,
+) -> Result<(), CommandError> {
+    if !(-12..=12).contains(&semitones) {
+        return Err(CommandError::Invalid(
+            "key shift must be within -12 to 12 semitones".to_owned(),
+        ));
+    }
+    Ok(state
+        .audio()?
+        .send(opendeck_contracts::EngineCommand::SetKeyShift { deck, semitones })?)
+}
+
+/// Renames a hot cue.
+#[tauri::command]
+#[specta::specta]
+fn rename_hot_cue(
+    state: tauri::State<'_, AppState>,
+    deck: DeckId,
+    index: HotCueIndex,
+    name: String,
+) -> Result<(), CommandError> {
+    Ok(state.audio()?.rename_hot_cue(deck, index, name)?)
+}
+
+/// The sampler: 16 slots, layout, level and PFL.
+#[tauri::command]
+#[specta::specta]
+fn get_sampler_state(state: tauri::State<'_, AppState>) -> Result<SamplerStateDto, CommandError> {
+    with_core(&state, |core| core.sampler().state())
+}
+
+/// Loads a library track into a sampler slot (decoded off-thread; the state
+/// arrives as `sampler-state-changed`).
+#[tauri::command]
+#[specta::specta]
+fn sampler_load_track(
+    state: tauri::State<'_, AppState>,
+    slot: u8,
+    track: TrackId,
+) -> Result<(), CommandError> {
+    Ok(state.snapshot()?.sampler().load_track(slot, track)?)
+}
+
+/// Loads an audio file into a sampler slot.
+#[tauri::command]
+#[specta::specta]
+fn sampler_load_path(
+    state: tauri::State<'_, AppState>,
+    slot: u8,
+    path: String,
+) -> Result<(), CommandError> {
+    Ok(state
+        .snapshot()?
+        .sampler()
+        .load_path(slot, Path::new(&path), None)?)
+}
+
+/// Empties a sampler slot.
+#[tauri::command]
+#[specta::specta]
+fn sampler_clear(state: tauri::State<'_, AppState>, slot: u8) -> Result<(), CommandError> {
+    Ok(state.snapshot()?.sampler().clear(slot)?)
+}
+
+/// Changes a slot's name, colour, gain, play mode or sync.
+#[tauri::command]
+#[specta::specta]
+fn sampler_set_slot(
+    state: tauri::State<'_, AppState>,
+    slot: u8,
+    patch: SamplerSlotPatch,
+) -> Result<(), CommandError> {
+    Ok(state.snapshot()?.sampler().patch(slot, patch)?)
+}
+
+/// Which slots each deck's pads reach.
+#[tauri::command]
+#[specta::specta]
+fn sampler_set_layout(
+    state: tauri::State<'_, AppState>,
+    layout: SamplerLayout,
+) -> Result<(), CommandError> {
+    state.snapshot()?.sampler().set_layout(layout);
+    Ok(())
+}
+
+/// Sampler bus level, linear `0..=1`.
+#[tauri::command]
+#[specta::specta]
+fn sampler_set_level(state: tauri::State<'_, AppState>, level: f32) -> Result<(), CommandError> {
+    Ok(state.snapshot()?.sampler().set_level(level)?)
+}
+
+/// Sampler bus to the headphones cue.
+#[tauri::command]
+#[specta::specta]
+fn sampler_set_pfl(state: tauri::State<'_, AppState>, on: bool) -> Result<(), CommandError> {
+    Ok(state.snapshot()?.sampler().set_pfl(on)?)
+}
+
+/// Plays a sampler slot from the screen (`pressed` false is the release).
+#[tauri::command]
+#[specta::specta]
+fn sampler_trigger(
+    state: tauri::State<'_, AppState>,
+    slot: u8,
+    pressed: bool,
+) -> Result<(), CommandError> {
+    let slot = SamplerSlotId::new(slot)
+        .ok_or_else(|| CommandError::Invalid(format!("sampler slot {slot} is out of range")))?;
+    Ok(state.snapshot()?.sampler().trigger(slot, pressed)?)
+}
+
+/// Stops a sampler slot.
+#[tauri::command]
+#[specta::specta]
+fn sampler_stop(state: tauri::State<'_, AppState>, slot: u8) -> Result<(), CommandError> {
+    let slot = SamplerSlotId::new(slot)
+        .ok_or_else(|| CommandError::Invalid(format!("sampler slot {slot} is out of range")))?;
+    Ok(state.snapshot()?.sampler().stop(slot)?)
+}
+
 /// Engine snapshot pushed to the UI at ~60 Hz (ADR 0003, ADR 0004).
 #[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
 #[tauri_specta(event_name = "engine-telemetry")]
@@ -1480,6 +1650,16 @@ pub struct BrowseCursorMovedEvent(pub BrowseCursorDto);
 #[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
 #[tauri_specta(event_name = "pad-mode-changed")]
 pub struct PadModeChangedEvent(pub PadModeChanged);
+
+/// Beat jump sizes, pitch layouts or the keyboard cue changed.
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+#[tauri_specta(event_name = "pad-state-changed")]
+pub struct PadStateChangedEvent(pub PadStateDto);
+
+/// A sampler slot, the layout or the level changed.
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+#[tauri_specta(event_name = "sampler-state-changed")]
+pub struct SamplerStateChangedEvent(pub SamplerStateDto);
 
 /// The mixer changed on the controller.
 #[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
@@ -1610,6 +1790,21 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             midi_import_mapping,
             browse_set_context,
             browse_select,
+            set_pad_mode,
+            get_pad_state,
+            pad_press,
+            set_key_shift,
+            rename_hot_cue,
+            get_sampler_state,
+            sampler_load_track,
+            sampler_load_path,
+            sampler_clear,
+            sampler_set_slot,
+            sampler_set_layout,
+            sampler_set_level,
+            sampler_set_pfl,
+            sampler_trigger,
+            sampler_stop,
         ])
         .events(collect_events![
             EngineTelemetryEvent,
@@ -1629,7 +1824,9 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             BrowseCursorMovedEvent,
             PadModeChangedEvent,
             MixerStateChangedEvent,
-            DeckStateChangedEvent
+            DeckStateChangedEvent,
+            PadStateChangedEvent,
+            SamplerStateChangedEvent
         ])
         // IDs (SQLite rowids) and frame counts are u64/i64 but stay far below
         // 2^53, so they are exported as `number` (ADR 0004).
@@ -1698,6 +1895,20 @@ fn forward_midi_events(app: tauri::AppHandle, events: crossbeam_channel::Receive
     }
 }
 
+/// Forwards pad state and sampler changes to the webview.
+fn forward_pad_events(app: tauri::AppHandle, events: crossbeam_channel::Receiver<PadEvent>) {
+    for event in events {
+        let result = match event {
+            PadEvent::Mode(m) => PadModeChangedEvent(m).emit(&app),
+            PadEvent::State(s) => PadStateChangedEvent(s).emit(&app),
+            PadEvent::Sampler(s) => SamplerStateChangedEvent(*s).emit(&app),
+        };
+        if let Err(err) = result {
+            eprintln!("could not emit event: {err}");
+        }
+    }
+}
+
 /// Opens the library in the app data dir. A library that cannot be opened
 /// (unreadable folder, a database from a newer version) is reported and
 /// replaced by an in-memory one, so the decks still work.
@@ -1756,6 +1967,11 @@ pub fn run() {
             std::thread::Builder::new()
                 .name("opendeck-library-events".into())
                 .spawn(move || forward_library_events(handle, library_events))?;
+            let pad_events = core.pad_modes().subscribe();
+            let handle = app.handle().clone();
+            std::thread::Builder::new()
+                .name("opendeck-pad-events".into())
+                .spawn(move || forward_pad_events(handle, pad_events))?;
             let state = AppState::new(core.clone());
             match core
                 .start_midi()
@@ -1944,6 +2160,50 @@ mod tests {
         assert!(applied.running);
         let stored = tauri::async_runtime::block_on(get_audio_settings(app.state())).expect("get");
         assert_eq!(stored, settings);
+    }
+
+    #[test]
+    fn pad_and_sampler_commands_share_state_with_the_core() {
+        let app = offline_app();
+        assert!(set_pad_mode(app.state(), deck_a(), PadMode::Sampler).expect("mode"));
+        assert!(
+            !set_pad_mode(app.state(), deck_a(), PadMode::Sampler).expect("again"),
+            "no change, no event"
+        );
+        assert_eq!(
+            get_pad_mode(app.state(), deck_a()).expect("mode"),
+            PadMode::Sampler
+        );
+        let pads = get_pad_state(app.state()).expect("pad state");
+        assert_eq!(pads.decks[0].mode, PadMode::Sampler);
+        assert_eq!(pads.decks[0].jump_beats.len(), 8);
+
+        // A press in a mode that is not the deck's is ignored; a bad pad is invalid.
+        pad_press(app.state(), deck_a(), PadMode::HotCue, 0, false, true).expect("ignored");
+        assert!(matches!(
+            pad_press(app.state(), deck_a(), PadMode::Sampler, 8, false, true),
+            Err(CommandError::Invalid(_))
+        ));
+
+        let sampler = get_sampler_state(app.state()).expect("sampler");
+        assert_eq!(sampler.slots.len(), 16);
+        sampler_set_level(app.state(), 0.5).expect("level");
+        sampler_set_pfl(app.state(), true).expect("pfl");
+        let sampler = get_sampler_state(app.state()).expect("sampler");
+        assert!((sampler.level - 0.5).abs() < 1e-6 && sampler.pfl);
+        assert!(matches!(
+            sampler_trigger(app.state(), 16, true),
+            Err(CommandError::Invalid(_))
+        ));
+        assert!(matches!(
+            sampler_set_level(app.state(), f32::NAN),
+            Err(CommandError::Invalid(_))
+        ));
+        assert!(matches!(
+            set_key_shift(app.state(), deck_a(), 13),
+            Err(CommandError::Invalid(_))
+        ));
+        set_key_shift(app.state(), deck_a(), 3).expect("key shift");
     }
 
     #[test]

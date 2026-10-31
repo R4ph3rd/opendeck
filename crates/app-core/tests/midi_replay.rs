@@ -431,3 +431,66 @@ fn every_recorded_fixture_passes_through_the_bridge() {
     assert!(rig.audio.mixer_state().is_ok());
     assert!(rig.audio.fx_state().is_ok());
 }
+
+#[test]
+fn key_shift_pads_set_the_deck_key_and_light_the_active_pitch() {
+    let mut rig = Rig::new("keyshift");
+    // SAMPLER + SHIFT mode button of deck 1 selects KEY SHIFT (note 0x6F).
+    rig.send([144, 111, 127]);
+    rig.send([144, 111, 0]);
+    assert_eq!(rig.core.pad_mode(deck(0)), PadMode::KeyShift);
+    // Pad 6 of KEY SHIFT (note 0x75) is +1 semitone.
+    rig.send([151, 117, 127]);
+    rig.send([151, 117, 0]);
+    rig.wait("key shift +1", |r| {
+        r.audio.deck_state(deck(0)).expect("state").key_shift == 1
+    });
+    rig.wait("pitch pad lit", |r| r.led_seen([151, 117, 127]));
+    // SHIFT + pad 7 raises the layout by one semitone: pad 6 is now +2.
+    rig.send([152, 118, 127]);
+    rig.send([152, 118, 0]);
+    rig.send([151, 117, 127]);
+    rig.wait("key shift +2", |r| {
+        r.audio.deck_state(deck(0)).expect("state").key_shift == 2
+    });
+}
+
+#[test]
+fn ui_and_controller_mode_changes_share_one_state() {
+    let mut rig = Rig::new("modesync");
+    // A UI click selects SAMPLER; the controller's mode LED follows.
+    assert!(rig.core.set_pad_mode(deck(0), PadMode::Sampler));
+    rig.wait("SAMPLER LED", |r| r.led_seen([144, 34, 127]));
+    // The HOT CUE button puts it back; the UI reads the same state.
+    rig.send([144, 27, 127]);
+    rig.send([144, 27, 0]);
+    assert_eq!(rig.core.pad_mode(deck(0)), PadMode::HotCue);
+    assert_eq!(
+        rig.core.deck_state(deck(0)).expect("state").pad_mode,
+        PadMode::HotCue
+    );
+}
+
+#[test]
+fn sampler_pads_light_when_a_sample_is_loaded() {
+    let mut rig = Rig::new("sampler");
+    let wav = tmp_dir("sampler-sample").join("kick.wav");
+    write_wav(&wav, 0.5, 80.0);
+    rig.core.set_pad_mode(deck(0), PadMode::Sampler);
+    rig.core.sampler().load_path(0, &wav, None).expect("load");
+    rig.wait("slot 1 loaded", |r| {
+        r.core.sampler().state().slots[0].loaded
+    });
+    rig.wait("pad 1 lit", |r| r.led_seen([151, 48, 127]));
+    assert!(!rig.led_seen([151, 49, 127]), "an empty slot stays dark");
+    assert_eq!(rig.core.sampler().state().slots[0].name, "kick");
+    // A pad press reaches the sampler without error; SHIFT + pad stops it.
+    rig.send([151, 48, 127]);
+    rig.send([151, 48, 0]);
+    rig.send([152, 48, 127]);
+    rig.send([152, 48, 0]);
+    // Deck 2's first pad is slot 9 (empty), so it stays dark.
+    rig.core.set_pad_mode(deck(1), PadMode::Sampler);
+    rig.settle();
+    assert!(!rig.led_seen([153, 48, 127]));
+}

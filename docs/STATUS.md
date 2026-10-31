@@ -77,12 +77,12 @@ Done: `midi` crate with data-driven JSON mappings (ADR 0007 and addenda): input 
 | M8 engine | Heap-count test (`tests_heap`) runs on Linux only |
 | M6 midi | 165 FLX4 mapping entries carry `verify` and depend on 9 open hardware questions (Q02, Q04, Q07 to Q13, `docs/midi-open-questions.md`) |
 | M6 app-core | Placeholders, `TODO(verify)`: jog scale (1/1024 rev per tick, Q02), VU meter curve (36 dB range, Q04), beat jump distances and beat loop lengths per pad, SHIFT + jog search at 32 beats per revolution |
-| M7 app-core | Sampler, keyboard and key shift pads and MASTER CUE have no application action yet; their MIDI events are dropped |
+| M7 app-core | MASTER CUE is not in the mapping and stays unmapped. The sampler hands samples to a stub `SamplerEngine` until the engine sampler is wired; KEYBOARD sets the sticky key shift (no per-trigger pitch) |
 | M6 midi | Never run on a real DDJ-FLX4; covered by replay fixtures and a fake backend only (`docs/hardware-test-checklist.md`, M6) |
 | M8 library | MIDI overrides live in the settings kv, not in the `midi_mapping_overrides` table (ADR 0005), which has no library API |
 | M5 dsp-fx | Effect parameter names, ranges and defaults and the beat division list are `TODO(verify)` pending the rekordbox manual (`docs/fx-catalog.md`) |
 | M5 app-core | Smart CFX mapping (knob to parameter and wet), the default pad FX set and the Release FX set are project choices, not taken from a source |
-| M7 ui | Pad FX pads work from the FLX4; the middle panel does not follow the pad mode until M7 |
+| M7 ui | Pad FX view has the assignment grid but no live parameter knobs (the pad model carries effect, division and release only) |
 
 ## Open questions
 

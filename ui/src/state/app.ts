@@ -49,6 +49,8 @@ export interface DeckUi {
   hotCues: (Cue | null)[];
   /** Main cue point in seconds, `null` when unknown. Drawn on the jog wheel ring. */
   cuePoint: number | null;
+  /** Key shift in semitones, from the backend. */
+  keyShift: number;
 }
 
 /** Pages of the settings dialog. */
@@ -95,6 +97,7 @@ const emptyDeck = (): DeckUi => ({
   jumpBeats: DEFAULT_JUMP_BEATS,
   hotCues: emptyHotCues(),
   cuePoint: null,
+  keyShift: 0,
 });
 
 /** Stable fallback for a deck index the UI does not show. */
@@ -138,6 +141,7 @@ export const useAppStore = create<AppState>()((set) => ({
         quantize: deckState.quantize,
         slip: deckState.slip,
         cuePoint: deckState.cue_point ?? null,
+        keyShift: deckState.key_shift,
       };
       return {
         decks: state.decks.map((d, i) => (i === deck ? { ...d, ...patch } : d)),

@@ -255,6 +255,45 @@ export const commands = {
 	browseSetContext: (context: BrowseContextDto) => typedError<null, CommandError>(__TAURI_INVOKE("browse_set_context", { context })),
 	/**  The library pane selected a row. */
 	browseSelect: (index: number) => typedError<null, CommandError>(__TAURI_INVOKE("browse_select", { index })),
+	/**
+	 *  Switches the pad mode of a deck (a mode tab click; SHIFT-click picks the
+	 *  shifted mode). Emits `pad-mode-changed` when it changed.
+	 */
+	setPadMode: (deck: DeckId, mode: PadMode) => typedError<boolean, CommandError>(__TAURI_INVOKE("set_pad_mode", { deck, mode })),
+	/**  Pad state of every deck: mode, beat jump sizes, pitch layouts, keyboard cue. */
+	getPadState: () => typedError<PadStateDto, CommandError>(__TAURI_INVOKE("get_pad_state")),
+	/**
+	 *  A performance pad edge from the screen. Does what the controller's pad
+	 *  does; ignored if `mode` is not the deck's active mode.
+	 */
+	padPress: (deck: DeckId, mode: PadMode, pad: number, shift: boolean, pressed: boolean) => typedError<null, CommandError>(__TAURI_INVOKE("pad_press", { deck, mode, pad, shift, pressed })),
+	/**  Key shift of a deck in semitones, `-12..=12`. */
+	setKeyShift: (deck: DeckId, semitones: number) => typedError<null, CommandError>(__TAURI_INVOKE("set_key_shift", { deck, semitones })),
+	/**  Renames a hot cue. */
+	renameHotCue: (deck: DeckId, index: HotCueIndex, name: string) => typedError<null, CommandError>(__TAURI_INVOKE("rename_hot_cue", { deck, index, name })),
+	/**  The sampler: 16 slots, layout, level and PFL. */
+	getSamplerState: () => typedError<SamplerStateDto, CommandError>(__TAURI_INVOKE("get_sampler_state")),
+	/**
+	 *  Loads a library track into a sampler slot (decoded off-thread; the state
+	 *  arrives as `sampler-state-changed`).
+	 */
+	samplerLoadTrack: (slot: number, track: TrackId) => typedError<null, CommandError>(__TAURI_INVOKE("sampler_load_track", { slot, track })),
+	/**  Loads an audio file into a sampler slot. */
+	samplerLoadPath: (slot: number, path: string) => typedError<null, CommandError>(__TAURI_INVOKE("sampler_load_path", { slot, path })),
+	/**  Empties a sampler slot. */
+	samplerClear: (slot: number) => typedError<null, CommandError>(__TAURI_INVOKE("sampler_clear", { slot })),
+	/**  Changes a slot's name, colour, gain, play mode or sync. */
+	samplerSetSlot: (slot: number, patch: SamplerSlotPatch) => typedError<null, CommandError>(__TAURI_INVOKE("sampler_set_slot", { slot, patch })),
+	/**  Which slots each deck's pads reach. */
+	samplerSetLayout: (layout: SamplerLayout) => typedError<null, CommandError>(__TAURI_INVOKE("sampler_set_layout", { layout })),
+	/**  Sampler bus level, linear `0..=1`. */
+	samplerSetLevel: (level: number | null) => typedError<null, CommandError>(__TAURI_INVOKE("sampler_set_level", { level })),
+	/**  Sampler bus to the headphones cue. */
+	samplerSetPfl: (on: boolean) => typedError<null, CommandError>(__TAURI_INVOKE("sampler_set_pfl", { on })),
+	/**  Plays a sampler slot from the screen (`pressed` false is the release). */
+	samplerTrigger: (slot: number, pressed: boolean) => typedError<null, CommandError>(__TAURI_INVOKE("sampler_trigger", { slot, pressed })),
+	/**  Stops a sampler slot. */
+	samplerStop: (slot: number) => typedError<null, CommandError>(__TAURI_INVOKE("sampler_stop", { slot })),
 };
 
 /** Events */
@@ -275,6 +314,8 @@ export const events = {
 	midiMonitor: makeEvent<MidiMonitorEvent, MidiMonitorEvent>("midi-monitor"),
 	mixerStateChanged: makeEvent<MixerStateChangedEvent, MixerStateChangedEvent>("mixer-state-changed"),
 	padModeChanged: makeEvent<PadModeChangedEvent, PadModeChangedEvent>("pad-mode-changed"),
+	padStateChanged: makeEvent<PadStateChangedEvent, PadStateChangedEvent>("pad-state-changed"),
+	samplerStateChanged: makeEvent<SamplerStateChangedEvent, SamplerStateChangedEvent>("sampler-state-changed"),
 	trackLoadFailed: makeEvent<TrackLoadFailedEvent, TrackLoadFailedEvent>("track-load-failed"),
 	trackLoaded: makeEvent<TrackLoadedEvent, TrackLoadedEvent>("track-loaded"),
 };
@@ -894,6 +935,24 @@ export type CuesChangedEvent = TrackId;
  *  failing. RT-safe.
  */
 export type DeckId = number;
+
+/**  Pad state of one deck, as the UI shows it. */
+export type DeckPadStateDto = {
+	/**  Deck. */
+	deck: DeckId,
+	/**  Active pad mode. */
+	mode: PadMode,
+	/**  Signed beats of the eight BEAT JUMP pads. */
+	jump_beats: (number | null)[],
+	/**  Loop beats of the eight BEAT LOOP pads. */
+	loop_beats: (number | null)[],
+	/**  Semitones of the eight KEY SHIFT pads. */
+	key_semitones: number[],
+	/**  Hot cue chosen in KEYBOARD mode. */
+	keyboard_cue: number | null,
+	/**  Semitones of the eight KEYBOARD pads. */
+	keyboard_semitones: number[],
+};
 
 /**
  *  Snapshot of one deck's control state. Not RT (owns no heap today, but is
@@ -1840,6 +1899,15 @@ export type PadModeChanged = {
 /**  A pad mode button on the controller changed a deck's mode. */
 export type PadModeChangedEvent = PadModeChanged;
 
+/**  Beat jump sizes, pitch layouts or the keyboard cue changed. */
+export type PadStateChangedEvent = PadStateDto;
+
+/**  Pad state of every shown deck. */
+export type PadStateDto = {
+	/**  One entry per shown deck. */
+	decks: DeckPadStateDto[],
+};
+
 /**  How a normalized `[0, 1]` value maps to the plain range. */
 export type ParamCurve = 
 /**  `plain = min + n * (max - min)`. */
@@ -1961,8 +2029,66 @@ export type PlaylistNodeDto = {
 /**  A sample rate in Hz. Invariant: `> 0` wherever it is used as a divisor. */
 export type SampleRate = number;
 
+/**  Which slots a deck's eight pads reach. */
+export type SamplerLayout = 
+/**  Deck 1 reaches slots 1-8, deck 2 slots 9-16 (manual p.62). */
+"split" | 
+/**  Every deck reaches slots 1-8. */
+"shared";
+
+/**  How a slot plays. */
+export type SamplerPlayMode = 
+/**  Plays to the end; a press restarts it. */
+"one_shot" | 
+/**  Plays while the pad is held. */
+"gate" | 
+/**  Loops until stopped; a press toggles. */
+"loop";
+
+/**  One slot as the UI shows it. */
+export type SamplerSlotDto = {
+	/**  Slot, `0..SAMPLER_SLOTS`. */
+	slot: number,
+	/**  Display name. */
+	name: string,
+	/**  Source file, `None` for an empty slot. */
+	path: string | null,
+	/**  Library track the file came from. */
+	track: TrackId | null,
+	/**  Colour index `0..8` (the hot cue palette). */
+	color: number,
+	/**  Linear gain, `0..=2`. */
+	gain: number | null,
+	/**  Play mode. */
+	play_mode: SamplerPlayMode,
+	/**  Start in sync with the leader. */
+	sync: boolean,
+	/**  Decoded and handed to the engine. */
+	loaded: boolean,
+	/**  Decoding. */
+	loading: boolean,
+	/**  Length in seconds. */
+	duration_secs: number | null,
+	/**  `SAMPLER_PEAKS` peak values `0..=1` for the mini waveform. */
+	peaks: (number | null)[],
+};
+
 /**  A sampler slot, `0..SAMPLER_SLOTS`. RT-safe; constructor validates the bound. */
 export type SamplerSlotId = number;
+
+/**  What the UI may change on a slot; `None` keeps the value. */
+export type SamplerSlotPatch = {
+	/**  New name. */
+	name: string | null,
+	/**  New colour index. */
+	color: number | null,
+	/**  New gain `0..=2`. */
+	gain: number | null,
+	/**  New play mode. */
+	play_mode: SamplerPlayMode | null,
+	/**  New sync flag. */
+	sync: boolean | null,
+};
 
 /**  One sampler slot as the audio thread saw it at the end of a block. RT-safe. */
 export type SamplerSlotTelemetry = {
@@ -1975,6 +2101,21 @@ export type SamplerSlotTelemetry = {
 	 *  slot wraps from 1 back to 0.
 	 */
 	progress: number | null,
+};
+
+/**  A sampler slot, the layout or the level changed. */
+export type SamplerStateChangedEvent = SamplerStateDto;
+
+/**  The whole sampler. */
+export type SamplerStateDto = {
+	/**  `SAMPLER_SLOTS` slots. */
+	slots: SamplerSlotDto[],
+	/**  Which slots each deck's pads reach. */
+	layout: SamplerLayout,
+	/**  Sampler bus level, linear `0..=1`. */
+	level: number | null,
+	/**  Sampler bus in the headphones cue. */
+	pfl: boolean,
 };
 
 /**  A saved set with its entries. */
