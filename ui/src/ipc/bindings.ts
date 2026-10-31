@@ -1065,6 +1065,10 @@ export type EngineTelemetry = {
 	fx_master: FxUnitTelemetry,
 	/**  Send FX units, indexed by bus. */
 	fx_sends: [FxUnitTelemetry, FxUnitTelemetry],
+	/**  Sampler slots, indexed by [`SamplerSlotId::index`](crate::ids::SamplerSlotId::index). */
+	sampler: [SamplerSlotTelemetry, SamplerSlotTelemetry, SamplerSlotTelemetry, SamplerSlotTelemetry, SamplerSlotTelemetry, SamplerSlotTelemetry, SamplerSlotTelemetry, SamplerSlotTelemetry, SamplerSlotTelemetry, SamplerSlotTelemetry, SamplerSlotTelemetry, SamplerSlotTelemetry, SamplerSlotTelemetry, SamplerSlotTelemetry, SamplerSlotTelemetry, SamplerSlotTelemetry],
+	/**  Sampler bus level (after slot gains and the sampler level). */
+	sampler_meter: StereoMeter,
 	/**  Current sync leader. See `EngineCommand::SetLeader` for the election. */
 	leader: DeckId | null,
 	/**  Callback time divided by block duration, smoothed, `0..` (1.0 = overrun). */
@@ -1959,6 +1963,19 @@ export type SampleRate = number;
 
 /**  A sampler slot, `0..SAMPLER_SLOTS`. RT-safe; constructor validates the bound. */
 export type SamplerSlotId = number;
+
+/**  One sampler slot as the audio thread saw it at the end of a block. RT-safe. */
+export type SamplerSlotTelemetry = {
+	/**  A sample is loaded. */
+	loaded: boolean,
+	/**  The slot is sounding. A start waiting for the next beat is not playing yet. */
+	playing: boolean,
+	/**
+	 *  Position inside the sample, `[0, 1)`; 0 when not playing. A looping
+	 *  slot wraps from 1 back to 0.
+	 */
+	progress: number | null,
+};
 
 /**  A saved set with its entries. */
 export type SavedSetDetailDto = {
