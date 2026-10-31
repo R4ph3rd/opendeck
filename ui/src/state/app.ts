@@ -54,7 +54,22 @@ export interface DeckUi {
 }
 
 /** Pages of the settings dialog. */
-export type SettingsPage = "audio" | "midi";
+export type SettingsPage =
+  | "audio"
+  | "midi"
+  | "library"
+  | "interface"
+  | "keyboard"
+  | "advanced";
+
+export const SETTINGS_PAGES: readonly SettingsPage[] = [
+  "audio",
+  "midi",
+  "library",
+  "interface",
+  "keyboard",
+  "advanced",
+];
 
 export interface AppState {
   decks: DeckUi[];
