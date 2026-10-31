@@ -23,6 +23,8 @@ mod loader;
 mod midi_bridge;
 mod midi_service;
 mod midi_types;
+mod pads;
+mod sampler;
 mod settings_store;
 mod types;
 
@@ -56,7 +58,7 @@ pub use crate::fx_types::{
     FxTarget, FxUnitRef, PAD_FX_COUNT, PADS_PER_LAYER, PadFxAssignDto, SendUnitDto,
 };
 pub use crate::library_service::{LibraryEvent, LibraryService, PROGRESS_INTERVAL};
-pub use crate::midi_bridge::{BridgeNotice, MidiBridge, PadModes, Takeover};
+pub use crate::midi_bridge::{BridgeNotice, MidiBridge, Takeover};
 pub use crate::midi_service::{
     BackendMaker, MIDI_SETTINGS_KEY, MidiEvent, MidiService, MidiServiceOptions,
 };
@@ -64,6 +66,15 @@ pub use crate::midi_types::{
     BrowseContextDto, BrowseCursorDto, BrowseSourceDto, MidiBindingDto, MidiLearnResultDto,
     MidiMappingRowDto, MidiMonitorDirection, MidiMonitorEntryDto, MidiMonitorLabelDto,
     MidiOverrideDto, MidiPortDto, MidiSettingsDto, MidiStatusDto, PadModeChanged,
+};
+pub use crate::pads::{
+    BEAT_JUMP_BASE, BEAT_LOOP_LENGTHS, DeckPadStateDto, PAD_SEMITONES, PadActions, PadContext,
+    PadEvent, PadModes, PadOp, PadStateDto, beat_jump_beats, pad_semitones, plan,
+};
+pub use crate::sampler::{
+    SAMPLER_PADS, SAMPLER_PEAKS, SAMPLER_SETTINGS_KEY, SamplerEngine, SamplerLayout,
+    SamplerPlayMode, SamplerService, SamplerSlotDto, SamplerSlotParams, SamplerSlotPatch,
+    SamplerStateDto, StubSamplerEngine,
 };
 pub use crate::settings_store::{SETTINGS_FILE, SettingsStore, StoredSettings};
 pub use crate::types::{
@@ -651,6 +662,7 @@ pub struct AppCore {
     pad_modes: PadModes,
     audio: Option<AudioController>,
     library: Option<LibraryService>,
+    actions: Option<PadActions>,
 }
 
 impl Default for AppCore {
@@ -666,15 +678,18 @@ impl AppCore {
             pad_modes: PadModes::default(),
             audio: None,
             library: None,
+            actions: None,
         }
     }
 
     /// Fresh state with the control and loader threads running.
     pub fn launch(opts: LaunchOptions) -> std::io::Result<Self> {
-        Ok(Self {
-            audio: Some(AudioController::launch(opts)?),
-            ..Self::new()
-        })
+        let mut core = Self::new();
+        let audio = AudioController::launch(opts)?;
+        core.pad_modes.sampler().attach(audio.clone(), None);
+        core.actions = Some(PadActions::new(audio.clone(), core.pad_modes.clone()));
+        core.audio = Some(audio);
+        Ok(core)
     }
 
     /// Like [`launch`](Self::launch), with the library: cues persist in it,
@@ -687,11 +702,14 @@ impl AppCore {
         opts.library = Some(library.library());
         let audio = AudioController::launch(opts)?;
         library.attach_audio(audio.clone());
-        Ok(Self {
-            audio: Some(audio),
-            library: Some(library),
-            ..Self::new()
-        })
+        let mut core = Self::new();
+        core.pad_modes
+            .sampler()
+            .attach(audio.clone(), Some(library.clone()));
+        core.actions = Some(PadActions::new(audio.clone(), core.pad_modes.clone()));
+        core.audio = Some(audio);
+        core.library = Some(library);
+        Ok(core)
     }
 
     /// Starts the MIDI service with the shipped DDJ-FLX4 mapping. It connects
@@ -752,6 +770,16 @@ impl AppCore {
     /// the controller and a UI click change the same state.
     pub fn pad_modes(&self) -> PadModes {
         self.pad_modes.clone()
+    }
+
+    /// The sampler (slots, layout, level), shared with the MIDI service.
+    pub fn sampler(&self) -> SamplerService {
+        self.pad_modes.sampler()
+    }
+
+    /// The pad interpreter the UI's pads use; the MIDI bridge shares its state.
+    pub fn pad_actions(&self) -> Result<PadActions, CoreError> {
+        self.actions.clone().ok_or(CoreError::NotRunning)
     }
 
     /// Sets the pad mode of `deck` (from a MIDI mode button or a UI click).

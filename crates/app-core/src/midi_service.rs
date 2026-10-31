@@ -32,12 +32,13 @@ use opendeck_midi::mapping::{Mapping, MidiInput, ValueSpec};
 use opendeck_midi::monitor::{Direction, MonitorEvent, MonitorLabel};
 use opendeck_midi::{Controller, ControllerConfig, ControllerStatus, backend};
 
-use crate::midi_bridge::{BridgeNotice, MidiBridge, PadModes};
+use crate::midi_bridge::{BridgeNotice, MidiBridge};
 use crate::midi_types::{
     BrowseContextDto, BrowseCursorDto, MidiBindingDto, MidiLearnResultDto, MidiMappingRowDto,
     MidiMonitorDirection, MidiMonitorEntryDto, MidiMonitorLabelDto, MidiOverrideDto, MidiPortDto,
     MidiSettingsDto, MidiStatusDto, PadModeChanged,
 };
+use crate::pads::PadModes;
 use crate::types::{CoreError, CoreEvent};
 use crate::{AudioController, LibraryService};
 
