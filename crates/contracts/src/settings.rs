@@ -118,7 +118,7 @@ impl Default for TalkOverSettings {
 ///
 /// Default routing is one multichannel device: master on channels 1/2 and
 /// headphones on 3/4, as on the DDJ-FLX4 (ADR 0001, deviation 5). Every field
-/// has a serde default, so settings stored by an older build still load.
+/// has a serde default if it is new in M8, so settings stored by an older build still load.
 ///
 /// Output pairs index the output device's channels (up to
 /// [`MAX_DEVICE_CHANNELS`]). A device that cannot carry them drops the booth,
@@ -131,7 +131,6 @@ impl Default for TalkOverSettings {
 /// default input.
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serde", serde(default))]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct AudioSettings {
     /// Host API, `None` for the platform default.
@@ -145,26 +144,40 @@ pub struct AudioSettings {
     /// Master output channels.
     pub master: ChannelPair,
     /// Play the master as the mono sum of left and right.
+    #[cfg_attr(feature = "serde", serde(default))]
     pub master_mono: bool,
     /// Headphone output channels, `None` to disable headphone output.
     pub headphones: Option<ChannelPair>,
     /// Play the headphones as the mono sum of left and right.
+    #[cfg_attr(feature = "serde", serde(default))]
     pub headphones_mono: bool,
     /// Booth output channels, `None` to disable the booth output. The booth
     /// plays a copy of the master with its own level.
+    #[cfg_attr(feature = "serde", serde(default))]
     pub booth: Option<ChannelPair>,
     /// Play the booth as the mono sum of left and right.
+    #[cfg_attr(feature = "serde", serde(default))]
     pub booth_mono: bool,
     /// Booth level, linear gain (`1.0` = same as the master).
+    #[cfg_attr(feature = "serde", serde(default = "default_booth_level"))]
     pub booth_level: f32,
     /// Input device name, `None` for the output device or the host default.
+    #[cfg_attr(feature = "serde", serde(default))]
     pub input_device: Option<String>,
     /// Microphone channels on the input device, `None` for no mic.
+    #[cfg_attr(feature = "serde", serde(default))]
     pub mic: Option<InputChannels>,
     /// Aux / line input pair on the input device, `None` for no aux.
+    #[cfg_attr(feature = "serde", serde(default))]
     pub aux: Option<ChannelPair>,
     /// Talk-over (ducking) settings.
+    #[cfg_attr(feature = "serde", serde(default))]
     pub talkover: TalkOverSettings,
+}
+
+#[cfg(feature = "serde")]
+fn default_booth_level() -> f32 {
+    1.0
 }
 
 impl Default for AudioSettings {
@@ -221,8 +234,6 @@ mod tests {
         assert_eq!(s.booth_level, 1.0);
         assert_eq!(s.mic, None);
         assert_eq!(s.talkover, TalkOverSettings::default());
-        let empty: AudioSettings = serde_json::from_str("{}").expect("empty");
-        assert_eq!(empty, AudioSettings::default());
     }
 
     #[cfg(feature = "serde")]
