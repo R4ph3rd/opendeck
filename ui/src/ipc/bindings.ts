@@ -16,7 +16,10 @@ export const commands = {
 	listAudioDevices: (host: AudioHostKind | null) => typedError<AudioDeviceInfo[], CommandError>(__TAURI_INVOKE("list_audio_devices", { host })),
 	/**  Returns the stored audio settings. */
 	getAudioSettings: () => typedError<AudioSettings, CommandError>(__TAURI_INVOKE("get_audio_settings")),
-	/**  Applies audio settings: stops the stream, reopens it, stores the settings. */
+	/**
+	 *  Applies audio settings: stops the stream, reopens it, stores the settings.
+	 *  Sampler slots are decoded again when the rate changed.
+	 */
 	setAudioSettings: (settings: AudioSettings) => typedError<AudioStatus, CommandError>(__TAURI_INVOKE("set_audio_settings", { settings })),
 	/**  Returns the state of the audio output. */
 	getAudioStatus: () => typedError<AudioStatus, CommandError>(__TAURI_INVOKE("get_audio_status")),
@@ -2042,7 +2045,7 @@ export type SamplerPlayMode =
 "one_shot" | 
 /**  Plays while the pad is held. */
 "gate" | 
-/**  Loops until stopped; a press toggles. */
+/**  Loops until stopped (SHIFT + pad); a press restarts it. */
 "loop";
 
 /**  One slot as the UI shows it. */

@@ -211,14 +211,20 @@ async fn get_audio_settings(
 }
 
 /// Applies audio settings: stops the stream, reopens it, stores the settings.
+/// Sampler slots are decoded again when the rate changed.
 #[tauri::command]
 #[specta::specta]
 async fn set_audio_settings(
     state: tauri::State<'_, AppState>,
     settings: AudioSettings,
 ) -> Result<AudioStatus, CommandError> {
-    let audio = state.audio()?;
-    blocking(move || audio.set_audio_settings(settings)).await
+    let core = state.snapshot()?;
+    blocking(move || {
+        let status = core.audio()?.set_audio_settings(settings)?;
+        core.sampler().follow_rate();
+        Ok(status)
+    })
+    .await
 }
 
 /// Returns the state of the audio output.
