@@ -108,6 +108,24 @@ pub struct Scanner {
 }
 
 impl Scanner {
+    /// File name of the scanner binary on this OS.
+    pub const EXE_NAME: &'static str = if cfg!(windows) {
+        "opendeck-plugin-scan.exe"
+    } else {
+        "opendeck-plugin-scan"
+    };
+
+    /// A scanner using the binary next to the running executable (where the
+    /// app bundle ships it), with [`DEFAULT_SCAN_TIMEOUT`]. `None` if it is
+    /// not there.
+    pub fn next_to_current_exe() -> Option<Self> {
+        let exe = std::env::current_exe().ok()?.parent()?.join(Self::EXE_NAME);
+        exe.is_file().then_some(Self {
+            exe,
+            timeout: DEFAULT_SCAN_TIMEOUT,
+        })
+    }
+
     /// Scans one file in a subprocess.
     pub fn scan(&self, provider: &str, path: &Path) -> ScanRecord {
         let (size, modified) = file_stamp(path).unwrap_or((0, 0));

@@ -36,6 +36,7 @@ mod host;
 mod instances;
 pub mod main_thread;
 pub mod scan;
+pub mod scan_cache;
 #[cfg(feature = "vst3")]
 pub mod vst3;
 
