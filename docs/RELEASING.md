@@ -18,6 +18,10 @@ A release is a milestone promotion: `workbench` merges into `main`, and the rele
 - If a draft was left behind and the version is being replaced, delete the draft release before pushing again, otherwise the workflow skips (the tag or release exists).
 - Never edit a published release's assets by hand.
 
+## Windows installer identity
+
+`bundle.windows.wix.upgradeCode` in `src-tauri/tauri.conf.json` is `6bcb09fc-a2c9-5bb7-a0aa-15cb2d440f6f`. It must never change: Windows Installer uses it to find an installed OpenDeck and upgrade it in place. A new code makes the next MSI install beside the old one. The value is the code Tauri derives from the binary name (UUID v5 of `opendeck.app.x64` in the DNS namespace), so the MSIs of v0.1.0 to v0.7.0 carry it too and upgrade cleanly. Keep `identifier` (`app.opendeck.desktop`) and the NSIS `installMode` stable for the same reason.
+
 ## Signing (later)
 
 Builds are unsigned. To enable signing, add the secrets named in the commented `env` block of `release.yml` (`WINDOWS_CERTIFICATE`, `WINDOWS_CERTIFICATE_PASSWORD`, `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`, `TAURI_SIGNING_PRIVATE_KEY`) and uncomment those lines. Remove the unsigned warning from `.github/release-notes-template.md` once both platforms are signed.
