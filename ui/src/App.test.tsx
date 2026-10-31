@@ -161,7 +161,7 @@ describe("Settings dialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
     await screen.findByRole("combobox", { name: "Host API" });
     fireEvent.click(screen.getByRole("button", { name: "Apply" }));
-    expect(await screen.findByText("could not open the output stream")).toBeTruthy();
+    expect(await screen.findByText("Audio problem: could not open the output stream")).toBeTruthy();
     expect(screen.getByRole("combobox", { name: "Host API" })).toBeTruthy();
   });
 });

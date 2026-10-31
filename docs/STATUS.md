@@ -1,6 +1,6 @@
 # Status
 
-Current milestone: **8 (next)**. Milestone 7 landed as v0.7.0 on 2026-10-31 (milestone 6 as v0.6.0, milestone 5 as v0.5.0, milestone 4 as v0.4.0, milestone 3 as v0.3.0, milestone 2 as v0.2.0, milestone 1 as v0.1.0, milestone 0 as v0.0.0).
+MVP reached (v0.8.0). Milestone 9 (VST3/CLAP hosting) next, owner-approved.
 
 ## Milestones
 
@@ -14,8 +14,8 @@ Current milestone: **8 (next)**. Milestone 7 landed as v0.7.0 on 2026-10-31 (mil
 | 5 | FX engine and FX UI with presets and chains | done (v0.5.0) |
 | 6 | MIDI layer, DDJ-FLX4 mapping, LED feedback, MIDI monitor, replay harness | done (v0.6.0) |
 | 7 | Pad modes with the dynamic middle panel, sampler | done (v0.7.0) |
-| 8 | Hardening: latency, error handling, settings, installer, first-run | next |
-| 9 | Post-MVP: VST3/CLAP, 4 decks, recording, more controllers (needs owner confirmation) | not scheduled |
+| 8 | Hardening: latency, error handling, settings, installer, first-run (MVP) | done (v0.8.0) |
+| 9 | VST3/CLAP plugin hosting (owner-approved); later 4 decks, recording, more controllers | next |
 
 ## Milestone 0
 
@@ -45,6 +45,24 @@ Done: `midi` crate with data-driven JSON mappings (ADR 0007 and addenda): input 
 
 Done: the pad mode drives the middle panel of each deck, with a view for each of the 8 modes (HOT CUE with cue rename, PAD FX 1 and 2, BEAT JUMP, SAMPLER, KEYBOARD, BEAT LOOP, KEY SHIFT). App-core interprets pads in all 8 modes with their SHIFT layers through `PadActions`, for the UI and the FLX4 alike, and drives the pad LEDs. Engine sampler: 16 slots on a sampler bus before the master FX, one-shot, gate and loop modes, quantized starts on the master beat, per-slot gain and varispeed sync, bus level, PFL, slot and bus telemetry, zero heap calls in the callback. Key shift of +/- 12 semitones through the stretcher with key lock on or off. App-core sampler service: slot assignment, split or shared banks, decode to the engine rate, persistence in the library settings, hand-off to the engine (`EngineSampler`) with replay after an engine restart. KEYBOARD plays the keyboard cue chromatically; BEAT LOOP sets and exits auto loops. Tauri pad, sampler and hot cue rename commands and events. UI: middle panel with mode views, sampler slot cards (drop, name, gain, mode, sync, colour, play position) and the sampler bus meter.
 
+## Milestone 8
+
+Done (MVP): output routing of master, headphones and booth to any channel pair of one device (up to 32 channels), mono per output, booth level, stereo fallback. Mic and aux inputs on a second stream with an input ring, mic level, two-shelf EQ and on/off, aux level and fader, talk-over ducking. Device loss reopens with backoff and restores loaded tracks, playheads, play state and cue points; a lost input reattaches without touching the decks; returned buffers are freed on the loader thread. Measured or estimated latency, xrun counter and capability flags per host. Test tone through the engine on each output, so it works while the engine holds the device. Analyzer BPM range from Settings, Library. Log files with rotation, panic hook, database check with backup and recovery, typed error messages, error boundary, diagnostics copy. Settings pages: Audio (device, routing, inputs, talk-over, test tones), MIDI, Library, Interface (theme, waveform zoom, layout presets), Keyboard (shortcut editor) and Advanced (logs, diagnostics, reset). First-run guide (audio with FLX4 preselect, controller check, library, tour). Installer config: product metadata, deb desktop entry, NSIS per-user install, fixed WiX upgrade code (`docs/RELEASING.md`).
+
+## Post-MVP
+
+| Area | Item |
+|---|---|
+| engine | Separate output device for the headphones (two clocks need async resampling) |
+| engine | Drift correction for an input on a different device than the output (resampling with `rubato`); today the input ring cuts or inserts silence |
+| engine | Input resampling when the input device cannot run at the output rate |
+| engine | WASAPI exclusive mode |
+| engine | JACK host: the `jack` feature was never built or run here (needs libjack at build time) |
+| ui | Mic and aux controls live in Settings, Audio; no mic or aux strip on the mixer |
+| tauri | File associations (open audio files and playlists from the OS) |
+| all | 4 decks in the UI (engine and contracts are ready for `MAX_DECKS`) |
+| M9 | VST3 and CLAP plugin hosting (ADR 0006), owner-approved |
+
 ## Branch model
 
 - `main`: released milestones only. Every push to `main` runs the release workflow.
@@ -57,9 +75,6 @@ Done: the pad mode drives the middle panel of each deck, with a view for each of
 
 | Milestone | Issue |
 |---|---|
-| M8 engine | No auto-reopen after device loss; the user reselects the device |
-| M8 app-core | Freed track buffers are dropped on the control thread, not the loader thread as ADR 0003 says |
-| M8 app-core | Playhead is not restored after an engine restart |
 | M3 app-core | Memory cues have no delete or update command, and cue names and colours have no edit command (M4) |
 | M3 app-core | `nudge_beat_grid` is not implemented; `set_beat_grid` stores a locked grid but no UI edits it yet |
 | M3 app-core | The collection comment column costs one `get_track` per row of a page, because the library row type has no comment |

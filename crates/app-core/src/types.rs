@@ -4,8 +4,8 @@ use std::path::Path;
 
 use opendeck_contracts::cue::Cue;
 use opendeck_contracts::ids::TrackId;
-use opendeck_contracts::settings::ChannelPair;
-use opendeck_contracts::{DeckId, EngineEvent, EngineTelemetry, Frames};
+use opendeck_contracts::settings::{ChannelPair, TalkOverSettings};
+use opendeck_contracts::{DeckId, EngineEvent, EngineTelemetry, Frames, Gain};
 use opendeck_media::TrackTags;
 use serde::{Deserialize, Serialize};
 
@@ -126,14 +126,59 @@ pub struct AudioStatus {
     pub channels: Option<u16>,
     /// Requested buffer size in frames; `None` is the device default.
     pub buffer_frames: Option<u32>,
-    /// Output buffer latency in milliseconds, known only for a fixed buffer.
+    /// Output latency in milliseconds: measured from backend callback
+    /// timestamps when `latency_measured`, else the buffer size estimate.
+    /// `None` when neither is known (device default buffer, no timestamps).
     pub latency_ms: Option<f32>,
+    /// `latency_ms` comes from callback timestamps, not an estimate.
+    #[serde(default)]
+    pub latency_measured: bool,
     /// Master pair in use.
     pub master: Option<ChannelPair>,
+    /// Master is played as the mono sum.
+    #[serde(default)]
+    pub master_mono: bool,
     /// Headphone pair in use.
     pub headphones: Option<ChannelPair>,
-    /// The device could not carry the requested routing; stereo is used.
+    /// Headphones are played as the mono sum.
+    #[serde(default)]
+    pub headphones_mono: bool,
+    /// Booth pair in use.
+    #[serde(default)]
+    pub booth: Option<ChannelPair>,
+    /// Booth is played as the mono sum.
+    #[serde(default)]
+    pub booth_mono: bool,
+    /// The device could not carry the requested routing; buses were dropped
+    /// or stereo is used.
     pub stereo_fallback: bool,
+    /// Input device name when mic or aux is open.
+    #[serde(default)]
+    pub input_device: Option<String>,
+    /// Input device channel count.
+    #[serde(default)]
+    pub input_channels: Option<u16>,
+    /// Input latency in milliseconds (capture to engine), measured from
+    /// callback timestamps. The mic path adds the input prefill and the
+    /// output latency.
+    #[serde(default)]
+    pub input_latency_ms: Option<f32>,
+    /// Frames the engine queues before it consumes input (mic latency).
+    #[serde(default)]
+    pub input_prefill_frames: Option<u32>,
+    /// Why mic and aux are not available although routed.
+    #[serde(default)]
+    pub input_error: Option<String>,
+    /// Buffer xruns the backend reported since the engine started (also in
+    /// telemetry).
+    #[serde(default)]
+    pub xruns: u32,
+    /// The device was lost and the core is waiting to reopen it.
+    #[serde(default)]
+    pub reconnecting: bool,
+    /// Reopen attempts so far while `reconnecting`.
+    #[serde(default)]
+    pub reconnect_attempts: u32,
     /// Why the engine is not running, if it is not.
     pub error: Option<String>,
 }
@@ -148,6 +193,42 @@ pub struct HotCues {
     pub slots: Vec<Option<Cue>>,
 }
 
+/// Booth, mic, aux and talk-over controls as the control thread last sent
+/// them to the engine (and replays after a restart).
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct InputState {
+    /// Booth output level, linear gain.
+    pub booth_level: Gain,
+    /// Microphone level, linear gain.
+    pub mic_level: Gain,
+    /// Microphone low shelf, linear gain (unity is flat).
+    pub mic_eq_low: Gain,
+    /// Microphone high shelf, linear gain (unity is flat).
+    pub mic_eq_high: Gain,
+    /// Microphone on.
+    pub mic_on: bool,
+    /// Aux input level, linear gain.
+    pub aux_level: Gain,
+    /// Aux channel fader in `[0, 1]`.
+    pub aux_fader: f32,
+    /// Talk-over (ducking).
+    pub talk_over: TalkOverSettings,
+}
+
+/// Output that carries the test tone.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub enum TestToneOutput {
+    /// Master pair.
+    Master,
+    /// Headphone pair.
+    Headphones,
+    /// Booth pair.
+    Booth,
+}
+
 /// Audio rendered on demand by the offline backend
 /// ([`AudioController::render_offline`](crate::AudioController::render_offline)).
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -156,6 +237,9 @@ pub struct OfflineAudio {
     pub master: Vec<f32>,
     /// Headphone bus, interleaved stereo.
     pub headphones: Vec<f32>,
+    /// Booth bus (master after the master level, times the booth level),
+    /// interleaved stereo.
+    pub booth: Vec<f32>,
 }
 
 /// Everything the control thread publishes to subscribers.

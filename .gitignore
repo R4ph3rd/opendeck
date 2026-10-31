@@ -33,3 +33,6 @@ Thumbs.db
 .claude/worktrees/
 docs/sources/*.md
 !docs/sources/README.md
+
+# Local screenshots from agent runs
+.claude/*.png

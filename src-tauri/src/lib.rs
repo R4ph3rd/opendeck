@@ -10,15 +10,17 @@ use std::path::Path;
 use std::sync::Mutex;
 
 use opendeck_app_core::{
-    AppCore, AudioController, AudioDeviceInfo, AudioStatus, Backend, BrowseContextDto,
-    BrowseCursorDto, CoreError, CoreEvent, DirListing, FxEffectDto, FxOp, FxPresetsDto, FxSlotRef,
-    FxStateDto, FxUnitRef, HotCues, ImportOptionsDto, JobInfo, LaunchOptions, LibraryChange,
-    LibraryEvent, LibraryService, MidiBindingDto, MidiEvent, MidiLearnResultDto, MidiMappingRowDto,
+    AppCore, AppPathsDto, AudioController, AudioDeviceInfo, AudioStatus, Backend, BpmRange,
+    BpmRangeDto, BrowseContextDto, BrowseCursorDto, CoreError, CoreEvent, DbHealth, DiagnosticsDto,
+    DirListing, FxEffectDto, FxOp, FxPresetsDto, FxSlotRef, FxStateDto, FxUnitRef, HotCues,
+    ImportOptionsDto, InputState, JobInfo, LaunchOptions, LibraryChange, LibraryEvent,
+    LibraryService, MidiBindingDto, MidiEvent, MidiLearnResultDto, MidiMappingRowDto,
     MidiMonitorEntryDto, MidiPortDto, MidiService, MidiStatusDto, PadEvent, PadModeChanged,
     PadStateDto, PlaylistEntryDto, PlaylistNodeDto, SamplerLayout, SamplerSlotPatch,
-    SamplerStateDto, SavedSetDetailDto, SavedSetDto, SettingsStore, TrackAnalysisDto,
-    TrackDetailDto, TrackInfo, TrackLoadFailed, TrackLoaded, TrackMetaDto, TrackPageDto,
-    TrackQueryDto,
+    SamplerStateDto, SavedSetDetailDto, SavedSetDto, SettingsStore, TestToneOutput,
+    TrackAnalysisDto, TrackDetailDto, TrackInfo, TrackLoadFailed, TrackLoaded, TrackMetaDto,
+    TrackPageDto, TrackQueryDto, build_diagnostics, check_and_recover, get_pref, recent_errors,
+    reset_prefs, set_pref, unix_stamp,
 };
 use opendeck_contracts::analysis::AnalysisFeatures;
 use opendeck_contracts::beatgrid::BeatGrid;
@@ -29,7 +31,7 @@ use opendeck_contracts::ids::{JobId, PlaylistId, SamplerSlotId, TrackId};
 use opendeck_contracts::jobs::JobProgress;
 use opendeck_contracts::mixer::{CrossfaderAssign, CrossfaderCurve, EqBand, MixerState};
 use opendeck_contracts::pad::PadMode;
-use opendeck_contracts::settings::{AudioHostInfo, AudioHostKind, AudioSettings};
+use opendeck_contracts::settings::{AudioHostInfo, AudioHostKind, AudioSettings, TalkOverSettings};
 use opendeck_contracts::tempo::{SyncMode, TempoRange};
 use opendeck_contracts::{
     Beats, DeckId, EngineEvent, EngineTelemetry, Gain, MAX_DECKS, MVP_DECKS, Seconds,
@@ -198,6 +200,18 @@ async fn list_audio_devices(
 ) -> Result<Vec<AudioDeviceInfo>, CommandError> {
     let core = state.snapshot()?;
     blocking(move || core.audio_devices(host)).await
+}
+
+/// Lists input devices of a host (`None` for the platform default), for the
+/// mic and aux pickers.
+#[tauri::command]
+#[specta::specta]
+async fn list_audio_input_devices(
+    state: tauri::State<'_, AppState>,
+    host: Option<AudioHostKind>,
+) -> Result<Vec<AudioDeviceInfo>, CommandError> {
+    let core = state.snapshot()?;
+    blocking(move || core.audio_input_devices(host)).await
 }
 
 /// Returns the stored audio settings.
@@ -712,6 +726,74 @@ fn set_split_cue(state: tauri::State<'_, AppState>, on: bool) -> Result<(), Comm
     Ok(state.audio()?.set_split_cue(on)?)
 }
 
+// ----- booth, mic, aux, talk-over (milestone 8) -----
+
+/// Booth, mic, aux and talk-over controls as last sent to the engine.
+#[tauri::command]
+#[specta::specta]
+async fn get_input_state(state: tauri::State<'_, AppState>) -> Result<InputState, CommandError> {
+    let audio = state.audio()?;
+    blocking(move || audio.input_state()).await
+}
+
+/// Booth output level as linear gain. Kept for the session; saving the
+/// audio settings stores it.
+#[tauri::command]
+#[specta::specta]
+fn set_booth_level(state: tauri::State<'_, AppState>, gain: Gain) -> Result<(), CommandError> {
+    Ok(state.audio()?.set_booth_level(gain)?)
+}
+
+/// Microphone level as linear gain.
+#[tauri::command]
+#[specta::specta]
+fn set_mic_level(state: tauri::State<'_, AppState>, gain: Gain) -> Result<(), CommandError> {
+    Ok(state.audio()?.set_mic_level(gain)?)
+}
+
+/// Microphone shelf EQ, `low` or `high`, linear gain (unity is flat).
+#[tauri::command]
+#[specta::specta]
+fn set_mic_eq(
+    state: tauri::State<'_, AppState>,
+    band: EqBand,
+    gain: Gain,
+) -> Result<(), CommandError> {
+    Ok(state.audio()?.set_mic_eq(band, gain)?)
+}
+
+/// Microphone on or off.
+#[tauri::command]
+#[specta::specta]
+fn set_mic_on(state: tauri::State<'_, AppState>, on: bool) -> Result<(), CommandError> {
+    Ok(state.audio()?.set_mic_on(on)?)
+}
+
+/// Aux input level as linear gain.
+#[tauri::command]
+#[specta::specta]
+fn set_aux_level(state: tauri::State<'_, AppState>, gain: Gain) -> Result<(), CommandError> {
+    Ok(state.audio()?.set_aux_level(gain)?)
+}
+
+/// Aux channel fader in `[0, 1]`.
+#[tauri::command]
+#[specta::specta]
+fn set_aux_fader(state: tauri::State<'_, AppState>, position: f32) -> Result<(), CommandError> {
+    Ok(state.audio()?.set_aux_fader(position)?)
+}
+
+/// Talk-over: duck the program while the mic is louder than the threshold.
+/// Kept for the session; saving the audio settings stores it.
+#[tauri::command]
+#[specta::specta]
+fn set_talk_over(
+    state: tauri::State<'_, AppState>,
+    settings: TalkOverSettings,
+) -> Result<(), CommandError> {
+    Ok(state.audio()?.set_talk_over(settings)?)
+}
+
 // ----- library: tracks, import jobs, playlists, saved sets (milestone 3) -----
 
 /// One sorted, filtered page of the collection.
@@ -924,6 +1006,26 @@ async fn reanalyze_tracks(
     blocking(move || library.reanalyze(&tracks, features)).await
 }
 
+/// BPM range the tempo analyzer folds into.
+#[tauri::command]
+#[specta::specta]
+async fn get_bpm_range(state: tauri::State<'_, AppState>) -> Result<BpmRangeDto, CommandError> {
+    let library = state.library()?;
+    blocking(move || library.bpm_range()).await
+}
+
+/// Stores the analyzer's BPM range (30 to 300, lowest first). Applies to new
+/// imports and re-analysis.
+#[tauri::command]
+#[specta::specta]
+async fn set_bpm_range(
+    state: tauri::State<'_, AppState>,
+    range: BpmRangeDto,
+) -> Result<(), CommandError> {
+    let library = state.library()?;
+    blocking(move || library.set_bpm_range(range)).await
+}
+
 /// Stored jobs, newest first (the import panel's startup state).
 #[tauri::command]
 #[specta::specta]
@@ -1111,6 +1213,134 @@ async fn delete_saved_set(state: tauri::State<'_, AppState>, set: i64) -> Result
 #[specta::specta]
 async fn list_directory(path: Option<String>) -> Result<DirListing, CommandError> {
     blocking(move || opendeck_app_core::list_directory(path.as_deref().map(Path::new))).await
+}
+
+/// Locations of the app's files and messages from startup.
+#[derive(Debug, Clone, Default)]
+pub struct AppPaths {
+    logs: Option<std::path::PathBuf>,
+    database: Option<std::path::PathBuf>,
+    config: Option<std::path::PathBuf>,
+    notices: Vec<String>,
+}
+
+impl AppPaths {
+    fn dto(&self) -> AppPathsDto {
+        AppPathsDto::new(
+            self.logs.as_deref(),
+            self.database.as_deref(),
+            self.config.as_deref(),
+        )
+    }
+}
+
+/// Opens a directory in the system file manager.
+fn open_directory(dir: &Path) -> Result<(), CommandError> {
+    let program = if cfg!(target_os = "windows") {
+        "explorer"
+    } else if cfg!(target_os = "macos") {
+        "open"
+    } else {
+        "xdg-open"
+    };
+    std::process::Command::new(program)
+        .arg(dir)
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| CommandError::Internal(format!("could not open the file manager: {e}")))
+}
+
+/// Opens the log folder in the system file manager.
+#[tauri::command]
+#[specta::specta]
+fn open_logs_folder(paths: tauri::State<'_, AppPaths>) -> Result<(), CommandError> {
+    let dir = paths
+        .logs
+        .clone()
+        .ok_or_else(|| CommandError::Invalid("logging is not running".to_owned()))?;
+    open_directory(&dir)
+}
+
+/// Messages from startup (for example a replaced database). Shown once.
+#[tauri::command]
+#[specta::specta]
+fn get_startup_notices(paths: tauri::State<'_, AppPaths>) -> Vec<String> {
+    paths.notices.clone()
+}
+
+/// Version, OS, audio and MIDI devices, file locations and the last errors.
+#[tauri::command]
+#[specta::specta]
+async fn get_diagnostics(
+    state: tauri::State<'_, AppState>,
+    paths: tauri::State<'_, AppPaths>,
+) -> Result<DiagnosticsDto, CommandError> {
+    let audio = match state.audio() {
+        Ok(audio) => blocking(move || audio.status()).await.ok(),
+        Err(_) => None,
+    };
+    let midi = match state.midi() {
+        Ok(midi) => midi.status().ok(),
+        Err(_) => None,
+    };
+    Ok(build_diagnostics(
+        audio.as_ref(),
+        midi.as_ref(),
+        paths.dto(),
+        paths.notices.clone(),
+        recent_errors(),
+    ))
+}
+
+/// Plays the test tone (about a second, quiet) on one output through the
+/// running engine and returns when it has played. Fails when audio is off or
+/// the output is not routed.
+#[tauri::command]
+#[specta::specta]
+async fn play_test_tone(
+    state: tauri::State<'_, AppState>,
+    output: TestToneOutput,
+) -> Result<(), CommandError> {
+    let audio = state.audio()?;
+    blocking(move || {
+        audio.play_test_tone(output)?;
+        std::thread::sleep(std::time::Duration::from_millis(u64::from(
+            opendeck_app_core::TEST_TONE_MS,
+        )));
+        Ok(())
+    })
+    .await
+}
+
+/// Reads a UI preference (JSON text) from the library settings.
+#[tauri::command]
+#[specta::specta]
+async fn get_ui_pref(
+    state: tauri::State<'_, AppState>,
+    name: String,
+) -> Result<Option<String>, CommandError> {
+    let library = state.library()?.library();
+    blocking(move || get_pref(&library, &name)).await
+}
+
+/// Stores a UI preference (JSON text) in the library settings.
+#[tauri::command]
+#[specta::specta]
+async fn set_ui_pref(
+    state: tauri::State<'_, AppState>,
+    name: String,
+    json: String,
+) -> Result<(), CommandError> {
+    let library = state.library()?.library();
+    blocking(move || set_pref(&library, &name, &json)).await
+}
+
+/// Removes every UI preference. Audio and MIDI settings stay. Returns how many were removed.
+#[tauri::command]
+#[specta::specta]
+async fn reset_ui_prefs(state: tauri::State<'_, AppState>) -> Result<u32, CommandError> {
+    let library = state.library()?.library();
+    blocking(move || reset_prefs(&library)).await
 }
 
 /// Shows a file in the system file manager.
@@ -1685,6 +1915,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             app_info,
             list_audio_hosts,
             list_audio_devices,
+            list_audio_input_devices,
             get_audio_settings,
             set_audio_settings,
             get_audio_status,
@@ -1736,6 +1967,14 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             set_headphone_level,
             set_headphone_mix,
             set_split_cue,
+            get_input_state,
+            set_booth_level,
+            set_mic_level,
+            set_mic_eq,
+            set_mic_on,
+            set_aux_level,
+            set_aux_fader,
+            set_talk_over,
             fx_get_state,
             fx_list_effects,
             fx_get_presets,
@@ -1760,6 +1999,8 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             import_playlist_file,
             import_rekordbox_xml,
             reanalyze_tracks,
+            get_bpm_range,
+            set_bpm_range,
             list_jobs,
             pause_job,
             resume_job,
@@ -1779,6 +2020,13 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             delete_saved_set,
             list_directory,
             reveal_in_explorer,
+            open_logs_folder,
+            get_startup_notices,
+            get_diagnostics,
+            play_test_tone,
+            get_ui_pref,
+            set_ui_pref,
+            reset_ui_prefs,
             midi_list_ports,
             midi_get_status,
             midi_connect,
@@ -1915,34 +2163,75 @@ fn forward_pad_events(app: tauri::AppHandle, events: crossbeam_channel::Receiver
     }
 }
 
-/// Opens the library in the app data dir. A library that cannot be opened
+/// Opens the library in the app data dir. A damaged database is backed up
+/// and replaced (`notices` says so). A library that cannot be opened
 /// (unreadable folder, a database from a newer version) is reported and
 /// replaced by an in-memory one, so the decks still work.
-fn open_library(dir: Option<std::path::PathBuf>) -> Result<LibraryService, CoreError> {
-    let analyzers = LibraryService::default_analyzers();
+fn open_library(
+    dir: Option<std::path::PathBuf>,
+    notices: &mut Vec<String>,
+) -> Result<LibraryService, CoreError> {
+    let range = BpmRange::default();
+    let analyzers = LibraryService::analyzers_with_range(&range);
     let config = opendeck_app_core::ImportConfig::default();
     if let Some(dir) = dir {
         let path = dir.join(opendeck_app_core::DATABASE_FILE_NAME);
+        match check_and_recover(&path, unix_stamp()) {
+            Ok(health @ DbHealth::Recovered { .. }) => notices.extend(health.notice()),
+            Ok(_) => {}
+            Err(err) => tracing::error!(%err, "database check failed"),
+        }
         match LibraryService::open(&path, analyzers.clone(), config.clone()) {
-            Ok(service) => return Ok(service),
-            Err(err) => eprintln!(
-                "could not open {}: {err}; using a temporary library",
-                path.display()
-            ),
+            Ok(service) => {
+                service.attach_bpm_range(range);
+                return Ok(service);
+            }
+            Err(err) => {
+                tracing::error!(%err, path = %path.display(), "could not open the library");
+                notices.push(format!(
+                    "The library could not be opened ({err}). A temporary library is in use and nothing is saved."
+                ));
+            }
         }
     }
-    LibraryService::open_in_memory(analyzers, config)
+    let service = LibraryService::open_in_memory(analyzers, config)?;
+    service.attach_bpm_range(range);
+    Ok(service)
 }
+
+/// Keeps the log writer alive for the life of the app.
+struct LogHolder(#[allow(dead_code)] opendeck_app_core::LogGuard);
 
 /// Starts the application.
 pub fn run() {
+    opendeck_app_core::install_panic_hook();
     let builder = specta_builder();
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             builder.mount_events(app);
-            let library = open_library(app.path().app_data_dir().ok())?;
+            let mut paths = AppPaths {
+                logs: app.path().app_log_dir().ok(),
+                database: app
+                    .path()
+                    .app_data_dir()
+                    .ok()
+                    .map(|d| d.join(opendeck_app_core::DATABASE_FILE_NAME)),
+                config: app.path().app_config_dir().ok(),
+                notices: Vec::new(),
+            };
+            if let Some(dir) = &paths.logs {
+                match opendeck_app_core::init_logging(dir) {
+                    Ok(guard) => app.manage(LogHolder(guard)),
+                    Err(err) => {
+                        eprintln!("logging is unavailable: {err}");
+                        false
+                    }
+                };
+            }
+            let library = open_library(app.path().app_data_dir().ok(), &mut paths.notices)?;
+            app.manage(paths);
             let store = match app.path().app_config_dir() {
                 Ok(dir) => SettingsStore::in_dir(&dir),
                 Err(_) => SettingsStore::memory(),
@@ -1991,7 +2280,7 @@ pub fn run() {
                     state.set_midi(midi);
                 }
                 // The decks work without MIDI; the settings page shows the state.
-                Err(err) => eprintln!("MIDI is unavailable: {err}"),
+                Err(err) => tracing::warn!(%err, "MIDI is unavailable"),
             }
             app.manage(state);
             Ok(())
@@ -2219,6 +2508,7 @@ mod tests {
         assert!(supported_audio_extensions().contains(&"wav".to_owned()));
         // No device is needed to ask; an error from a headless host is fine.
         let _ = tauri::async_runtime::block_on(list_audio_devices(app.state(), None));
+        let _ = tauri::async_runtime::block_on(list_audio_input_devices(app.state(), None));
     }
 
     #[test]
@@ -2342,6 +2632,36 @@ mod tests {
         assert!(set_headphone_level(app.state(), Gain(0.7)).is_ok());
         assert!(set_headphone_mix(app.state(), 0.5).is_ok());
         assert!(set_split_cue(app.state(), true).is_ok());
+        assert!(set_booth_level(app.state(), Gain(0.5)).is_ok());
+        assert!(set_mic_level(app.state(), Gain(0.8)).is_ok());
+        assert!(set_mic_eq(app.state(), EqBand::Low, Gain(0.6)).is_ok());
+        assert!(matches!(
+            set_mic_eq(app.state(), EqBand::Mid, Gain(0.6)),
+            Err(CommandError::Invalid(_))
+        ));
+        assert!(set_mic_on(app.state(), true).is_ok());
+        assert!(set_aux_level(app.state(), Gain(0.3)).is_ok());
+        assert!(set_aux_fader(app.state(), 0.25).is_ok());
+        let talk = TalkOverSettings {
+            enabled: true,
+            ..TalkOverSettings::default()
+        };
+        assert!(set_talk_over(app.state(), talk).is_ok());
+        let inputs = tauri::async_runtime::block_on(get_input_state(app.state())).expect("inputs");
+        assert_eq!(inputs.booth_level, Gain(0.5));
+        assert_eq!(
+            (inputs.mic_level, inputs.mic_eq_low),
+            (Gain(0.8), Gain(0.6))
+        );
+        assert!(inputs.mic_on);
+        assert_eq!((inputs.aux_level, inputs.aux_fader), (Gain(0.3), 0.25));
+        assert_eq!(inputs.talk_over, talk);
+        tauri::async_runtime::block_on(play_test_tone(app.state(), TestToneOutput::Headphones))
+            .expect("tone on the default headphone pair");
+        assert!(
+            tauri::async_runtime::block_on(play_test_tone(app.state(), TestToneOutput::Booth))
+                .is_err()
+        );
         let m = tauri::async_runtime::block_on(get_mixer_state(app.state())).expect("mixer");
         let ch = m.channels[1];
         assert_eq!(ch.trim, Gain(1.2));
@@ -2453,6 +2773,30 @@ mod tests {
             std::thread::sleep(Duration::from_millis(50));
         }
         panic!("job did not finish");
+    }
+
+    #[test]
+    fn bpm_range_commands_validate_and_store() {
+        let app = library_app();
+        let range = tauri::async_runtime::block_on(get_bpm_range(app.state())).expect("get");
+        assert_eq!(range, BpmRangeDto::default());
+        let wanted = BpmRangeDto {
+            min_bpm: 80.0,
+            max_bpm: 160.0,
+        };
+        tauri::async_runtime::block_on(set_bpm_range(app.state(), wanted)).expect("set");
+        assert_eq!(
+            tauri::async_runtime::block_on(get_bpm_range(app.state())).expect("get"),
+            wanted
+        );
+        let bad = BpmRangeDto {
+            min_bpm: 10.0,
+            max_bpm: 160.0,
+        };
+        assert!(matches!(
+            tauri::async_runtime::block_on(set_bpm_range(app.state(), bad)),
+            Err(CommandError::Invalid(_))
+        ));
     }
 
     #[test]

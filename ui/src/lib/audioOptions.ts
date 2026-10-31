@@ -1,4 +1,4 @@
-import type { AudioDeviceInfo, ChannelPair } from "../ipc/bindings";
+import type { AudioDeviceInfo, AudioHostInfo, ChannelPair, InputChannels } from "../ipc/bindings";
 
 /** Rates offered when the device supports them. */
 export const STANDARD_RATES = [44_100, 48_000, 88_200, 96_000, 176_400, 192_000];
@@ -55,4 +55,64 @@ export function parsePairKey(key: string): ChannelPair | null {
     return null;
   }
   return { left, right };
+}
+
+/** Why a host listed by the backend cannot be chosen. */
+export function hostUnavailableReason(host: AudioHostInfo): string | null {
+  if (host.available) {
+    return null;
+  }
+  switch (host.kind) {
+    case "asio":
+      return "build with the asio feature";
+    case "jack":
+      return "build with the jack feature";
+    default:
+      return "not available on this machine";
+  }
+}
+
+/** One-based label of an input source: `In 1` for mono, `In 1/2` for a pair. */
+export function inputLabel(channels: InputChannels): string {
+  return channels.right === null
+    ? `In ${channels.left + 1}`
+    : `In ${channels.left + 1}/${channels.right + 1}`;
+}
+
+/** Mic choices on an input device: every single channel (mono), then consecutive pairs. */
+export function micOptions(device: AudioDeviceInfo | undefined): InputChannels[] {
+  const channels = Math.max(1, device?.max_channels ?? FALLBACK_CHANNELS);
+  const mono: InputChannels[] = [];
+  for (let left = 0; left < channels; left++) {
+    mono.push({ left, right: null });
+  }
+  return [...mono, ...channelPairs(device).map((p) => ({ left: p.left, right: p.right }))];
+}
+
+/** String key for an input source in a Select. */
+export function inputKey(channels: InputChannels): string {
+  return channels.right === null
+    ? `${channels.left}`
+    : `${channels.left}-${channels.right}`;
+}
+
+export function parseInputKey(key: string): InputChannels | null {
+  const [left, right] = key.split("-").map(Number);
+  if (left === undefined || Number.isNaN(left)) {
+    return null;
+  }
+  if (right === undefined) {
+    return { left, right: null };
+  }
+  return Number.isNaN(right) ? null : { left, right };
+}
+
+/** Linear gain as dB text, `-inf dB` at zero. */
+export function gainDbLabel(gain: number): string {
+  if (gain <= 0) {
+    return "-inf dB";
+  }
+  const db = 20 * Math.log10(gain);
+  const rounded = Math.round(db * 10) / 10;
+  return `${rounded > 0 ? "+" : ""}${rounded.toFixed(1)} dB`;
 }

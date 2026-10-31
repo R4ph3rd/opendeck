@@ -30,6 +30,13 @@ Top of the crate graph. Owns application state (decks, mixer snapshot, pad modes
 - M1: control thread, engine start/stop with settings, deck/mixer commands, telemetry forwarding.
 - M2: library handle, import job events. M3: sync and analysis wiring (**done**: `LibraryService` owns the library and import queue, `load_track` by id with grid and cues, cue and settings persistence, session saved set).  M4: cue/loop persistence, pad interpretation for HOT CUE, BEAT JUMP, BEAT LOOP. M5: FX registry and state. M6: MIDI connection, feedback loop (**done** in wave 6b: `MidiBridge` translates `ControlEvent`s and derives LED states, `MidiService` runs it with the controller worker and the user's mapping overrides; see ADR 0007 addenda). M7: sampler, KEYBOARD, KEY SHIFT, saved sets (**done** except saved sets: `pads.rs`, `sampler.rs`, ADR 0007 addendum; `EngineSampler` hands samples to the engine through the control thread, which replays them after a restart).
 
+## M8 audio plumbing (control thread)
+- `AudioStatus` reports routing (booth, mono flags), input state, measured or estimated latency, xruns and `reconnecting`. `AudioController` gains `set_booth_level`, `set_mic_level`, `set_mic_eq`, `set_mic_on`, `set_aux_level`, `set_aux_fader`, `set_talk_over`, `input_state`; `AppCore::audio_input_devices` lists inputs. Booth level and talk-over mirror into the in-memory audio settings; `set_audio_settings` persists them.
+- Any engine restart (settings change, device loss) captures each deck's playhead, play state and cue point from telemetry and restores them after the reload. A lost output device is retried with backoff (`Reopener`); a device missing at launch is waited for too. Returned track buffers go to the loader thread.
+- The offline backend honours `sample_rate` and routing from the settings and has no input. Test hook: `Msg::SimulateDeviceLoss` (cfg(test)).
+- Test tone: `AudioController::play_test_tone(TestToneOutput)` asks the engine (`EngineHandle::play_test_tone`), so it works while the engine holds the device; errors when audio is off or the output is not routed. No separate cpal stream.
+- BPM range: `BpmRange` (shared `BpmRangeDto`) feeds a tempo analyzer wrapper built by `LibraryService::analyzers_with_range`; `attach_bpm_range` loads the stored value (`analysis.bpm_range`), `set_bpm_range` validates (30 to 300) and stores. Applies to the next track analysed.
+
 ## Open questions
 - Undo for destructive edits (cue delete, grid edit): scope and storage.
 - Whether app-core state snapshots are pushed to the UI as full DTOs or patches (start with full DTOs).

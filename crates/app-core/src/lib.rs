@@ -13,19 +13,26 @@
 //! calls; every method either queues a message or waits for a short reply,
 //! and none touches the audio thread.
 
+mod bpm_range;
 mod control;
+mod db_guard;
+mod diagnostics;
 mod dto;
 mod fs_browser;
 mod fx;
 mod fx_types;
 mod library_service;
 mod loader;
+mod logging;
 mod midi_bridge;
 mod midi_service;
 mod midi_types;
 mod pads;
+mod prefs;
 mod sampler;
 mod settings_store;
+#[cfg(test)]
+mod tests_m8;
 mod types;
 
 use std::path::Path;
@@ -38,13 +45,16 @@ use opendeck_contracts::beatgrid::BeatGrid;
 use opendeck_contracts::cue::{Cue, HotCueIndex};
 use opendeck_contracts::deck::DeckState;
 use opendeck_contracts::mixer::{CrossfaderAssign, CrossfaderCurve, EqBand, MixerState};
-use opendeck_contracts::settings::{AudioHostInfo, AudioHostKind, AudioSettings};
+use opendeck_contracts::settings::{AudioHostInfo, AudioHostKind, AudioSettings, TalkOverSettings};
 use opendeck_contracts::tempo::{SyncMode, TempoRange};
 use opendeck_contracts::{Beats, DeckId, EngineCommand, Gain, Seconds, pad::PadMode};
 use opendeck_engine::device;
 
+pub use crate::bpm_range::{BPM_RANGE_MAX, BPM_RANGE_MIN, BpmRange, BpmRangeDto};
 pub use crate::control::{Backend, LaunchOptions, TICK};
 use crate::control::{FxMsg, Msg};
+pub use crate::db_guard::{DbHealth, check_and_recover, quick_check, unix_stamp};
+pub use crate::diagnostics::{AppPathsDto, DiagnosticsDto, build_diagnostics};
 pub use crate::dto::{
     AnalysisStatusDto, DirListing, FsEntry, FsEntryKind, ImportOptionsDto, JobInfo, LibraryChange,
     PlaylistEntryDto, PlaylistKindDto, PlaylistNodeDto, SavedSetDetailDto, SavedSetDto,
@@ -58,6 +68,10 @@ pub use crate::fx_types::{
     FxTarget, FxUnitRef, PAD_FX_COUNT, PADS_PER_LAYER, PadFxAssignDto, SendUnitDto,
 };
 pub use crate::library_service::{LibraryEvent, LibraryService, PROGRESS_INTERVAL};
+pub use crate::logging::{
+    LOG_FILES_KEPT, LOG_PREFIX, LogGuard, init as init_logging, install_panic_hook, recent_errors,
+    record_error,
+};
 pub use crate::midi_bridge::{BridgeNotice, MidiBridge, Takeover};
 pub use crate::midi_service::{
     BackendMaker, MIDI_SETTINGS_KEY, MidiEvent, MidiService, MidiServiceOptions,
@@ -71,6 +85,7 @@ pub use crate::pads::{
     BEAT_JUMP_BASE, BEAT_LOOP_LENGTHS, DeckPadStateDto, PAD_SEMITONES, PadActions, PadContext,
     PadEvent, PadModes, PadOp, PadStateDto, beat_jump_beats, pad_semitones, plan,
 };
+pub use crate::prefs::{get_pref, reset_prefs, set_pref};
 pub use crate::sampler::{
     EngineSampler, SAMPLER_PADS, SAMPLER_PEAKS, SAMPLER_SETTINGS_KEY, SamplerEngine, SamplerLayout,
     SamplerPlayMode, SamplerService, SamplerSlotDto, SamplerSlotParams, SamplerSlotPatch,
@@ -78,9 +93,10 @@ pub use crate::sampler::{
 };
 pub use crate::settings_store::{SETTINGS_FILE, SettingsStore, StoredSettings};
 pub use crate::types::{
-    AudioDeviceInfo, AudioStatus, CoreError, CoreEvent, HotCues, OfflineAudio, TrackInfo,
-    TrackLoadFailed, TrackLoaded,
+    AudioDeviceInfo, AudioStatus, CoreError, CoreEvent, HotCues, InputState, OfflineAudio,
+    TestToneOutput, TrackInfo, TrackLoadFailed, TrackLoaded,
 };
+pub use opendeck_engine::TEST_TONE_MS;
 pub use opendeck_library::DATABASE_FILE_NAME;
 pub use opendeck_library::import::ImportConfig;
 
@@ -158,7 +174,7 @@ impl AudioController {
     /// [`CoreEvent::AudioStatus`] event.
     pub fn launch(opts: LaunchOptions) -> std::io::Result<Self> {
         let (tx, rx) = crossbeam_channel::unbounded();
-        let (load_tx, load_rx) = crossbeam_channel::unbounded();
+        let (load_tx, load_rx) = crossbeam_channel::unbounded::<loader::LoaderJob>();
         let max_track_secs = opts.max_track_secs;
         let loader = loader::spawn(load_rx, tx.clone())?;
         let control = std::thread::Builder::new()
@@ -462,6 +478,74 @@ impl AudioController {
     /// Split cue on or off.
     pub fn set_split_cue(&self, on: bool) -> Result<(), CoreError> {
         self.send(EngineCommand::SetSplitCue { on })
+    }
+
+    /// Booth output level as linear gain. The booth plays the master with
+    /// this level; it needs a booth pair in the audio settings. Kept in
+    /// memory (and replayed after a restart); `set_audio_settings` persists it.
+    pub fn set_booth_level(&self, gain: Gain) -> Result<(), CoreError> {
+        non_negative(gain.0, "booth level")?;
+        self.send(EngineCommand::SetBoothLevel { gain })
+    }
+
+    /// Microphone level as linear gain.
+    pub fn set_mic_level(&self, gain: Gain) -> Result<(), CoreError> {
+        non_negative(gain.0, "mic level")?;
+        self.send(EngineCommand::SetMicLevel { gain })
+    }
+
+    /// Microphone shelf gain, `EqBand::Low` or `EqBand::High` (linear, unity
+    /// is flat).
+    pub fn set_mic_eq(&self, band: EqBand, gain: Gain) -> Result<(), CoreError> {
+        non_negative(gain.0, "mic EQ")?;
+        if band == EqBand::Mid {
+            return Err(CoreError::Invalid(
+                "the mic EQ has a low and a high band".to_owned(),
+            ));
+        }
+        self.send(EngineCommand::SetMicEq { band, gain })
+    }
+
+    /// Microphone on or off.
+    pub fn set_mic_on(&self, on: bool) -> Result<(), CoreError> {
+        self.send(EngineCommand::SetMicOn { on })
+    }
+
+    /// Aux input level as linear gain.
+    pub fn set_aux_level(&self, gain: Gain) -> Result<(), CoreError> {
+        non_negative(gain.0, "aux level")?;
+        self.send(EngineCommand::SetAuxLevel { gain })
+    }
+
+    /// Aux channel fader in `[0, 1]`.
+    pub fn set_aux_fader(&self, position: f32) -> Result<(), CoreError> {
+        finite(position, "aux fader")?;
+        self.send(EngineCommand::SetAuxFader { position })
+    }
+
+    /// Talk-over: duck the program by `depth_db` while the mic is louder
+    /// than `threshold_db`. Kept in memory like the booth level.
+    pub fn set_talk_over(&self, settings: TalkOverSettings) -> Result<(), CoreError> {
+        finite(settings.depth_db, "talk-over depth")?;
+        finite(settings.threshold_db, "talk-over threshold")?;
+        self.send(EngineCommand::SetTalkOver {
+            on: settings.enabled,
+            depth_db: settings.depth_db,
+            threshold_db: settings.threshold_db,
+        })
+    }
+
+    /// Plays the test tone (about a second, -14 dBFS) on `output` through
+    /// the running engine, so it works while the engine holds the device.
+    /// Returns once the engine has the request; fails when audio is off or
+    /// the output is not routed.
+    pub fn play_test_tone(&self, output: TestToneOutput) -> Result<(), CoreError> {
+        self.ask(|reply| Msg::TestTone { output, reply })?
+    }
+
+    /// Booth, mic, aux and talk-over controls as last sent to the engine.
+    pub fn input_state(&self) -> Result<InputState, CoreError> {
+        self.ask(Msg::GetInputs)
     }
 
     /// Mixer settings as the control thread last sent them to the engine.
@@ -808,9 +892,12 @@ impl AppCore {
         Ok(state)
     }
 
-    /// Audio host APIs for the settings screen, from cpal. Hosts the settings
-    /// enum does not model are left out. Falls back to a fixed list when the
-    /// platform reports none.
+    /// Audio host APIs for the settings screen, from cpal, with what each
+    /// offers (inputs, multichannel outputs, a settable buffer size). Hosts
+    /// the settings enum does not model are left out. Hosts this platform
+    /// can offer but this build does not (ASIO without the `asio` feature,
+    /// JACK without `jack`) are listed as unavailable. Enumerates every
+    /// host's devices: call it when the settings screen opens.
     pub fn audio_hosts(&self) -> Vec<AudioHostInfo> {
         let mut hosts: Vec<AudioHostInfo> = device::list_hosts()
             .into_iter()
@@ -820,6 +907,9 @@ impl AppCore {
                     name: h.name,
                     available: true,
                     is_default: h.is_default,
+                    input: h.caps.input,
+                    multichannel_output: h.caps.multichannel_output,
+                    configurable_buffer: h.caps.configurable_buffer,
                 })
             })
             .collect();
@@ -828,6 +918,11 @@ impl AppCore {
         }
         if !hosts.iter().any(|h| h.is_default) {
             hosts[0].is_default = true;
+        }
+        for (kind, name) in platform_hosts() {
+            if !hosts.iter().any(|h| h.kind == kind) {
+                hosts.push(host_info(kind, name, false, false));
+            }
         }
         hosts
     }
@@ -839,41 +934,68 @@ impl AppCore {
     ) -> Result<Vec<AudioDeviceInfo>, CoreError> {
         let devices =
             device::list_output_devices(host).map_err(|e| CoreError::Audio(e.to_string()))?;
-        Ok(devices
-            .into_iter()
-            .map(|d| AudioDeviceInfo {
-                name: d.name,
-                is_default: d.is_default,
-                max_channels: d.max_channels,
-                default_sample_rate: d.default_sample_rate,
-                sample_rate_ranges: d.sample_rate_ranges.iter().map(|r| [r.0, r.1]).collect(),
-                buffer_frames: d.buffer_frames.map(|r| [r.0, r.1]),
-            })
-            .collect())
+        Ok(devices.into_iter().map(device_dto).collect())
+    }
+
+    /// Input devices of `host` (`None` for the platform default), for the
+    /// mic and aux pickers. `max_channels` is the most input channels.
+    pub fn audio_input_devices(
+        &self,
+        host: Option<AudioHostKind>,
+    ) -> Result<Vec<AudioDeviceInfo>, CoreError> {
+        let devices =
+            device::list_input_devices(host).map_err(|e| CoreError::Audio(e.to_string()))?;
+        Ok(devices.into_iter().map(device_dto).collect())
+    }
+}
+
+fn device_dto(d: device::DeviceInfo) -> AudioDeviceInfo {
+    AudioDeviceInfo {
+        name: d.name,
+        is_default: d.is_default,
+        max_channels: d.max_channels,
+        default_sample_rate: d.default_sample_rate,
+        sample_rate_ranges: d.sample_rate_ranges.iter().map(|r| [r.0, r.1]).collect(),
+        buffer_frames: d.buffer_frames.map(|r| [r.0, r.1]),
+    }
+}
+
+fn host_info(kind: AudioHostKind, name: &str, available: bool, is_default: bool) -> AudioHostInfo {
+    AudioHostInfo {
+        kind,
+        name: name.to_owned(),
+        available,
+        is_default,
+        input: false,
+        multichannel_output: false,
+        configurable_buffer: false,
+    }
+}
+
+/// Hosts this platform can offer, whether or not the build includes them.
+fn platform_hosts() -> Vec<(AudioHostKind, &'static str)> {
+    if cfg!(target_os = "windows") {
+        vec![
+            (AudioHostKind::Wasapi, "WASAPI"),
+            (AudioHostKind::Asio, "ASIO"),
+        ]
+    } else if cfg!(target_os = "macos") {
+        vec![
+            (AudioHostKind::CoreAudio, "Core Audio"),
+            (AudioHostKind::Jack, "JACK"),
+        ]
+    } else {
+        vec![(AudioHostKind::Alsa, "ALSA"), (AudioHostKind::Jack, "JACK")]
     }
 }
 
 /// Hosts this platform build is expected to offer, used when cpal lists none.
 fn fallback_hosts() -> Vec<AudioHostInfo> {
-    let host = |kind, name: &str, available, is_default| AudioHostInfo {
-        kind,
-        name: name.to_owned(),
-        available,
-        is_default,
-    };
-    if cfg!(target_os = "windows") {
-        vec![
-            host(AudioHostKind::Wasapi, "WASAPI", true, true),
-            host(AudioHostKind::Asio, "ASIO", false, false),
-        ]
-    } else if cfg!(target_os = "macos") {
-        vec![host(AudioHostKind::CoreAudio, "Core Audio", true, true)]
-    } else {
-        vec![
-            host(AudioHostKind::Alsa, "ALSA", true, true),
-            host(AudioHostKind::Jack, "JACK", false, false),
-        ]
-    }
+    platform_hosts()
+        .into_iter()
+        .enumerate()
+        .map(|(i, (kind, name))| host_info(kind, name, i == 0, i == 0))
+        .collect()
 }
 
 #[cfg(test)]

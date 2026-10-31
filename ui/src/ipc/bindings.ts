@@ -14,6 +14,11 @@ export const commands = {
 	listAudioHosts: () => typedError<AudioHostInfo[], CommandError>(__TAURI_INVOKE("list_audio_hosts")),
 	/**  Lists output devices of a host (`None` for the platform default). */
 	listAudioDevices: (host: AudioHostKind | null) => typedError<AudioDeviceInfo[], CommandError>(__TAURI_INVOKE("list_audio_devices", { host })),
+	/**
+	 *  Lists input devices of a host (`None` for the platform default), for the
+	 *  mic and aux pickers.
+	 */
+	listAudioInputDevices: (host: AudioHostKind | null) => typedError<AudioDeviceInfo[], CommandError>(__TAURI_INVOKE("list_audio_input_devices", { host })),
 	/**  Returns the stored audio settings. */
 	getAudioSettings: () => typedError<AudioSettings, CommandError>(__TAURI_INVOKE("get_audio_settings")),
 	/**
@@ -126,6 +131,28 @@ export const commands = {
 	setHeadphoneMix: (mix: number | null) => typedError<null, CommandError>(__TAURI_INVOKE("set_headphone_mix", { mix })),
 	/**  Split cue on or off. */
 	setSplitCue: (on: boolean) => typedError<null, CommandError>(__TAURI_INVOKE("set_split_cue", { on })),
+	/**  Booth, mic, aux and talk-over controls as last sent to the engine. */
+	getInputState: () => typedError<InputState, CommandError>(__TAURI_INVOKE("get_input_state")),
+	/**
+	 *  Booth output level as linear gain. Kept for the session; saving the
+	 *  audio settings stores it.
+	 */
+	setBoothLevel: (gain: Gain) => typedError<null, CommandError>(__TAURI_INVOKE("set_booth_level", { gain })),
+	/**  Microphone level as linear gain. */
+	setMicLevel: (gain: Gain) => typedError<null, CommandError>(__TAURI_INVOKE("set_mic_level", { gain })),
+	/**  Microphone shelf EQ, `low` or `high`, linear gain (unity is flat). */
+	setMicEq: (band: EqBand, gain: Gain) => typedError<null, CommandError>(__TAURI_INVOKE("set_mic_eq", { band, gain })),
+	/**  Microphone on or off. */
+	setMicOn: (on: boolean) => typedError<null, CommandError>(__TAURI_INVOKE("set_mic_on", { on })),
+	/**  Aux input level as linear gain. */
+	setAuxLevel: (gain: Gain) => typedError<null, CommandError>(__TAURI_INVOKE("set_aux_level", { gain })),
+	/**  Aux channel fader in `[0, 1]`. */
+	setAuxFader: (position: number | null) => typedError<null, CommandError>(__TAURI_INVOKE("set_aux_fader", { position })),
+	/**
+	 *  Talk-over: duck the program while the mic is louder than the threshold.
+	 *  Kept for the session; saving the audio settings stores it.
+	 */
+	setTalkOver: (settings: TalkOverSettings) => typedError<null, CommandError>(__TAURI_INVOKE("set_talk_over", { settings })),
 	/**  The FX model: Beat FX units, Sound Color FX, sends, pad effects. */
 	fxGetState: () => typedError<FxStateDto, CommandError>(__TAURI_INVOKE("fx_get_state")),
 	/**
@@ -183,6 +210,13 @@ export const commands = {
 	importRekordboxXml: (path: string, options: ImportOptionsDto | null) => typedError<JobId, CommandError>(__TAURI_INVOKE("import_rekordbox_xml", { path, options })),
 	/**  Re-analyses tracks. A locked beat grid survives. */
 	reanalyzeTracks: (tracks: TrackId[], features: AnalysisFeatures) => typedError<JobId, CommandError>(__TAURI_INVOKE("reanalyze_tracks", { tracks, features })),
+	/**  BPM range the tempo analyzer folds into. */
+	getBpmRange: () => typedError<BpmRangeDto, CommandError>(__TAURI_INVOKE("get_bpm_range")),
+	/**
+	 *  Stores the analyzer's BPM range (30 to 300, lowest first). Applies to new
+	 *  imports and re-analysis.
+	 */
+	setBpmRange: (range: BpmRangeDto) => typedError<null, CommandError>(__TAURI_INVOKE("set_bpm_range", { range })),
 	/**  Stored jobs, newest first (the import panel's startup state). */
 	listJobs: () => typedError<JobInfo[], CommandError>(__TAURI_INVOKE("list_jobs")),
 	/**  Pauses a running job. */
@@ -224,6 +258,24 @@ export const commands = {
 	listDirectory: (path: string | null) => typedError<DirListing, CommandError>(__TAURI_INVOKE("list_directory", { path })),
 	/**  Shows a file in the system file manager. */
 	revealInExplorer: (path: string) => typedError<null, CommandError>(__TAURI_INVOKE("reveal_in_explorer", { path })),
+	/**  Opens the log folder in the system file manager. */
+	openLogsFolder: () => typedError<null, CommandError>(__TAURI_INVOKE("open_logs_folder")),
+	/**  Messages from startup (for example a replaced database). Shown once. */
+	getStartupNotices: () => __TAURI_INVOKE<string[]>("get_startup_notices"),
+	/**  Version, OS, audio and MIDI devices, file locations and the last errors. */
+	getDiagnostics: () => typedError<DiagnosticsDto, CommandError>(__TAURI_INVOKE("get_diagnostics")),
+	/**
+	 *  Plays the test tone (about a second, quiet) on one output through the
+	 *  running engine and returns when it has played. Fails when audio is off or
+	 *  the output is not routed.
+	 */
+	playTestTone: (output: TestToneOutput) => typedError<null, CommandError>(__TAURI_INVOKE("play_test_tone", { output })),
+	/**  Reads a UI preference (JSON text) from the library settings. */
+	getUiPref: (name: string) => typedError<string | null, CommandError>(__TAURI_INVOKE("get_ui_pref", { name })),
+	/**  Stores a UI preference (JSON text) in the library settings. */
+	setUiPref: (name: string, json: string) => typedError<null, CommandError>(__TAURI_INVOKE("set_ui_pref", { name, json })),
+	/**  Removes every UI preference. Audio and MIDI settings stay. Returns how many were removed. */
+	resetUiPrefs: () => typedError<number, CommandError>(__TAURI_INVOKE("reset_ui_prefs")),
 	/**  MIDI ports the system reports and which ones the mapping would use. */
 	midiListPorts: () => typedError<MidiPortDto[], CommandError>(__TAURI_INVOKE("midi_list_ports")),
 	/**  Connection state of the controller. */
@@ -370,6 +422,16 @@ export type AppInfo = {
 	visible_decks: number,
 };
 
+/**  Where the app keeps its files. */
+export type AppPathsDto = {
+	/**  Log directory. */
+	logs: string | null,
+	/**  Library database file. */
+	database: string | null,
+	/**  Config directory. */
+	config: string | null,
+};
+
 /**
  *  Raw artwork bytes. On the wire this is a binary payload (an `ArrayBuffer`
  *  in the webview), not JSON; the generated binding types it as `number[]`, so
@@ -406,6 +468,18 @@ export type AudioHostInfo = {
 	available: boolean,
 	/**  The platform default host. */
 	is_default: boolean,
+	/**  The host exposes at least one input device (mic and aux inputs). */
+	input?: boolean,
+	/**
+	 *  Some output device offers four channels or more (separate master,
+	 *  headphone and booth pairs).
+	 */
+	multichannel_output?: boolean,
+	/**
+	 *  Some device reports a buffer size range, so the buffer size setting
+	 *  takes effect. Without it the device default is used.
+	 */
+	configurable_buffer?: boolean,
 };
 
 /**  Audio host API. */
@@ -422,10 +496,21 @@ export type AudioHostKind =
 "jack";
 
 /**
- *  Persisted audio output settings (`settings` table, key `audio`).
+ *  Persisted audio settings (`settings` table, key `audio`).
  * 
  *  Default routing is one multichannel device: master on channels 1/2 and
- *  headphones on 3/4, as on the DDJ-FLX4 (ADR 0001, deviation 5).
+ *  headphones on 3/4, as on the DDJ-FLX4 (ADR 0001, deviation 5). Every field
+ *  has a serde default if it is new in M8, so settings stored by an older build still load.
+ * 
+ *  Output pairs index the output device's channels (up to
+ *  [`MAX_DEVICE_CHANNELS`]). A device that cannot carry them drops the booth,
+ *  then the headphones, then falls back to stereo on channels 1/2
+ *  (`stereo_fallback` in the status). A mono output plays the sum of left and
+ *  right on both channels of its pair.
+ * 
+ *  Inputs are opened only when `mic` or `aux` is set. `input_device` `None`
+ *  means the input of the output device when it has one, else the host
+ *  default input.
  */
 export type AudioSettings = {
 	/**  Host API, `None` for the platform default. */
@@ -438,8 +523,29 @@ export type AudioSettings = {
 	buffer_frames: number | null,
 	/**  Master output channels. */
 	master: ChannelPair,
+	/**  Play the master as the mono sum of left and right. */
+	master_mono?: boolean,
 	/**  Headphone output channels, `None` to disable headphone output. */
 	headphones: ChannelPair | null,
+	/**  Play the headphones as the mono sum of left and right. */
+	headphones_mono?: boolean,
+	/**
+	 *  Booth output channels, `None` to disable the booth output. The booth
+	 *  plays a copy of the master with its own level.
+	 */
+	booth?: ChannelPair | null,
+	/**  Play the booth as the mono sum of left and right. */
+	booth_mono?: boolean,
+	/**  Booth level, linear gain (`1.0` = same as the master). */
+	booth_level?: number | null,
+	/**  Input device name, `None` for the output device or the host default. */
+	input_device?: string | null,
+	/**  Microphone channels on the input device, `None` for no mic. */
+	mic?: InputChannels | null,
+	/**  Aux / line input pair on the input device, `None` for no aux. */
+	aux?: ChannelPair | null,
+	/**  Talk-over (ducking) settings. */
+	talkover?: TalkOverSettings,
 };
 
 /**  State of the audio output, for the top bar and the settings screen. */
@@ -458,14 +564,54 @@ export type AudioStatus = {
 	channels: number | null,
 	/**  Requested buffer size in frames; `None` is the device default. */
 	buffer_frames: number | null,
-	/**  Output buffer latency in milliseconds, known only for a fixed buffer. */
+	/**
+	 *  Output latency in milliseconds: measured from backend callback
+	 *  timestamps when `latency_measured`, else the buffer size estimate.
+	 *  `None` when neither is known (device default buffer, no timestamps).
+	 */
 	latency_ms: number | null,
+	/**  `latency_ms` comes from callback timestamps, not an estimate. */
+	latency_measured?: boolean,
 	/**  Master pair in use. */
 	master: ChannelPair | null,
+	/**  Master is played as the mono sum. */
+	master_mono?: boolean,
 	/**  Headphone pair in use. */
 	headphones: ChannelPair | null,
-	/**  The device could not carry the requested routing; stereo is used. */
+	/**  Headphones are played as the mono sum. */
+	headphones_mono?: boolean,
+	/**  Booth pair in use. */
+	booth?: ChannelPair | null,
+	/**  Booth is played as the mono sum. */
+	booth_mono?: boolean,
+	/**
+	 *  The device could not carry the requested routing; buses were dropped
+	 *  or stereo is used.
+	 */
 	stereo_fallback: boolean,
+	/**  Input device name when mic or aux is open. */
+	input_device?: string | null,
+	/**  Input device channel count. */
+	input_channels?: number | null,
+	/**
+	 *  Input latency in milliseconds (capture to engine), measured from
+	 *  callback timestamps. The mic path adds the input prefill and the
+	 *  output latency.
+	 */
+	input_latency_ms?: number | null,
+	/**  Frames the engine queues before it consumes input (mic latency). */
+	input_prefill_frames?: number | null,
+	/**  Why mic and aux are not available although routed. */
+	input_error?: string | null,
+	/**
+	 *  Buffer xruns the backend reported since the engine started (also in
+	 *  telemetry).
+	 */
+	xruns?: number,
+	/**  The device was lost and the core is waiting to reopen it. */
+	reconnecting?: boolean,
+	/**  Reopen attempts so far while `reconnecting`. */
+	reconnect_attempts?: number,
 	/**  Why the engine is not running, if it is not. */
 	error: string | null,
 };
@@ -521,6 +667,17 @@ export type Beats = number | null;
 
 /**  Tempo in beats per minute. Valid values are finite and `> 0`. */
 export type Bpm = number | null;
+
+/**
+ *  Lowest and highest tempo the analyzer reports, BPM. Octave errors fold
+ *  into the range.
+ */
+export type BpmRangeDto = {
+	/**  Lowest BPM, at least 30. */
+	min_bpm: number | null,
+	/**  Highest BPM, at most 300 and above `min_bpm`. */
+	max_bpm: number | null,
+};
 
 /**  What the library pane tells the browse cursor. */
 export type BrowseContextDto = {
@@ -1047,6 +1204,34 @@ export type DeckTelemetry = {
 	meter: StereoMeter,
 };
 
+/**  Everything the report shows. */
+export type DiagnosticsDto = {
+	/**  App version. */
+	version: string,
+	/**  Target OS. */
+	os: string,
+	/**  Target architecture. */
+	arch: string,
+	/**  Audio host API in use. */
+	audio_host: string | null,
+	/**  Audio device in use. */
+	audio_device: string | null,
+	/**  Audio error, if the output is off. */
+	audio_error: string | null,
+	/**  MIDI input port in use. */
+	midi_device: string | null,
+	/**  MIDI error, if any. */
+	midi_error: string | null,
+	/**  File locations. */
+	paths: AppPathsDto,
+	/**  Startup messages (for example a replaced database). */
+	notices: string[],
+	/**  Last warnings, errors and panics, oldest first. */
+	recent_errors: string[],
+	/**  The report as plain text, ready to copy. */
+	text: string,
+};
+
 /**  A directory listing for the file explorer pane. */
 export type DirListing = {
 	/**  Listed folder; empty for the list of roots. */
@@ -1121,6 +1306,10 @@ export type EngineTelemetry = {
 	master: StereoMeter,
 	/**  Headphone output level. */
 	headphones: StereoMeter,
+	/**  Booth output level (master copy after the booth level). */
+	booth: StereoMeter,
+	/**  Microphone and aux inputs. */
+	inputs: InputTelemetry,
 	/**  Deck FX units (insert chains), indexed by [`DeckId::index`]. */
 	fx_decks: [FxUnitTelemetry, FxUnitTelemetry, FxUnitTelemetry, FxUnitTelemetry],
 	/**  Master FX unit. */
@@ -1548,6 +1737,68 @@ export type ImportOptionsDto = {
 
 /**  Progress of an import or analysis job, at most about 10 per second per job. */
 export type ImportProgressEvent = JobProgress;
+
+/**
+ *  Input channels of the input device that carry one source: a single channel
+ *  (mono, heard on both sides) or a pair.
+ */
+export type InputChannels = {
+	/**  Left (or only) channel index, zero-based. */
+	left: number,
+	/**  Right channel index, `None` for a mono source. */
+	right: number | null,
+};
+
+/**
+ *  Booth, mic, aux and talk-over controls as the control thread last sent
+ *  them to the engine (and replays after a restart).
+ */
+export type InputState = {
+	/**  Booth output level, linear gain. */
+	booth_level: Gain,
+	/**  Microphone level, linear gain. */
+	mic_level: Gain,
+	/**  Microphone low shelf, linear gain (unity is flat). */
+	mic_eq_low: Gain,
+	/**  Microphone high shelf, linear gain (unity is flat). */
+	mic_eq_high: Gain,
+	/**  Microphone on. */
+	mic_on: boolean,
+	/**  Aux input level, linear gain. */
+	aux_level: Gain,
+	/**  Aux channel fader in `[0, 1]`. */
+	aux_fader: number | null,
+	/**  Talk-over (ducking). */
+	talk_over: TalkOverSettings,
+};
+
+/**  State of the microphone and aux inputs over the last block(s). RT-safe. */
+export type InputTelemetry = {
+	/**
+	 *  Input frames have reached the engine since the stream started (an
+	 *  input stream is open and delivering).
+	 */
+	connected: boolean,
+	/**  Microphone level after its level and EQ, before the on/off switch. */
+	mic: StereoMeter,
+	/**  Aux level after its level and fader. */
+	aux: StereoMeter,
+	/**
+	 *  Current talk-over attenuation of the program in dB (positive, 0 when
+	 *  not ducking).
+	 */
+	duck_db: number | null,
+	/**
+	 *  Output blocks that found the input ring short (silence was inserted)
+	 *  since the stream started.
+	 */
+	underruns: number,
+	/**
+	 *  Input frames dropped because the input ring was full or ran too far
+	 *  ahead, since the stream started.
+	 */
+	overruns: number,
+};
 
 /**  An import or analysis job (`import_jobs.id`). */
 export type JobId = number;
@@ -2229,6 +2480,19 @@ export type SyncMode =
 /**  Match tempo and beat phase. */
 "beat";
 
+/**
+ *  Talk-over: the program (decks, sampler, aux) is ducked while the mic is
+ *  louder than a threshold.
+ */
+export type TalkOverSettings = {
+	/**  Duck the program while the mic is active. */
+	enabled?: boolean,
+	/**  How far the program is lowered, in dB (positive, `0..=40`). */
+	depth_db?: number | null,
+	/**  Mic level in dBFS above which the program ducks (`-80..=0`). */
+	threshold_db?: number | null,
+};
+
 /**  Tempo fader range: how far a full fader throw changes playback speed. */
 export type TempoRange = 
 /**  +/- 6 %. */
@@ -2239,6 +2503,15 @@ export type TempoRange =
 "percent16" | 
 /**  +/- 100 % (0x to 2x speed). */
 "wide";
+
+/**  Output that carries the test tone. */
+export type TestToneOutput = 
+/**  Master pair. */
+"master" | 
+/**  Headphone pair. */
+"headphones" | 
+/**  Booth pair. */
+"booth";
 
 /**  Stored analysis of a track. */
 export type TrackAnalysisDto = {

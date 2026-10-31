@@ -6,7 +6,7 @@ Windows x64 is the primary target. macOS and Linux builds come from CI.
 
 ## Status
 
-Milestone 0 (architecture, contracts, skeleton, CI) is in progress. There is nothing to play with yet. See [docs/STATUS.md](docs/STATUS.md) for the milestone plan.
+MVP. Two decks with sync, loops, hot cues and key lock, a mixer with three-band EQ, filter and headphone cue, FX, sampler and pad modes, a library with analysis and rekordbox XML import, DDJ-FLX4 mapping with LED feedback, and full audio routing (master, headphones, booth, mic, aux, talk-over). See [docs/STATUS.md](docs/STATUS.md) for what is done and what comes next.
 
 ## Build
 

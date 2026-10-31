@@ -19,11 +19,15 @@ pub mod device;
 mod dsp;
 mod fx;
 mod handle;
+mod inputs;
 mod meter;
 mod mixer;
 mod offline;
+mod reopen;
+mod routing;
 mod sampler;
 mod sync;
+mod tone;
 mod track;
 
 #[cfg(test)]
@@ -32,6 +36,8 @@ mod tests_deck;
 mod tests_fx;
 #[cfg(all(test, target_os = "linux", target_env = "gnu"))]
 mod tests_heap;
+#[cfg(test)]
+mod tests_io;
 #[cfg(test)]
 mod tests_keyshift;
 #[cfg(test)]
@@ -52,11 +58,14 @@ pub use crate::fx::{
 };
 pub use crate::handle::{
     COMMAND_RING, CommandRingFull, EVENT_RING, EngineHandle, FX_HANDOFF_RING, FX_RETURN_RING,
-    HANDOFF_RING, RETURN_RING, TELEMETRY_RING, engine, engine_with_xruns,
+    HANDOFF_RING, RETURN_RING, Reclaimed, TELEMETRY_RING, engine, engine_with_xruns,
 };
+pub use crate::inputs::{INPUT_CHANNELS, INPUT_RING_FRAMES, InputProducer};
 pub use crate::mixer::{EQ_LOW_MID_HZ, EQ_MID_HIGH_HZ, FILTER_DEAD_ZONE, FILTER_Q};
 pub use crate::offline::{OfflineRenderer, RenderStats};
+pub use crate::reopen::{REOPEN_INITIAL, REOPEN_MAX, ReopenOutcome, ReopenState, Reopener};
 pub use crate::sampler::SamplerSlotStatus;
+pub use crate::tone::{TEST_TONE_HZ, TEST_TONE_LEVEL, TEST_TONE_MS, ToneOutput};
 pub use crate::track::{TrackBuffer, TrackError};
 
 use opendeck_contracts::{MAX_DECKS, SampleRate};
