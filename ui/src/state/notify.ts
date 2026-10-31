@@ -9,3 +9,8 @@ export function notifyError(message: string): void {
 export function notifySuccess(message: string): void {
   toast({ title: message, variant: "success" });
 }
+
+/** Shows a warning toast. */
+export function notifyWarning(message: string): void {
+  toast({ title: message, variant: "warning" });
+}

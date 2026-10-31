@@ -2,20 +2,12 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { commands, type CommandError, type SyncMode, type TempoRange } from "../ipc/bindings";
 import { framesToSeconds, telemetryStore } from "./telemetry";
 import { DEFAULT_JUMP_BEATS, selectDeckUi, useAppStore, type DeckUi } from "./app";
+import { errorMessage } from "../lib/errors";
 import { notifyError } from "./notify";
 
 type Outcome<T> = { status: "ok"; data: T } | { status: "error"; error: CommandError | string };
 
-/** Human-readable text for whatever a rejected command carries. */
-export function errorMessage(error: unknown): string {
-  if (typeof error === "string") {
-    return error;
-  }
-  if (error && typeof error === "object" && "message" in error) {
-    return String((error as { message: unknown }).message);
-  }
-  return "Something went wrong.";
-}
+export { errorMessage };
 
 /** Unwraps a command result; shows an error toast and returns `null` on failure. */
 export async function report<T>(pending: Promise<Outcome<T>>): Promise<T | null> {
