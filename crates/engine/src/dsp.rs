@@ -23,6 +23,13 @@ pub(crate) enum Pass {
     High,
 }
 
+/// Which end of the spectrum a shelf filter boosts or cuts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Shelf {
+    Low,
+    High,
+}
+
 impl Biquad {
     /// RBJ cookbook second-order low or high pass.
     pub(crate) fn new(pass: Pass, fc: f64, q: f64, sample_rate: f64) -> Self {
@@ -43,6 +50,53 @@ impl Biquad {
             z1: 0.0,
             z2: 0.0,
         }
+    }
+
+    /// RBJ cookbook low or high shelf with shelf slope 1, `gain_db` boost or
+    /// cut of the shelf region (`0` is flat).
+    pub(crate) fn shelf(kind: Shelf, fc: f64, gain_db: f64, sample_rate: f64) -> Self {
+        let a = 10.0_f64.powf(gain_db / 40.0);
+        let w0 = 2.0 * PI * (fc / sample_rate).clamp(1e-5, 0.49);
+        let (sin, cos) = w0.sin_cos();
+        let alpha = sin / std::f64::consts::SQRT_2;
+        let beta = 2.0 * a.sqrt() * alpha;
+        let (b0, b1, b2, a0, a1, a2) = match kind {
+            Shelf::Low => (
+                a * ((a + 1.0) - (a - 1.0) * cos + beta),
+                2.0 * a * ((a - 1.0) - (a + 1.0) * cos),
+                a * ((a + 1.0) - (a - 1.0) * cos - beta),
+                (a + 1.0) + (a - 1.0) * cos + beta,
+                -2.0 * ((a - 1.0) + (a + 1.0) * cos),
+                (a + 1.0) + (a - 1.0) * cos - beta,
+            ),
+            Shelf::High => (
+                a * ((a + 1.0) + (a - 1.0) * cos + beta),
+                -2.0 * a * ((a - 1.0) + (a + 1.0) * cos),
+                a * ((a + 1.0) + (a - 1.0) * cos - beta),
+                (a + 1.0) - (a - 1.0) * cos + beta,
+                2.0 * ((a - 1.0) - (a + 1.0) * cos),
+                (a + 1.0) - (a - 1.0) * cos - beta,
+            ),
+        };
+        Self {
+            b0: b0 / a0,
+            b1: b1 / a0,
+            b2: b2 / a0,
+            a1: a1 / a0,
+            a2: a2 / a0,
+            z1: 0.0,
+            z2: 0.0,
+        }
+    }
+
+    /// Takes the coefficients of `other` and keeps this filter's state, so a
+    /// retune does not click.
+    pub(crate) fn retune(&mut self, other: &Biquad) {
+        self.b0 = other.b0;
+        self.b1 = other.b1;
+        self.b2 = other.b2;
+        self.a1 = other.a1;
+        self.a2 = other.a2;
     }
 
     #[inline]
@@ -165,6 +219,25 @@ mod tests {
             let g = gain_db(freq, |x| lp.tick(x) + hp.tick(x));
             assert!(g.abs() < 0.05, "{freq} Hz: {g} dB");
         }
+    }
+
+    #[test]
+    fn shelves_boost_and_cut_their_own_end() {
+        let mut low = Biquad::shelf(Shelf::Low, 200.0, 6.0, SR);
+        let at_50 = gain_db(50.0, |x| low.tick(x));
+        assert!((at_50 - 6.0).abs() < 0.3, "{at_50}");
+        let mut low = Biquad::shelf(Shelf::Low, 200.0, 6.0, SR);
+        let at_5k = gain_db(5000.0, |x| low.tick(x));
+        assert!(at_5k.abs() < 0.3, "{at_5k}");
+        let mut high = Biquad::shelf(Shelf::High, 4000.0, -12.0, SR);
+        let at_12k = gain_db(12_000.0, |x| high.tick(x));
+        assert!((at_12k + 12.0).abs() < 0.6, "{at_12k}");
+        let mut high = Biquad::shelf(Shelf::High, 4000.0, -12.0, SR);
+        let at_200 = gain_db(200.0, |x| high.tick(x));
+        assert!(at_200.abs() < 0.3, "{at_200}");
+        let mut flat = Biquad::shelf(Shelf::High, 4000.0, 0.0, SR);
+        let g = gain_db(1000.0, |x| flat.tick(x));
+        assert!(g.abs() < 1e-6, "{g}");
     }
 
     #[test]

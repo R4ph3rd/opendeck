@@ -12,6 +12,8 @@ publish.workspace = true
 default = []
 # Steinberg ASIO host (Windows only, needs the ASIO SDK at build time).
 asio = ["cpal/asio"]
+# JACK host (Linux and macOS, needs the JACK client library).
+jack = ["cpal/jack"]
 # Wrap the audio callback in assert_no_alloc. The embedding binary must also
 # install `assert_no_alloc::AllocDisabler` as its global allocator (debug only).
 alloc-guard = ["dep:assert_no_alloc"]
