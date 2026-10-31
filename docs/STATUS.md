@@ -41,6 +41,10 @@ Done: 17 built-in effects (`dsp-fx`) with catalog data, factory presets and a re
 
 Done: `midi` crate with data-driven JSON mappings (ADR 0007 and addenda): input engine with 14-bit pairs, relative encodings and shift layers; feedback engine with per-address de-duplication, rate limits, software blink and `when`; `on_connect` with SysEx; hot-plug controller worker with a lock-free midir callback; monitor stream and learn backend; replay harness. DDJ-FLX4 mapping for message list sections 1 to 5 with cited rows, unmapped rows listed with a reason, and LED feedback for play, cue, sync, loops, pads, pad modes, PFL, FX on, level meters, loaded and vinyl mode. Five additive contract actions (memory cue delete, tap tempo, FX release, Beat FX BPM auto and tap). App-core `MidiBridge` and `MidiService`: actions, Beat FX section routing, tempo soft takeover, CFX knob, fader start setting, overrides, LED state from telemetry, headless FLX4 replay through app-core. Tauri MIDI commands and events. UI: MIDI settings (device, auto-connect, fader start, mapping table, learn, overrides, import and export), MIDI monitor and a controller status indicator. MIDI overrides are stored as JSON in the settings kv (`midi.settings`); the `midi_mapping_overrides` table has no library API and stays unused.
 
+## Milestone 7
+
+Done: the pad mode drives the middle panel of each deck, with a view for each of the 8 modes (HOT CUE with cue rename, PAD FX 1 and 2, BEAT JUMP, SAMPLER, KEYBOARD, BEAT LOOP, KEY SHIFT). App-core interprets pads in all 8 modes with their SHIFT layers through `PadActions`, for the UI and the FLX4 alike, and drives the pad LEDs. Engine sampler: 16 slots on a sampler bus before the master FX, one-shot, gate and loop modes, quantized starts on the master beat, per-slot gain and varispeed sync, bus level, PFL, slot and bus telemetry, zero heap calls in the callback. Key shift of +/- 12 semitones through the stretcher with key lock on or off. App-core sampler service: slot assignment, split or shared banks, decode to the engine rate, persistence in the library settings, hand-off to the engine (`EngineSampler`) with replay after an engine restart. KEYBOARD plays the keyboard cue chromatically; BEAT LOOP sets and exits auto loops. Tauri pad, sampler and hot cue rename commands and events. UI: middle panel with mode views, sampler slot cards (drop, name, gain, mode, sync, colour, play position) and the sampler bus meter.
+
 ## Branch model
 
 - `main`: released milestones only. Every push to `main` runs the release workflow.
@@ -77,7 +81,10 @@ Done: `midi` crate with data-driven JSON mappings (ADR 0007 and addenda): input 
 | M8 engine | Heap-count test (`tests_heap`) runs on Linux only |
 | M6 midi | 165 FLX4 mapping entries carry `verify` and depend on 9 open hardware questions (Q02, Q04, Q07 to Q13, `docs/midi-open-questions.md`) |
 | M6 app-core | Placeholders, `TODO(verify)`: jog scale (1/1024 rev per tick, Q02), VU meter curve (36 dB range, Q04), beat jump distances and beat loop lengths per pad, SHIFT + jog search at 32 beats per revolution |
-| M7 app-core | MASTER CUE is not in the mapping and stays unmapped. The sampler hands samples to a stub `SamplerEngine` until the engine sampler is wired; KEYBOARD sets the sticky key shift (no per-trigger pitch) |
+| M7 app-core | MASTER CUE is not in the mapping and stays unmapped |
+| M7 app-core | KEYBOARD sets a sticky deck key shift (no per-trigger pitch): the shift stays after a pad release and after leaving KEYBOARD mode |
+| M7 engine | Sampler sync is varispeed: a synced slot plays at master BPM / sample BPM and its pitch follows the tempo. Samples loaded by path have no BPM and do not sync |
+| M7 midi | Pad modes, sampler banks (split or shared, Q05), keyboard pitches and key shift never run on a real DDJ-FLX4 (`docs/hardware-test-checklist.md`, M7) |
 | M6 midi | Never run on a real DDJ-FLX4; covered by replay fixtures and a fake backend only (`docs/hardware-test-checklist.md`, M6) |
 | M8 library | MIDI overrides live in the settings kv, not in the `midi_mapping_overrides` table (ADR 0005), which has no library API |
 | M5 dsp-fx | Effect parameter names, ranges and defaults and the beat division list are `TODO(verify)` pending the rekordbox manual (`docs/fx-catalog.md`) |

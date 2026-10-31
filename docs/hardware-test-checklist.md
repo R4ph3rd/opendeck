@@ -94,8 +94,27 @@ Open questions
 
 ## M7 Pad modes and sampler
 
-- [ ] Sampler slot sharing between decks: slots are shared or per deck. TODO(verify)
-- [ ] Middle panel follows the active pad mode on both decks.
+Never run on a real FLX4 yet. Keep the MIDI monitor open and load a track with a beat grid on each deck.
+
+Pad modes
+- [ ] Press each mode button (HOT CUE, PAD FX, BEAT JUMP, SAMPLER) and SHIFT + each (KEYBOARD, PAD FX 2, BEAT LOOP, KEY SHIFT) on both decks. The mode LED lights, the pads show that mode's state and the middle panel switches to the same view on the matching deck only.
+- [ ] HOT CUE: an empty pad sets a cue, a set pad jumps (playing) or previews while held (paused); SHIFT + pad deletes it.
+- [ ] PAD FX 1 and 2: each pad and each SHIFT + pad engages its assigned effect while held and stops it on release (32 assignments in the pad FX editor).
+- [ ] BEAT JUMP: pads jump by their beat counts back and forward; SHIFT + pad 7 and SHIFT + pad 8 make the jump sizes smaller and larger and the panel follows.
+- [ ] BEAT LOOP: each pad starts a loop of its length; pressing the active length again exits the loop.
+- [ ] Pressing a mode button while a pad is held: the held pad releases cleanly (no stuck loop, effect or gate).
+
+Sampler
+- [ ] Load slots from the browser (SHIFT + empty pad with a track selected) and by dragging tracks onto slot cards. The pad LED lights once the slot is loaded.
+- [ ] One-shot plays to the end, a second press restarts it; gate plays while held and stops on release; loop repeats until SHIFT + pad stops it.
+- [ ] Bank split (default): deck 1 pads play slots 1 to 8 and deck 2 pads slots 9 to 16. Switch the layout to Shared: both decks play slots 1 to 8. Record what the FLX4 sends for each (Q05).
+- [ ] With a deck playing and quantize on, a pad press starts on the next beat. With sync on, a library sample follows the master tempo (pitch follows).
+- [ ] Sampler level knob and PFL: the bus level changes on master, PFL puts it in the headphones. The sampler meter in the panel moves.
+
+KEYBOARD and KEY SHIFT
+- [ ] KEYBOARD: the first press on a deck with no hot cue sets the keyboard cue. Each pad then plays the cue at its pitch (default pads 1 to 4 = +4 to +7, pads 5 to 8 = 0 to +3); SHIFT + pads 7 and 8 move the set up and down; SHIFT + pads 1 to 6 delete the keyboard cue. Check by ear that the pitches are in tune.
+- [ ] The key shift stays after a KEYBOARD pad release and after leaving KEYBOARD mode (sticky); a KEY SHIFT pad sets it again.
+- [ ] KEY SHIFT: each pad sets its semitone shift, with key lock on and off; tempo stays with key lock on. SHIFT + pads 7 and 8 move the pad pitches. The active pad lights.
 
 ## M8 Hardening
 
