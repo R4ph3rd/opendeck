@@ -10,16 +10,17 @@ use std::path::Path;
 use std::sync::Mutex;
 
 use opendeck_app_core::{
-    AppCore, AppPathsDto, AudioController, AudioDeviceInfo, AudioStatus, Backend, BrowseContextDto,
-    BrowseCursorDto, CoreError, CoreEvent, DbHealth, DiagnosticsDto, DirListing, FxEffectDto, FxOp,
-    FxPresetsDto, FxSlotRef, FxStateDto, FxUnitRef, HotCues, ImportOptionsDto, JobInfo,
-    LaunchOptions, LibraryChange, LibraryEvent, LibraryService, MidiBindingDto, MidiEvent,
-    MidiLearnResultDto, MidiMappingRowDto, MidiMonitorEntryDto, MidiPortDto, MidiService,
-    MidiStatusDto, PadEvent, PadModeChanged, PadStateDto, PlaylistEntryDto, PlaylistNodeDto,
-    SamplerLayout, SamplerSlotPatch, SamplerStateDto, SavedSetDetailDto, SavedSetDto,
-    SettingsStore, TestToneOutput, TrackAnalysisDto, TrackDetailDto, TrackInfo, TrackLoadFailed,
-    TrackLoaded, TrackMetaDto, TrackPageDto, TrackQueryDto, build_diagnostics, check_and_recover,
-    get_pref, recent_errors, reset_prefs, set_pref, unix_stamp,
+    AppCore, AppPathsDto, AudioController, AudioDeviceInfo, AudioStatus, Backend, BpmRange,
+    BpmRangeDto, BrowseContextDto, BrowseCursorDto, CoreError, CoreEvent, DbHealth, DiagnosticsDto,
+    DirListing, FxEffectDto, FxOp, FxPresetsDto, FxSlotRef, FxStateDto, FxUnitRef, HotCues,
+    ImportOptionsDto, InputState, JobInfo, LaunchOptions, LibraryChange, LibraryEvent,
+    LibraryService, MidiBindingDto, MidiEvent, MidiLearnResultDto, MidiMappingRowDto,
+    MidiMonitorEntryDto, MidiPortDto, MidiService, MidiStatusDto, PadEvent, PadModeChanged,
+    PadStateDto, PlaylistEntryDto, PlaylistNodeDto, SamplerLayout, SamplerSlotPatch,
+    SamplerStateDto, SavedSetDetailDto, SavedSetDto, SettingsStore, TestToneOutput,
+    TrackAnalysisDto, TrackDetailDto, TrackInfo, TrackLoadFailed, TrackLoaded, TrackMetaDto,
+    TrackPageDto, TrackQueryDto, build_diagnostics, check_and_recover, get_pref, recent_errors,
+    reset_prefs, set_pref, unix_stamp,
 };
 use opendeck_contracts::analysis::AnalysisFeatures;
 use opendeck_contracts::beatgrid::BeatGrid;
@@ -30,7 +31,7 @@ use opendeck_contracts::ids::{JobId, PlaylistId, SamplerSlotId, TrackId};
 use opendeck_contracts::jobs::JobProgress;
 use opendeck_contracts::mixer::{CrossfaderAssign, CrossfaderCurve, EqBand, MixerState};
 use opendeck_contracts::pad::PadMode;
-use opendeck_contracts::settings::{AudioHostInfo, AudioHostKind, AudioSettings};
+use opendeck_contracts::settings::{AudioHostInfo, AudioHostKind, AudioSettings, TalkOverSettings};
 use opendeck_contracts::tempo::{SyncMode, TempoRange};
 use opendeck_contracts::{
     Beats, DeckId, EngineEvent, EngineTelemetry, Gain, MAX_DECKS, MVP_DECKS, Seconds,
@@ -199,6 +200,18 @@ async fn list_audio_devices(
 ) -> Result<Vec<AudioDeviceInfo>, CommandError> {
     let core = state.snapshot()?;
     blocking(move || core.audio_devices(host)).await
+}
+
+/// Lists input devices of a host (`None` for the platform default), for the
+/// mic and aux pickers.
+#[tauri::command]
+#[specta::specta]
+async fn list_audio_input_devices(
+    state: tauri::State<'_, AppState>,
+    host: Option<AudioHostKind>,
+) -> Result<Vec<AudioDeviceInfo>, CommandError> {
+    let core = state.snapshot()?;
+    blocking(move || core.audio_input_devices(host)).await
 }
 
 /// Returns the stored audio settings.
@@ -713,6 +726,74 @@ fn set_split_cue(state: tauri::State<'_, AppState>, on: bool) -> Result<(), Comm
     Ok(state.audio()?.set_split_cue(on)?)
 }
 
+// ----- booth, mic, aux, talk-over (milestone 8) -----
+
+/// Booth, mic, aux and talk-over controls as last sent to the engine.
+#[tauri::command]
+#[specta::specta]
+async fn get_input_state(state: tauri::State<'_, AppState>) -> Result<InputState, CommandError> {
+    let audio = state.audio()?;
+    blocking(move || audio.input_state()).await
+}
+
+/// Booth output level as linear gain. Kept for the session; saving the
+/// audio settings stores it.
+#[tauri::command]
+#[specta::specta]
+fn set_booth_level(state: tauri::State<'_, AppState>, gain: Gain) -> Result<(), CommandError> {
+    Ok(state.audio()?.set_booth_level(gain)?)
+}
+
+/// Microphone level as linear gain.
+#[tauri::command]
+#[specta::specta]
+fn set_mic_level(state: tauri::State<'_, AppState>, gain: Gain) -> Result<(), CommandError> {
+    Ok(state.audio()?.set_mic_level(gain)?)
+}
+
+/// Microphone shelf EQ, `low` or `high`, linear gain (unity is flat).
+#[tauri::command]
+#[specta::specta]
+fn set_mic_eq(
+    state: tauri::State<'_, AppState>,
+    band: EqBand,
+    gain: Gain,
+) -> Result<(), CommandError> {
+    Ok(state.audio()?.set_mic_eq(band, gain)?)
+}
+
+/// Microphone on or off.
+#[tauri::command]
+#[specta::specta]
+fn set_mic_on(state: tauri::State<'_, AppState>, on: bool) -> Result<(), CommandError> {
+    Ok(state.audio()?.set_mic_on(on)?)
+}
+
+/// Aux input level as linear gain.
+#[tauri::command]
+#[specta::specta]
+fn set_aux_level(state: tauri::State<'_, AppState>, gain: Gain) -> Result<(), CommandError> {
+    Ok(state.audio()?.set_aux_level(gain)?)
+}
+
+/// Aux channel fader in `[0, 1]`.
+#[tauri::command]
+#[specta::specta]
+fn set_aux_fader(state: tauri::State<'_, AppState>, position: f32) -> Result<(), CommandError> {
+    Ok(state.audio()?.set_aux_fader(position)?)
+}
+
+/// Talk-over: duck the program while the mic is louder than the threshold.
+/// Kept for the session; saving the audio settings stores it.
+#[tauri::command]
+#[specta::specta]
+fn set_talk_over(
+    state: tauri::State<'_, AppState>,
+    settings: TalkOverSettings,
+) -> Result<(), CommandError> {
+    Ok(state.audio()?.set_talk_over(settings)?)
+}
+
 // ----- library: tracks, import jobs, playlists, saved sets (milestone 3) -----
 
 /// One sorted, filtered page of the collection.
@@ -923,6 +1004,26 @@ async fn reanalyze_tracks(
 ) -> Result<JobId, CommandError> {
     let library = state.library()?;
     blocking(move || library.reanalyze(&tracks, features)).await
+}
+
+/// BPM range the tempo analyzer folds into.
+#[tauri::command]
+#[specta::specta]
+async fn get_bpm_range(state: tauri::State<'_, AppState>) -> Result<BpmRangeDto, CommandError> {
+    let library = state.library()?;
+    blocking(move || library.bpm_range()).await
+}
+
+/// Stores the analyzer's BPM range (30 to 300, lowest first). Applies to new
+/// imports and re-analysis.
+#[tauri::command]
+#[specta::specta]
+async fn set_bpm_range(
+    state: tauri::State<'_, AppState>,
+    range: BpmRangeDto,
+) -> Result<(), CommandError> {
+    let library = state.library()?;
+    blocking(move || library.set_bpm_range(range)).await
 }
 
 /// Stored jobs, newest first (the import panel's startup state).
@@ -1814,6 +1915,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             app_info,
             list_audio_hosts,
             list_audio_devices,
+            list_audio_input_devices,
             get_audio_settings,
             set_audio_settings,
             get_audio_status,
@@ -1865,6 +1967,14 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             set_headphone_level,
             set_headphone_mix,
             set_split_cue,
+            get_input_state,
+            set_booth_level,
+            set_mic_level,
+            set_mic_eq,
+            set_mic_on,
+            set_aux_level,
+            set_aux_fader,
+            set_talk_over,
             fx_get_state,
             fx_list_effects,
             fx_get_presets,
@@ -1889,6 +1999,8 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             import_playlist_file,
             import_rekordbox_xml,
             reanalyze_tracks,
+            get_bpm_range,
+            set_bpm_range,
             list_jobs,
             pause_job,
             resume_job,
@@ -2059,7 +2171,8 @@ fn open_library(
     dir: Option<std::path::PathBuf>,
     notices: &mut Vec<String>,
 ) -> Result<LibraryService, CoreError> {
-    let analyzers = LibraryService::default_analyzers();
+    let range = BpmRange::default();
+    let analyzers = LibraryService::analyzers_with_range(&range);
     let config = opendeck_app_core::ImportConfig::default();
     if let Some(dir) = dir {
         let path = dir.join(opendeck_app_core::DATABASE_FILE_NAME);
@@ -2069,7 +2182,10 @@ fn open_library(
             Err(err) => tracing::error!(%err, "database check failed"),
         }
         match LibraryService::open(&path, analyzers.clone(), config.clone()) {
-            Ok(service) => return Ok(service),
+            Ok(service) => {
+                service.attach_bpm_range(range);
+                return Ok(service);
+            }
             Err(err) => {
                 tracing::error!(%err, path = %path.display(), "could not open the library");
                 notices.push(format!(
@@ -2078,7 +2194,9 @@ fn open_library(
             }
         }
     }
-    LibraryService::open_in_memory(analyzers, config)
+    let service = LibraryService::open_in_memory(analyzers, config)?;
+    service.attach_bpm_range(range);
+    Ok(service)
 }
 
 /// Keeps the log writer alive for the life of the app.
@@ -2390,6 +2508,7 @@ mod tests {
         assert!(supported_audio_extensions().contains(&"wav".to_owned()));
         // No device is needed to ask; an error from a headless host is fine.
         let _ = tauri::async_runtime::block_on(list_audio_devices(app.state(), None));
+        let _ = tauri::async_runtime::block_on(list_audio_input_devices(app.state(), None));
     }
 
     #[test]
@@ -2513,6 +2632,36 @@ mod tests {
         assert!(set_headphone_level(app.state(), Gain(0.7)).is_ok());
         assert!(set_headphone_mix(app.state(), 0.5).is_ok());
         assert!(set_split_cue(app.state(), true).is_ok());
+        assert!(set_booth_level(app.state(), Gain(0.5)).is_ok());
+        assert!(set_mic_level(app.state(), Gain(0.8)).is_ok());
+        assert!(set_mic_eq(app.state(), EqBand::Low, Gain(0.6)).is_ok());
+        assert!(matches!(
+            set_mic_eq(app.state(), EqBand::Mid, Gain(0.6)),
+            Err(CommandError::Invalid(_))
+        ));
+        assert!(set_mic_on(app.state(), true).is_ok());
+        assert!(set_aux_level(app.state(), Gain(0.3)).is_ok());
+        assert!(set_aux_fader(app.state(), 0.25).is_ok());
+        let talk = TalkOverSettings {
+            enabled: true,
+            ..TalkOverSettings::default()
+        };
+        assert!(set_talk_over(app.state(), talk).is_ok());
+        let inputs = tauri::async_runtime::block_on(get_input_state(app.state())).expect("inputs");
+        assert_eq!(inputs.booth_level, Gain(0.5));
+        assert_eq!(
+            (inputs.mic_level, inputs.mic_eq_low),
+            (Gain(0.8), Gain(0.6))
+        );
+        assert!(inputs.mic_on);
+        assert_eq!((inputs.aux_level, inputs.aux_fader), (Gain(0.3), 0.25));
+        assert_eq!(inputs.talk_over, talk);
+        tauri::async_runtime::block_on(play_test_tone(app.state(), TestToneOutput::Headphones))
+            .expect("tone on the default headphone pair");
+        assert!(
+            tauri::async_runtime::block_on(play_test_tone(app.state(), TestToneOutput::Booth))
+                .is_err()
+        );
         let m = tauri::async_runtime::block_on(get_mixer_state(app.state())).expect("mixer");
         let ch = m.channels[1];
         assert_eq!(ch.trim, Gain(1.2));
@@ -2624,6 +2773,30 @@ mod tests {
             std::thread::sleep(Duration::from_millis(50));
         }
         panic!("job did not finish");
+    }
+
+    #[test]
+    fn bpm_range_commands_validate_and_store() {
+        let app = library_app();
+        let range = tauri::async_runtime::block_on(get_bpm_range(app.state())).expect("get");
+        assert_eq!(range, BpmRangeDto::default());
+        let wanted = BpmRangeDto {
+            min_bpm: 80.0,
+            max_bpm: 160.0,
+        };
+        tauri::async_runtime::block_on(set_bpm_range(app.state(), wanted)).expect("set");
+        assert_eq!(
+            tauri::async_runtime::block_on(get_bpm_range(app.state())).expect("get"),
+            wanted
+        );
+        let bad = BpmRangeDto {
+            min_bpm: 10.0,
+            max_bpm: 160.0,
+        };
+        assert!(matches!(
+            tauri::async_runtime::block_on(set_bpm_range(app.state(), bad)),
+            Err(CommandError::Invalid(_))
+        ));
     }
 
     #[test]

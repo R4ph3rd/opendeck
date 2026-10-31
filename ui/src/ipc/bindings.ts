@@ -14,6 +14,11 @@ export const commands = {
 	listAudioHosts: () => typedError<AudioHostInfo[], CommandError>(__TAURI_INVOKE("list_audio_hosts")),
 	/**  Lists output devices of a host (`None` for the platform default). */
 	listAudioDevices: (host: AudioHostKind | null) => typedError<AudioDeviceInfo[], CommandError>(__TAURI_INVOKE("list_audio_devices", { host })),
+	/**
+	 *  Lists input devices of a host (`None` for the platform default), for the
+	 *  mic and aux pickers.
+	 */
+	listAudioInputDevices: (host: AudioHostKind | null) => typedError<AudioDeviceInfo[], CommandError>(__TAURI_INVOKE("list_audio_input_devices", { host })),
 	/**  Returns the stored audio settings. */
 	getAudioSettings: () => typedError<AudioSettings, CommandError>(__TAURI_INVOKE("get_audio_settings")),
 	/**
@@ -126,6 +131,28 @@ export const commands = {
 	setHeadphoneMix: (mix: number | null) => typedError<null, CommandError>(__TAURI_INVOKE("set_headphone_mix", { mix })),
 	/**  Split cue on or off. */
 	setSplitCue: (on: boolean) => typedError<null, CommandError>(__TAURI_INVOKE("set_split_cue", { on })),
+	/**  Booth, mic, aux and talk-over controls as last sent to the engine. */
+	getInputState: () => typedError<InputState, CommandError>(__TAURI_INVOKE("get_input_state")),
+	/**
+	 *  Booth output level as linear gain. Kept for the session; saving the
+	 *  audio settings stores it.
+	 */
+	setBoothLevel: (gain: Gain) => typedError<null, CommandError>(__TAURI_INVOKE("set_booth_level", { gain })),
+	/**  Microphone level as linear gain. */
+	setMicLevel: (gain: Gain) => typedError<null, CommandError>(__TAURI_INVOKE("set_mic_level", { gain })),
+	/**  Microphone shelf EQ, `low` or `high`, linear gain (unity is flat). */
+	setMicEq: (band: EqBand, gain: Gain) => typedError<null, CommandError>(__TAURI_INVOKE("set_mic_eq", { band, gain })),
+	/**  Microphone on or off. */
+	setMicOn: (on: boolean) => typedError<null, CommandError>(__TAURI_INVOKE("set_mic_on", { on })),
+	/**  Aux input level as linear gain. */
+	setAuxLevel: (gain: Gain) => typedError<null, CommandError>(__TAURI_INVOKE("set_aux_level", { gain })),
+	/**  Aux channel fader in `[0, 1]`. */
+	setAuxFader: (position: number | null) => typedError<null, CommandError>(__TAURI_INVOKE("set_aux_fader", { position })),
+	/**
+	 *  Talk-over: duck the program while the mic is louder than the threshold.
+	 *  Kept for the session; saving the audio settings stores it.
+	 */
+	setTalkOver: (settings: TalkOverSettings) => typedError<null, CommandError>(__TAURI_INVOKE("set_talk_over", { settings })),
 	/**  The FX model: Beat FX units, Sound Color FX, sends, pad effects. */
 	fxGetState: () => typedError<FxStateDto, CommandError>(__TAURI_INVOKE("fx_get_state")),
 	/**
@@ -183,6 +210,13 @@ export const commands = {
 	importRekordboxXml: (path: string, options: ImportOptionsDto | null) => typedError<JobId, CommandError>(__TAURI_INVOKE("import_rekordbox_xml", { path, options })),
 	/**  Re-analyses tracks. A locked beat grid survives. */
 	reanalyzeTracks: (tracks: TrackId[], features: AnalysisFeatures) => typedError<JobId, CommandError>(__TAURI_INVOKE("reanalyze_tracks", { tracks, features })),
+	/**  BPM range the tempo analyzer folds into. */
+	getBpmRange: () => typedError<BpmRangeDto, CommandError>(__TAURI_INVOKE("get_bpm_range")),
+	/**
+	 *  Stores the analyzer's BPM range (30 to 300, lowest first). Applies to new
+	 *  imports and re-analysis.
+	 */
+	setBpmRange: (range: BpmRangeDto) => typedError<null, CommandError>(__TAURI_INVOKE("set_bpm_range", { range })),
 	/**  Stored jobs, newest first (the import panel's startup state). */
 	listJobs: () => typedError<JobInfo[], CommandError>(__TAURI_INVOKE("list_jobs")),
 	/**  Pauses a running job. */
@@ -633,6 +667,17 @@ export type Beats = number | null;
 
 /**  Tempo in beats per minute. Valid values are finite and `> 0`. */
 export type Bpm = number | null;
+
+/**
+ *  Lowest and highest tempo the analyzer reports, BPM. Octave errors fold
+ *  into the range.
+ */
+export type BpmRangeDto = {
+	/**  Lowest BPM, at least 30. */
+	min_bpm: number | null,
+	/**  Highest BPM, at most 300 and above `min_bpm`. */
+	max_bpm: number | null,
+};
 
 /**  What the library pane tells the browse cursor. */
 export type BrowseContextDto = {
@@ -1702,6 +1747,29 @@ export type InputChannels = {
 	left: number,
 	/**  Right channel index, `None` for a mono source. */
 	right: number | null,
+};
+
+/**
+ *  Booth, mic, aux and talk-over controls as the control thread last sent
+ *  them to the engine (and replays after a restart).
+ */
+export type InputState = {
+	/**  Booth output level, linear gain. */
+	booth_level: Gain,
+	/**  Microphone level, linear gain. */
+	mic_level: Gain,
+	/**  Microphone low shelf, linear gain (unity is flat). */
+	mic_eq_low: Gain,
+	/**  Microphone high shelf, linear gain (unity is flat). */
+	mic_eq_high: Gain,
+	/**  Microphone on. */
+	mic_on: boolean,
+	/**  Aux input level, linear gain. */
+	aux_level: Gain,
+	/**  Aux channel fader in `[0, 1]`. */
+	aux_fader: number | null,
+	/**  Talk-over (ducking). */
+	talk_over: TalkOverSettings,
 };
 
 /**  State of the microphone and aux inputs over the last block(s). RT-safe. */
