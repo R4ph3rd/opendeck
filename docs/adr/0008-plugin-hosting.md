@@ -1,6 +1,6 @@
 # ADR 0008: CLAP and VST3 plugin hosting
 
-- Status: proposed (design and skeleton, milestone 9a)
+- Status: accepted (owner decisions 2026-10-31; design and skeleton, milestone 9a)
 - Date: 2026-10-31
 - Deciders: architect, owner
 
@@ -24,7 +24,7 @@ Milestone 9a adds third-party CLAP and VST3 plugins as effects in the existing F
 | `plughost` 0.2 | MIT OR Apache-2.0 | crates.io API. Not chosen: 196 downloads, every plugin out of process, JSON IPC. |
 | `rack` 0.4 | MIT OR Apache-2.0 | crates.io API. Not chosen: no CLAP, last release 2025-11. |
 
-`cargo deny --all-features check licenses` passes with the chosen crates. Because the VST3 bindings are derived from Steinberg's MIT headers, the Steinberg MIT notice goes into the third-party notices of any build with the `vst3` feature. OpenDeck does not use the VST logo for now (owner decision if wanted).
+`cargo deny --all-features check licenses` passes with the chosen crates. Because the VST3 bindings are derived from Steinberg's MIT headers, the Steinberg MIT notice goes into the third-party notices of any build with the `vst3` feature (`THIRD_PARTY_NOTICES.md`). OpenDeck does not use the VST logo (owner decision 3).
 
 ## Decision
 
@@ -70,9 +70,9 @@ Milestone 9a adds third-party CLAP and VST3 plugins as effects in the existing F
 ### Instruments
 
 - Contract: `contracts::instrument::{Instrument, InstrumentFactory, InstrumentRegistry, InstrumentInfo, NoteEvent, NoteKind, MAX_NOTE_EVENTS}` (added in this ADR, additive). `Instrument` mirrors `Effect` with no input and a `&[NoteEvent]` per block.
-- **MVP shape: instrument slots.** The engine gets `INSTRUMENT_SLOTS` (proposed 2) slots holding a `Box<dyn Instrument>`, installed like effects (`EngineHandle::install_instrument`, hand-off and return rings). Their output joins the sampler bus (sampler level, PFL, before the master FX unit). A sampler pad can be assigned to "instrument slot N, key K": a pad press sends note-on, release note-off, velocity 1.0 (FLX4 pads have no velocity, `TODO(verify)` other controllers). External MIDI keyboards route notes to a slot (wave 9a-4, midi crate).
+- **MVP shape: instrument slots.** The engine gets `INSTRUMENT_SLOTS` = 2 slots (owner decision 2) holding a `Box<dyn Instrument>`, installed like effects (`EngineHandle::install_instrument`, hand-off and return rings). Their output joins the sampler bus (sampler level, PFL, before the master FX unit). A sampler pad can be assigned to "instrument slot N, key K": a pad press sends note-on, release note-off, velocity 1.0 (FLX4 pads have no velocity, `TODO(verify)` other controllers). External MIDI keyboards route notes to a slot (wave 9a-4, midi crate).
 - Engine contract additions for 9a-4 (proposed, not made now; need owner/architect approval): `EngineCommand::InstrumentNote { slot, key, velocity, on }` (fits the 40-byte limit), `SetInstrumentGain`, `InstrumentSlotId` (bounded id), `EngineTelemetry::instruments` (per slot `{loaded, active_notes, level}`).
-- Also offered: "Render to sampler slot", which renders a held note offline through the same `Instrument` trait into a `TrackBuffer` (useful for one-shots with sampler sync and quantize).
+- Also in the MVP: "Render to sampler slot", which renders a held note offline through the same `Instrument` trait into a `TrackBuffer` (useful for one-shots with sampler sync and quantize).
 
 ### Identity, catalog, presets
 
@@ -84,7 +84,7 @@ Milestone 9a adds third-party CLAP and VST3 plugins as effects in the existing F
 
 - Default folders follow the formats: CLAP from the comment in `clap/entry.h` plus `CLAP_PATH`; VST3 from the SDK hosting code (`module_win32.cpp`, `module_mac.mm`, `module_linux.cpp`). Both are in `plugin_host::scan`. Users add folders in scan settings.
 - 64-bit only: x86_64 on Windows and Linux, arm64 and x86_64 on macOS (a universal app loads the slice of its own architecture; an x86_64-only plugin does not load in the arm64 app and is reported as a failed scan).
-- Windows is primary, macOS second, Linux best effort. AU, LV2, VST2 and 32-bit bridging are out of scope.
+- Windows first, then macOS; Linux best effort with X11-only editors (owner decision 4). AU, LV2, VST2 and 32-bit bridging are out of scope.
 
 ## Consequences
 
@@ -94,9 +94,9 @@ Milestone 9a adds third-party CLAP and VST3 plugins as effects in the existing F
 - Plugins can allocate or lock inside `process`; the RT rules cannot be enforced on foreign code. CPU and xrun telemetry show the cost.
 - The format modules contain `unsafe` code, the first in the workspace outside dependencies.
 
-## Owner decisions needed
+## Owner decisions (approved 2026-10-31)
 
-1. In-process processing with out-of-process scanning (recommended) versus everything out of process.
-2. Instrument MVP: 2 live instrument slots on the sampler bus plus "render to sampler slot" (recommended).
-3. Whether to show the VST logo (trademark rules apply) or only the text "VST3 plugins".
-4. Linux plugin support: best effort, X11 editors only.
+1. Plugins process in process, inside engine slots. Scanning runs out of process; a scan crash or timeout blacklists the file.
+2. Instrument MVP: 2 live instrument slots on the sampler bus, plus "render to sampler slot".
+3. No VST logo; the UI uses the text "VST3" only. Builds with the `vst3` feature ship Steinberg's MIT notice: `THIRD_PARTY_NOTICES.md` now, bundled as an app resource and listed on the about screen when the feature is wired into src-tauri (wave 9a-1).
+4. Platforms: Windows first, then macOS. Linux is best effort, with X11-only editors (XWayland on Wayland sessions).

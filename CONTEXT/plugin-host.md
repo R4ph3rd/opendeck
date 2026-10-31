@@ -34,6 +34,6 @@ Host CLAP and VST3 plugins as effects in the engine FX slots and as instruments 
 - **9a-5 UI.** Plugin browser (search, format, vendor, kind, categories), FX slot picker showing built-ins then plugins, instrument slot picker, scan settings (folders, rescan, progress), blacklist with reason and retry, generic parameter view with plugin value text, "open editor" button. IPC DTOs from contracts `plugin` module (`specta`).
 
 ## Open questions
-- Owner: in-process processing (recommended) vs out of process; instrument slot count; VST logo; Linux scope (ADR 0008).
+- Owner questions resolved 2026-10-31: see "Owner decisions" in ADR 0008.
 - Scan timeout of 30 s is a guess (`TODO(verify)` with large sample-library plugins).
 - Velocity for FLX4 pads is fixed at 1.0; other controllers may send velocity (`TODO(verify)`).
