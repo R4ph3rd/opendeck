@@ -1,17 +1,18 @@
 import {
-  Badge,
-  IconButton,
-  Input,
+  ContextMenuCheckboxItem,
+  ContextMenuItem,
+  ContextMenuSeparator,
   SegmentedControl,
   Toggle,
-  cn,
 } from "@opendeck/design-system";
-import { X } from "lucide-react";
-import { useState, type DragEvent } from "react";
+import { open } from "@tauri-apps/plugin-dialog";
+import { useState, type DragEvent, type HTMLAttributes } from "react";
 import { useStore } from "zustand";
-import type { SamplerPlayMode, SamplerSlotDto } from "../../ipc/bindings";
+import type { SamplerSlotDto } from "../../ipc/bindings";
 import { dragKind, readDrag } from "../../lib/dnd";
 import { PLAY_MODES, deckSlots, sampleLength } from "../../lib/pads";
+import { errorMessage } from "../../lib/errors";
+import { notifyError } from "../../state/notify";
 import {
   padDown,
   padUp,
@@ -24,235 +25,219 @@ import {
   samplerPfl,
   usePadStore,
 } from "../../state/pads";
-import { selectSamplerPlaying, selectSamplerProgress, telemetryStore } from "../../state/telemetry";
+import { telemetryStore } from "../../state/telemetry";
 import { cueToken } from "../../viz/colors";
+import { PerformancePads, type PadSpec } from "../../viz/PerformancePads";
 import { Knob } from "../Knob";
 import { LevelMeter } from "../LevelMeter";
+import { RenameDialog } from "./RenameDialog";
 
 /** Largest slot gain (`SamplerSlotPatch.gain` range `0..=2`). */
 const MAX_GAIN = 2;
+/** Gain change per menu step. */
+const GAIN_STEP = 0.25;
+/** Hot cue palette size, colours cycle through it. */
+const COLOURS = 8;
 
-function SlotName({ slot }: { slot: SamplerSlotDto }) {
-  const [draft, setDraft] = useState<string | null>(null);
-  const commit = () => {
-    if (draft !== null && draft !== slot.name) {
-      samplerPatch(slot.slot, { name: draft });
-    }
-    setDraft(null);
-  };
-  return (
-    <Input
-      aria-label={`Slot ${slot.slot + 1} name`}
-      placeholder="Empty"
-      className="h-7 min-w-0 flex-1"
-      value={draft ?? slot.name}
-      disabled={slot.path === null}
-      onChange={(event) => setDraft(event.target.value)}
-      onBlur={commit}
-      onKeyDown={(event) => {
-        if (event.key === "Enter") event.currentTarget.blur();
-      }}
-    />
-  );
-}
-
-/** Peak bars of the sample, or a flat bar while empty or decoding, with the play position. */
-function MiniWave({ slot }: { slot: SamplerSlotDto }) {
-  const progress = useStore(telemetryStore, (s) => selectSamplerProgress(s, slot.slot));
-  const playing = useStore(telemetryStore, (s) => selectSamplerPlaying(s, slot.slot));
-  return (
-    <div
-      role="img"
-      aria-label={`Slot ${slot.slot + 1} ${slot.loaded ? sampleLength(slot.duration_secs ?? 0) : "empty"}`}
-      className="relative flex h-6 items-center gap-px"
-    >
-      {playing ? (
-        <span
-          data-testid={`slot-${slot.slot}-position`}
-          className="pointer-events-none absolute inset-y-0 w-px bg-fg"
-          style={{ left: `${progress * 100}%` }}
-        />
-      ) : null}
-      {slot.peaks.length === 0 ? (
-        <span className="h-px flex-1 bg-border" />
-      ) : (
-        slot.peaks.map((p, i) => (
-          <span
-            key={i}
-            className="flex-1 rounded-sm"
-            style={{
-              height: `${Math.max(4, Math.round((p ?? 0) * 100))}%`,
-              backgroundColor: `var(--${cueToken(slot.color)})`,
-            }}
-          />
-        ))
-      )}
-    </div>
-  );
-}
-
-function SlotCard({ deck, slot, index }: { deck: number; slot: SamplerSlotDto; index: number }) {
-  const [over, setOver] = useState(false);
-  const onDragOver = (event: DragEvent) => {
-    const kind = dragKind(event.dataTransfer);
-    if (kind === "tracks" || kind === "files") {
-      event.preventDefault();
-      event.dataTransfer.dropEffect = "copy";
-      setOver(true);
-    }
-  };
-  const onDrop = (event: DragEvent) => {
-    setOver(false);
-    const payload = readDrag(event.dataTransfer);
-    if (payload?.kind === "tracks" && payload.ids[0] !== undefined) {
-      event.preventDefault();
-      samplerLoadTrack(slot.slot, payload.ids[0]);
-    } else if (payload?.kind === "files") {
-      const file = payload.files.find((f) => f.kind === "audio");
-      if (file) {
-        event.preventDefault();
-        samplerLoadPath(slot.slot, file.path);
-      }
-    }
-  };
-  const color = `var(--${cueToken(slot.color)})`;
-  const playing = useStore(telemetryStore, (s) => selectSamplerPlaying(s, slot.slot));
-  return (
-    <li
-      aria-label={`Sampler slot ${slot.slot + 1}`}
-      className={cn(
-        "flex min-w-0 flex-col gap-1 rounded-md border bg-bg-subtle p-1",
-        over ? "border-accent" : "border-border",
-      )}
-      onDragOver={onDragOver}
-      onDragLeave={() => setOver(false)}
-      onDrop={onDrop}
-    >
-      <div className="flex items-center gap-1">
-        <button
-          type="button"
-          aria-label={`Play slot ${slot.slot + 1}`}
-          aria-pressed={playing}
-          disabled={!slot.loaded}
-          style={slot.loaded ? { backgroundColor: color, color: "var(--cue-fg)" } : undefined}
-          className={cn(
-            "h-7 w-8 shrink-0 select-none rounded-md border border-border text-xs font-semibold tabular-nums",
-            "disabled:opacity-50",
-            !slot.loaded && "bg-surface-raised text-fg-muted",
-            playing && "ring-2 ring-fg ring-offset-1 ring-offset-bg-subtle",
-          )}
-          onPointerDown={(event) => {
-            event.currentTarget.setPointerCapture?.(event.pointerId);
-            padDown(deck, "sampler", index, false);
-          }}
-          onPointerUp={() => padUp(deck, index, false)}
-          onPointerCancel={() => padUp(deck, index, false)}
-          onLostPointerCapture={() => padUp(deck, index, false)}
-        >
-          {slot.slot + 1}
-        </button>
-        <SlotName slot={slot} />
-        <IconButton
-          size="sm"
-          aria-label={`Clear slot ${slot.slot + 1}`}
-          disabled={slot.path === null}
-          onClick={() => samplerClear(slot.slot)}
-        >
-          <X className="size-4" aria-hidden />
-        </IconButton>
-      </div>
-      <MiniWave slot={slot} />
-      <div className="flex items-center gap-1">
-        <Knob
-          label="Gain"
-          name={`Slot ${slot.slot + 1} gain`}
-          value={slot.gain ?? 1}
-          min={0}
-          max={MAX_GAIN}
-          defaultValue={1}
-          format={(v) => `${v.toFixed(2)}x`}
-          onChange={(gain) => samplerPatch(slot.slot, { gain })}
-        />
-        <div className="flex min-w-0 flex-1 flex-col items-start gap-1">
-          <SegmentedControl
-            aria-label={`Slot ${slot.slot + 1} play mode`}
-            size="sm"
-            value={slot.play_mode}
-            options={PLAY_MODES.map((m) => ({ value: m.value, label: m.label }))}
-            onValueChange={(value) => samplerPatch(slot.slot, { play_mode: value as SamplerPlayMode })}
-          />
-          <div className="flex items-center gap-1">
-            <Toggle
-              variant="outline"
-              size="sm"
-              aria-label={`Slot ${slot.slot + 1} sync`}
-              pressed={slot.sync}
-              onPressedChange={(sync) => samplerPatch(slot.slot, { sync })}
-            >
-              Sync
-            </Toggle>
-            <button
-              type="button"
-              aria-label={`Slot ${slot.slot + 1} colour`}
-              className="size-6 rounded-md border border-border"
-              style={{ backgroundColor: color }}
-              onClick={() => samplerPatch(slot.slot, { color: (slot.color + 1) % 8 })}
-            />
-            {slot.loading ? <Badge variant="neutral">Loading</Badge> : null}
-          </div>
-        </div>
-      </div>
-    </li>
-  );
-}
-
-/** The eight slots a deck's pads reach, with the sampler level, PFL and slot layout. */
-export function SamplerView({ deck }: { deck: number }) {
+/** Layout, level, PFL and meter of the sampler, shown in the tab strip while a deck is in SAMPLER mode. */
+export function SamplerControls({ deck }: { deck: number }) {
   const sampler = usePadStore((s) => s.sampler);
   if (!sampler) {
-    return <p className="text-sm text-fg-subtle">The sampler is loading.</p>;
+    return null;
   }
-  const slots = deckSlots(sampler.layout, deck);
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <SegmentedControl
-          aria-label={`Deck ${deck + 1} sampler layout`}
-          size="sm"
-          value={sampler.layout}
-          options={[
-            { value: "split", label: "Split" },
-            { value: "shared", label: "Shared" },
-          ]}
-          onValueChange={(value) => samplerLayout(value === "shared" ? "shared" : "split")}
-        />
+    <div className="flex items-center gap-2">
+      <SegmentedControl
+        aria-label={`Deck ${deck + 1} sampler layout`}
+        size="sm"
+        value={sampler.layout}
+        options={[
+          { value: "split", label: "Split" },
+          { value: "shared", label: "Shared" },
+        ]}
+        onValueChange={(value) => samplerLayout(value === "shared" ? "shared" : "split")}
+      />
+      <div className="w-24">
         <Knob
-          label="Level"
+          compact
+          label="LVL"
           name={`Deck ${deck + 1} sampler level`}
           value={sampler.level ?? 1}
           defaultValue={1}
           format={(v) => `${Math.round(v * 100)}%`}
           onChange={samplerLevel}
         />
-        <Toggle
-          variant="outline"
-          size="sm"
-          aria-label={`Deck ${deck + 1} sampler PFL`}
-          pressed={sampler.pfl}
-          onPressedChange={samplerPfl}
-        >
-          PFL
-        </Toggle>
-        <div className="h-8 w-3">
-          <LevelMeter source="sampler" label={`Deck ${deck + 1} sampler level meter`} />
-        </div>
       </div>
-      <ul aria-label={`Deck ${deck + 1} sampler slots`} className="grid grid-cols-1 gap-1 xl:grid-cols-2">
-        {slots.map((n, i) => {
-          const slot = sampler.slots[n];
-          return slot ? <SlotCard key={n} deck={deck} slot={slot} index={i} /> : null;
-        })}
-      </ul>
+      <Toggle
+        size="sm"
+        aria-label={`Deck ${deck + 1} sampler PFL`}
+        pressed={sampler.pfl}
+        className="rounded-sm bg-surface-raised px-1.5 text-xs font-bold data-[state=on]:bg-accent data-[state=on]:text-accent-fg"
+        onPressedChange={samplerPfl}
+      >
+        PFL
+      </Toggle>
+      <div className="h-5 w-3">
+        <LevelMeter source="sampler" label={`Deck ${deck + 1} sampler level meter`} />
+      </div>
     </div>
+  );
+}
+
+/** Eight sampler pads: the sample name and length, lit with the slot colour once loaded. */
+export function SamplerView({ deck }: { deck: number }) {
+  const sampler = usePadStore((s) => s.sampler);
+  const [renaming, setRenaming] = useState<SamplerSlotDto | null>(null);
+  const slots = sampler ? deckSlots(sampler.layout, deck) : [];
+  // One string per render so the selector result is stable between telemetry ticks.
+  const playing = useStore(telemetryStore, (s) =>
+    slots.map((n) => (s.telemetry?.sampler[n]?.playing ? "1" : "0")).join(""),
+  );
+  if (!sampler) {
+    return <p className="p-2 text-sm text-fg-subtle">The sampler is loading.</p>;
+  }
+
+  const slotOf = (index: number): SamplerSlotDto | undefined => {
+    const n = slots[index];
+    return n === undefined ? undefined : sampler.slots[n];
+  };
+
+  const pads: PadSpec[] = slots.map((n, index) => {
+    const slot = sampler.slots[n];
+    if (!slot) {
+      return { label: "Empty", color: null, lit: false, disabled: true };
+    }
+    return {
+      label: slot.loading
+        ? "Loading..."
+        : slot.path === null
+          ? "Empty"
+          : slot.name || `Sample ${n + 1}`,
+      sublabel: slot.loaded ? sampleLength(slot.duration_secs ?? 0) : undefined,
+      ariaLabel: `Sample slot ${n + 1}${slot.loaded ? `, ${slot.name}` : " (empty)"}`,
+      color: cueToken(slot.color),
+      lit: slot.loaded,
+      active: playing[index] === "1",
+    };
+  });
+
+  const loadFile = async (slot: SamplerSlotDto) => {
+    try {
+      const picked = await open({ multiple: false, directory: false });
+      if (typeof picked === "string") {
+        samplerLoadPath(slot.slot, picked);
+      }
+    } catch (error) {
+      notifyError(errorMessage(error));
+    }
+  };
+
+  const dropProps = (index: number): HTMLAttributes<HTMLButtonElement> => ({
+    onDragOver: (event: DragEvent) => {
+      const kind = dragKind(event.dataTransfer);
+      if (kind === "tracks" || kind === "files") {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "copy";
+      }
+    },
+    onDrop: (event: DragEvent) => {
+      const slot = slotOf(index);
+      const payload = readDrag(event.dataTransfer);
+      if (!slot) return;
+      if (payload?.kind === "tracks" && payload.ids[0] !== undefined) {
+        event.preventDefault();
+        samplerLoadTrack(slot.slot, payload.ids[0]);
+      } else if (payload?.kind === "files") {
+        const file = payload.files.find((f) => f.kind === "audio");
+        if (file) {
+          event.preventDefault();
+          samplerLoadPath(slot.slot, file.path);
+        }
+      }
+    },
+  });
+
+  return (
+    <>
+      <PerformancePads
+        label={`Deck ${deck + 1} sampler slots`}
+        pads={pads}
+        padProps={dropProps}
+        onPress={(index, { shift }) => padDown(deck, "sampler", index, shift)}
+        onRelease={(index) => padUp(deck, index, false)}
+        renderMenu={(index) => {
+          const slot = slotOf(index);
+          if (!slot) return null;
+          const gain = slot.gain ?? 1;
+          return (
+            <>
+              <ContextMenuItem onSelect={() => void loadFile(slot)}>Load file...</ContextMenuItem>
+              <ContextMenuItem disabled={slot.path === null} onSelect={() => setRenaming(slot)}>
+                Rename...
+              </ContextMenuItem>
+              <ContextMenuItem
+                onSelect={() => samplerPatch(slot.slot, { color: (slot.color + 1) % COLOURS })}
+              >
+                Next colour
+              </ContextMenuItem>
+              <ContextMenuSeparator />
+              {PLAY_MODES.map((m) => (
+                <ContextMenuCheckboxItem
+                  key={m.value}
+                  checked={slot.play_mode === m.value}
+                  onSelect={() => samplerPatch(slot.slot, { play_mode: m.value })}
+                >
+                  {m.label}
+                </ContextMenuCheckboxItem>
+              ))}
+              <ContextMenuCheckboxItem
+                checked={slot.sync}
+                onSelect={() => samplerPatch(slot.slot, { sync: !slot.sync })}
+              >
+                Sync to leader
+              </ContextMenuCheckboxItem>
+              <ContextMenuItem
+                disabled={gain >= MAX_GAIN}
+                onSelect={() =>
+                  samplerPatch(slot.slot, {
+                    gain: Math.min(MAX_GAIN, gain + GAIN_STEP),
+                  })
+                }
+              >
+                {`Gain up (${gain.toFixed(2)}x)`}
+              </ContextMenuItem>
+              <ContextMenuItem
+                disabled={gain <= 0}
+                onSelect={() =>
+                  samplerPatch(slot.slot, {
+                    gain: Math.max(0, gain - GAIN_STEP),
+                  })
+                }
+              >
+                Gain down
+              </ContextMenuItem>
+              <ContextMenuSeparator />
+              <ContextMenuItem
+                disabled={slot.path === null}
+                onSelect={() => samplerClear(slot.slot)}
+              >
+                Clear
+              </ContextMenuItem>
+            </>
+          );
+        }}
+      />
+      <RenameDialog
+        open={renaming !== null}
+        onOpenChange={(openState) => {
+          if (!openState) setRenaming(null);
+        }}
+        title={`Rename sample slot ${(renaming?.slot ?? 0) + 1}`}
+        initial={renaming?.name ?? ""}
+        onCommit={(name) => {
+          if (renaming) samplerPatch(renaming.slot, { name });
+        }}
+      />
+    </>
   );
 }

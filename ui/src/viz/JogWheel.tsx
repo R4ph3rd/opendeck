@@ -16,6 +16,11 @@ import {
 } from "./jogMath";
 import { useCanvasLoop } from "./useCanvasLoop";
 
+export interface JogReadout {
+  main: string;
+  sub: string;
+}
+
 export interface JogWheelProps {
   deck: number;
   label: string;
@@ -28,6 +33,8 @@ export interface JogWheelProps {
   onSearch: (beats: number) => void;
   /** Main cue point, seconds, drawn as a marker on the ring. */
   cuePoint?: number | null;
+  /** Centre text, read once per animation frame: effective BPM and the tempo line under it. */
+  readout?: () => JogReadout;
   disabled?: boolean;
   className?: string;
 }
@@ -53,6 +60,7 @@ export function JogWheel({
   onTurn,
   onSearch,
   cuePoint = null,
+  readout,
   disabled = false,
   className,
 }: JogWheelProps) {
@@ -61,17 +69,26 @@ export function JogWheel({
   const acc = useRef(new TurnAccumulator());
   const raf = useRef(0);
   const reduced = useRef(prefersReducedMotion());
-  const view = useRef({ cuePoint, disabled, onTouch, onTurn, onSearch });
+  const view = useRef({
+    cuePoint,
+    disabled,
+    onTouch,
+    onTurn,
+    onSearch,
+    readout,
+  });
   const last = useRef("");
   useEffect(() => {
-    view.current = { cuePoint, disabled, onTouch, onTurn, onSearch };
+    view.current = { cuePoint, disabled, onTouch, onTurn, onSearch, readout };
   });
 
   const canvasRef = useCanvasLoop((f) => {
     const { ctx, width, height, dpr, colors } = f;
     const frame = frameSource(f.now);
     const touched = dragRef.current?.zone === "top";
-    const key = `${frame.position.toFixed(3)}|${width}|${height}|${touched}|${view.current.cuePoint}|${view.current.disabled}`;
+    const readout = view.current.readout?.() ?? null;
+    const progress = frame.duration > 0 ? frame.position / frame.duration : 0;
+    const key = `${frame.position.toFixed(3)}|${width}|${height}|${touched}|${view.current.cuePoint}|${view.current.disabled}|${readout?.main}|${readout?.sub}`;
     if (!f.invalidated && key === last.current) return;
     last.current = key;
 
@@ -80,59 +97,73 @@ export function JogWheel({
     const cy = height / 2;
     const outer = Math.min(width, height) / 2 - dpr;
     const ringW = outer * (1 - RING_START);
+    const ringR = outer - ringW / 2;
     const spin = reduced.current ? 0 : platterAngle(frame.position);
-    const at = (seconds: number) => -Math.PI / 2 + platterAngle(seconds) - (reduced.current ? platterAngle(frame.position) : 0);
+    const at = (seconds: number) =>
+      -Math.PI / 2 + platterAngle(seconds) - (reduced.current ? platterAngle(frame.position) : 0);
     ctx.globalAlpha = view.current.disabled ? 0.5 : 1;
 
-    // Outer ring.
+    // Outer ring: track, then the played part of the track in the foreground colour.
+    ctx.lineCap = "butt";
     ctx.lineWidth = ringW;
     ctx.strokeStyle = colors.color["surface-hover"];
     ctx.beginPath();
-    ctx.arc(cx, cy, outer - ringW / 2, 0, Math.PI * 2);
+    ctx.arc(cx, cy, ringR, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.lineWidth = Math.max(1, dpr * 1.5);
-    ctx.strokeStyle = colors.color[deckToken(deck)];
-    ctx.beginPath();
-    ctx.arc(cx, cy, outer - dpr, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // Platter.
-    const platter = outer * RING_START;
-    ctx.fillStyle = touched ? colors.color["surface-hover"] : colors.color["surface-raised"];
-    ctx.beginPath();
-    ctx.arc(cx, cy, platter - dpr, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.lineWidth = Math.max(1, dpr);
-    ctx.strokeStyle = colors.color["border"];
-    for (const k of [0.55, 0.8]) {
+    if (progress > 0) {
+      ctx.strokeStyle = colors.color["fg"];
       ctx.beginPath();
-      ctx.arc(cx, cy, platter * k, 0, Math.PI * 2);
+      ctx.arc(cx, cy, ringR, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, progress));
       ctx.stroke();
     }
 
-    // Spindle and position marker, turning with the playhead.
+    // Platter: dark face with a deck-coloured inner ring.
+    const platter = outer * RING_START;
+    ctx.fillStyle = touched ? colors.color["surface"] : colors.color["bg"];
+    ctx.beginPath();
+    ctx.arc(cx, cy, platter - dpr, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.lineWidth = Math.max(2, platter * 0.06);
+    ctx.strokeStyle = colors.color[deckToken(deck)];
+    ctx.beginPath();
+    ctx.arc(cx, cy, platter * 0.9, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Position marker on the ring, turning with the playhead.
     const mark = -Math.PI / 2 + spin;
-    ctx.strokeStyle = colors.color["fg"];
-    ctx.lineWidth = Math.max(2, dpr * 2.5);
+    ctx.strokeStyle = colors.color["danger"];
+    ctx.lineWidth = Math.max(3, ringW * 0.5);
     ctx.lineCap = "round";
     ctx.beginPath();
-    ctx.moveTo(cx + Math.cos(mark) * platter * 0.2, cy + Math.sin(mark) * platter * 0.2);
-    ctx.lineTo(cx + Math.cos(mark) * platter * 0.88, cy + Math.sin(mark) * platter * 0.88);
+    ctx.arc(cx, cy, platter * 0.9, mark - 0.09, mark + 0.09);
     ctx.stroke();
-    ctx.fillStyle = colors.color["fg-muted"];
-    ctx.beginPath();
-    ctx.arc(cx, cy, Math.max(2, platter * 0.06), 0, Math.PI * 2);
-    ctx.fill();
 
     // Cue marker on the ring: it meets the position marker when the playhead is on the cue.
     const cue = view.current.cuePoint;
     if (cue !== null) {
       const a = at(cue);
-      const r = outer - ringW / 2;
       ctx.fillStyle = colors.color[cueToken(2)];
       ctx.beginPath();
-      ctx.arc(cx + Math.cos(a) * r, cy + Math.sin(a) * r, Math.max(3, ringW * 0.36), 0, Math.PI * 2);
+      ctx.arc(
+        cx + Math.cos(a) * ringR,
+        cy + Math.sin(a) * ringR,
+        Math.max(3, ringW * 0.36),
+        0,
+        Math.PI * 2,
+      );
       ctx.fill();
+    }
+
+    // Readout: effective BPM large, tempo change and range under it.
+    if (readout) {
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = colors.color["fg"];
+      ctx.font = `700 ${Math.round(platter * 0.42)}px ${colors.font}`;
+      ctx.fillText(readout.main, cx, cy - platter * 0.08);
+      ctx.fillStyle = colors.color["success"];
+      ctx.font = `600 ${Math.round(platter * 0.18)}px ${colors.font}`;
+      ctx.fillText(readout.sub, cx, cy + platter * 0.3);
     }
     ctx.globalAlpha = 1;
   });
@@ -201,7 +232,7 @@ export function JogWheel({
       aria-roledescription="jog wheel"
       tabIndex={disabled ? -1 : 0}
       className={cn(
-        "relative aspect-square size-28 touch-none select-none rounded-full outline-offset-2 focus-visible:outline-2 focus-visible:outline-focus-ring",
+        "relative aspect-square h-full max-h-full touch-none select-none rounded-full outline-offset-2 focus-visible:outline-2 focus-visible:outline-focus-ring",
         disabled ? "opacity-50" : "cursor-grab active:cursor-grabbing",
         className,
       )}
@@ -212,7 +243,7 @@ export function JogWheel({
       onLostPointerCapture={end}
       onKeyDown={onKeyDown}
     >
-      <canvas ref={canvasRef} className="block size-full" aria-hidden />
+      <canvas ref={canvasRef} className="block size-full font-mono" aria-hidden />
     </div>
   );
 }

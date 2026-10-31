@@ -17,6 +17,7 @@ export const TOKEN_NAMES = [
   "fg-subtle",
   "accent",
   "danger",
+  "success",
   "warning",
   "wave-low",
   "wave-mid",
@@ -95,7 +96,10 @@ export function deckToken(deck: number): TokenName {
  */
 export function onThemeChange(element: Element, listener: () => void): () => void {
   const observer = new MutationObserver(listener);
-  const options = { attributes: true, attributeFilter: ["data-theme", "class"] };
+  const options = {
+    attributes: true,
+    attributeFilter: ["data-theme", "class"],
+  };
   for (let node: Element | null = element; node; node = node.parentElement) {
     observer.observe(node, options);
   }

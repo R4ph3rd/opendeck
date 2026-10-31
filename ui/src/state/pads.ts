@@ -46,12 +46,12 @@ export function selectPadMode(deck: number, mode: PadMode): void {
   void report(commands.setPadMode(deck, mode));
 }
 
-const held = new Map<string, PadMode>();
+const held = new Map<string, { mode: PadMode; shift: boolean }>();
 const heldKey = (deck: number, pad: number): string => `${deck}:${pad}`;
 
 /** Pad pressed on screen. `shift` is the SHIFT layer of the pad. */
 export function padDown(deck: number, mode: PadMode, pad: number, shift: boolean): void {
-  held.set(heldKey(deck, pad), mode);
+  held.set(heldKey(deck, pad), { mode, shift });
   void report(commands.padPress(deck, mode, pad, shift, true)).then(() => {
     if (mode === "key_shift" || mode === "keyboard") {
       void hydrateDeck(deck);
@@ -61,12 +61,13 @@ export function padDown(deck: number, mode: PadMode, pad: number, shift: boolean
 
 /** Pad released. A release without a press is ignored. */
 export function padUp(deck: number, pad: number, shift: boolean): void {
-  const mode = held.get(heldKey(deck, pad));
-  if (mode === undefined) {
+  const entry = held.get(heldKey(deck, pad));
+  if (entry === undefined) {
     return;
   }
   held.delete(heldKey(deck, pad));
-  void report(commands.padPress(deck, mode, pad, shift, false));
+  // The release carries the SHIFT state of the press, as the controller reports it.
+  void report(commands.padPress(deck, entry.mode, pad, entry.shift || shift, false));
 }
 
 export function renameHotCue(deck: number, index: number, name: string): void {
@@ -75,7 +76,13 @@ export function renameHotCue(deck: number, index: number, name: string): void {
 
 /** Changes the named fields of a slot; the others keep their value. */
 export function samplerPatch(slot: number, patch: Partial<SamplerSlotPatch>): void {
-  const keep: SamplerSlotPatch = { name: null, color: null, gain: null, play_mode: null, sync: null };
+  const keep: SamplerSlotPatch = {
+    name: null,
+    color: null,
+    gain: null,
+    play_mode: null,
+    sync: null,
+  };
   void report(commands.samplerSetSlot(slot, { ...keep, ...patch }));
 }
 
