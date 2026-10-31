@@ -88,6 +88,29 @@ pub struct FxUnitTelemetry {
     pub level: f32,
 }
 
+/// State of the microphone and aux inputs over the last block(s). RT-safe.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct InputTelemetry {
+    /// Input frames have reached the engine since the stream started (an
+    /// input stream is open and delivering).
+    pub connected: bool,
+    /// Microphone level after its level and EQ, before the on/off switch.
+    pub mic: StereoMeter,
+    /// Aux level after its level and fader.
+    pub aux: StereoMeter,
+    /// Current talk-over attenuation of the program in dB (positive, 0 when
+    /// not ducking).
+    pub duck_db: f32,
+    /// Output blocks that found the input ring short (silence was inserted)
+    /// since the stream started.
+    pub underruns: u32,
+    /// Input frames dropped because the input ring was full or ran too far
+    /// ahead, since the stream started.
+    pub overruns: u32,
+}
+
 /// Full engine snapshot. RT-safe: `Copy`, fixed size, written without allocation.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -105,6 +128,10 @@ pub struct EngineTelemetry {
     pub master: StereoMeter,
     /// Headphone output level.
     pub headphones: StereoMeter,
+    /// Booth output level (master copy after the booth level).
+    pub booth: StereoMeter,
+    /// Microphone and aux inputs.
+    pub inputs: InputTelemetry,
     /// Deck FX units (insert chains), indexed by [`DeckId::index`].
     pub fx_decks: [FxUnitTelemetry; MAX_DECKS],
     /// Master FX unit.
