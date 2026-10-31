@@ -16,12 +16,16 @@ opendeck-dsp-fx.workspace = true
 opendeck-analysis.workspace = true
 opendeck-library.workspace = true
 opendeck-midi.workspace = true
+cpal.workspace = true
 crossbeam-channel.workspace = true
+rusqlite.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 specta = { workspace = true, optional = true }
 thiserror.workspace = true
 tracing.workspace = true
+tracing-appender.workspace = true
+tracing-subscriber.workspace = true
 
 [features]
 default = []
