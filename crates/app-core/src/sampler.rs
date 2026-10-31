@@ -11,10 +11,14 @@
 //! # Engine hand-off
 //!
 //! Samples are decoded here (media crate, engine rate) and handed to the
-//! engine through [`SamplerEngine`]. The default [`StubSamplerEngine`] only
-//! remembers what it was given, so this crate builds before the engine
-//! sampler lands; whoever merges the engine wires its API behind the trait
-//! with [`SamplerService::set_engine`]. Triggers, stops and the bus level use
+//! engine through [`SamplerEngine`]. [`AppCore`](crate::AppCore) installs
+//! [`EngineSampler`], which passes them to the control thread: it hands them
+//! to the engine (`EngineHandle::load_sampler`, with the analysed BPM when
+//! the sample is a library track) and replays them after an engine restart
+//! at the same rate. After a rate change call
+//! [`SamplerService::follow_rate`] to decode the slots again. The
+//! [`StubSamplerEngine`] only remembers what it was given (tests). Triggers,
+//! stops and the bus level use
 //! `EngineCommand::{SamplerTrigger, SamplerStop, SetSamplerLevel}`.
 
 use std::path::{Path, PathBuf};
@@ -22,11 +26,14 @@ use std::sync::{Arc, Mutex};
 
 use opendeck_contracts::analysis::CancelFlag;
 use opendeck_contracts::ids::{SAMPLER_SLOTS, SamplerSlotId, TrackId};
-use opendeck_contracts::{DeckId, EngineCommand, Gain, SampleRate};
+use opendeck_contracts::sampler::SamplerMode;
+use opendeck_contracts::{Bpm, DeckId, EngineCommand, Gain, SampleRate};
+use opendeck_engine::TrackBuffer;
 use opendeck_library::Library;
 use opendeck_media::decode_file;
 use serde::{Deserialize, Serialize};
 
+use crate::control::Msg;
 use crate::pads::{Notifier, PadEvent};
 use crate::types::CoreError;
 use crate::{AudioController, LibraryService};
@@ -50,8 +57,18 @@ pub enum SamplerPlayMode {
     OneShot,
     /// Plays while the pad is held.
     Gate,
-    /// Loops until stopped; a press toggles.
+    /// Loops until stopped (SHIFT + pad); a press restarts it.
     Loop,
+}
+
+impl From<SamplerPlayMode> for SamplerMode {
+    fn from(mode: SamplerPlayMode) -> Self {
+        match mode {
+            SamplerPlayMode::OneShot => SamplerMode::OneShot,
+            SamplerPlayMode::Gate => SamplerMode::Gate,
+            SamplerPlayMode::Loop => SamplerMode::Loop,
+        }
+    }
 }
 
 /// Which slots a deck's eight pads reach.
@@ -73,7 +90,8 @@ pub struct SamplerSlotParams {
     pub gain: Gain,
     /// Play mode.
     pub mode: SamplerPlayMode,
-    /// Start on the next beat of the sync leader.
+    /// Follow the master tempo (varispeed, pitch follows; see
+    /// `EngineCommand::SetSamplerSync`).
     pub sync: bool,
 }
 
@@ -82,8 +100,14 @@ pub struct SamplerSlotParams {
 /// Samples are interleaved stereo `f32` at the engine rate. Calls come from
 /// the control side (never the audio thread) and may allocate.
 pub trait SamplerEngine: Send + Sync {
-    /// Hands a decoded sample to `slot`, replacing what it held.
-    fn load_sample(&self, slot: SamplerSlotId, samples: Arc<[f32]>) -> Result<(), CoreError>;
+    /// Hands a decoded sample to `slot`, replacing what it held. `bpm` is the
+    /// analysed tempo of a library track, needed for sync.
+    fn load_sample(
+        &self,
+        slot: SamplerSlotId,
+        samples: Arc<[f32]>,
+        bpm: Option<Bpm>,
+    ) -> Result<(), CoreError>;
     /// Empties `slot`.
     fn clear_sample(&self, slot: SamplerSlotId) -> Result<(), CoreError>;
     /// Applies a slot's gain, play mode and sync.
@@ -117,8 +141,18 @@ impl StubSamplerEngine {
 }
 
 impl SamplerEngine for StubSamplerEngine {
-    fn load_sample(&self, slot: SamplerSlotId, samples: Arc<[f32]>) -> Result<(), CoreError> {
-        self.note(format!("load {} {}", slot.index(), samples.len()));
+    fn load_sample(
+        &self,
+        slot: SamplerSlotId,
+        samples: Arc<[f32]>,
+        bpm: Option<Bpm>,
+    ) -> Result<(), CoreError> {
+        self.note(format!(
+            "load {} {} {:?}",
+            slot.index(),
+            samples.len(),
+            bpm.map(|b| b.0)
+        ));
         Ok(())
     }
     fn clear_sample(&self, slot: SamplerSlotId) -> Result<(), CoreError> {
@@ -142,6 +176,61 @@ impl SamplerEngine for StubSamplerEngine {
     fn set_pfl(&self, on: bool) -> Result<(), CoreError> {
         self.note(format!("pfl {on}"));
         Ok(())
+    }
+}
+
+/// The engine's sampler behind [`SamplerEngine`]. Samples go to the control
+/// thread, which hands them to the engine and keeps them for a restart;
+/// settings become `EngineCommand`s.
+#[derive(Debug, Clone)]
+pub struct EngineSampler {
+    audio: AudioController,
+}
+
+impl EngineSampler {
+    /// A hand-off through `audio`.
+    pub fn new(audio: AudioController) -> Self {
+        Self { audio }
+    }
+}
+
+impl SamplerEngine for EngineSampler {
+    fn load_sample(
+        &self,
+        slot: SamplerSlotId,
+        samples: Arc<[f32]>,
+        bpm: Option<Bpm>,
+    ) -> Result<(), CoreError> {
+        let buffer = TrackBuffer::new(samples).map_err(|e| CoreError::Media(e.to_string()))?;
+        let bpm = bpm.filter(|b| b.is_valid());
+        self.audio.post(Msg::SamplerLoad { slot, buffer, bpm })
+    }
+
+    fn clear_sample(&self, slot: SamplerSlotId) -> Result<(), CoreError> {
+        self.audio.post(Msg::SamplerClear(slot))
+    }
+
+    fn set_slot_params(
+        &self,
+        slot: SamplerSlotId,
+        params: SamplerSlotParams,
+    ) -> Result<(), CoreError> {
+        self.audio.send(EngineCommand::SetSamplerMode {
+            slot,
+            mode: params.mode.into(),
+        })?;
+        self.audio.send(EngineCommand::SetSamplerGain {
+            slot,
+            gain: params.gain,
+        })?;
+        self.audio.send(EngineCommand::SetSamplerSync {
+            slot,
+            on: params.sync,
+        })
+    }
+
+    fn set_pfl(&self, on: bool) -> Result<(), CoreError> {
+        self.audio.send(EngineCommand::SetSamplerPfl { on })
     }
 }
 
@@ -256,6 +345,8 @@ struct Inner {
     state: SamplerStateDto,
     /// Bumped per load so a stale decode is dropped.
     generation: [u64; SAMPLER_SLOTS],
+    /// Engine rate each loaded slot was decoded at.
+    rates: [Option<u32>; SAMPLER_SLOTS],
     engine: Arc<dyn SamplerEngine>,
     audio: Option<AudioController>,
     store: Option<Library>,
@@ -293,6 +384,7 @@ impl SamplerService {
             inner: Arc::new(Mutex::new(Inner {
                 state,
                 generation: [0; SAMPLER_SLOTS],
+                rates: [None; SAMPLER_SLOTS],
                 engine: Arc::new(StubSamplerEngine::default()),
                 audio: None,
                 store: None,
@@ -467,13 +559,28 @@ impl SamplerService {
         let service = self.clone();
         std::thread::Builder::new()
             .name("opendeck-sampler-load".into())
-            .spawn(move || service.decode(slot, path, generation, SampleRate(rate)))
+            .spawn(move || service.decode(slot, path, track, generation, SampleRate(rate)))
             .map_err(|e| CoreError::Media(e.to_string()))?;
         Ok(())
     }
 
-    fn decode(&self, slot: u8, path: PathBuf, generation: u64, rate: SampleRate) {
+    fn decode(
+        &self,
+        slot: u8,
+        path: PathBuf,
+        track: Option<TrackId>,
+        generation: u64,
+        rate: SampleRate,
+    ) {
         let outcome = decode_file(&path, rate, &CancelFlag::new());
+        // The analysed tempo lets a library sample follow the master (sync).
+        let library = self.lock().library.clone();
+        let bpm = track
+            .zip(library)
+            .and_then(|(track, library)| library.get_analysis(track).ok().flatten())
+            .and_then(|analysis| analysis.bpm)
+            .map(Bpm)
+            .filter(|b| b.is_valid());
         let mut error = None;
         {
             let mut inner = self.lock();
@@ -487,7 +594,7 @@ impl SamplerService {
                     let secs = audio.frames as f64 / f64::from(rate.0);
                     let peaks = peaks_of(&audio.samples);
                     let samples: Arc<[f32]> = audio.samples.into();
-                    let handed = id.map(|id| inner.engine.load_sample(id, samples));
+                    let handed = id.map(|id| inner.engine.load_sample(id, samples, bpm));
                     let params = {
                         let s = &inner.state.slots[i];
                         SamplerSlotParams {
@@ -498,6 +605,9 @@ impl SamplerService {
                     };
                     if let (Some(id), Some(Ok(()))) = (id, &handed) {
                         let _ = inner.engine.set_slot_params(id, params);
+                    }
+                    if matches!(handed, Some(Ok(()))) {
+                        inner.rates[i] = Some(rate.0);
                     }
                     let s = &mut inner.state.slots[i];
                     s.loading = false;
@@ -525,6 +635,35 @@ impl SamplerService {
         self.publish();
     }
 
+    /// Decodes again the slots that were decoded at another rate than the
+    /// engine's. Call after the audio settings change: the engine keeps
+    /// samples across a restart only when the rate is unchanged.
+    pub fn follow_rate(&self) {
+        let (audio, rates) = {
+            let inner = self.lock();
+            (inner.audio.clone(), inner.rates)
+        };
+        let Some(rate) = audio
+            .and_then(|a| a.status().ok())
+            .and_then(|s| s.sample_rate)
+        else {
+            return;
+        };
+        for (slot, decoded) in rates.iter().enumerate() {
+            if decoded.is_none_or(|r| r == rate) {
+                continue;
+            }
+            let (path, track) = {
+                let inner = self.lock();
+                let s = &inner.state.slots[slot];
+                (s.path.clone(), s.track)
+            };
+            if let (Some(path), Ok(slot)) = (path, u8::try_from(slot)) {
+                let _ = self.start_load(slot, PathBuf::from(path), track, false);
+            }
+        }
+    }
+
     /// Empties a slot.
     pub fn clear(&self, slot: u8) -> Result<(), CoreError> {
         let id = slot_id(slot)?;
@@ -532,6 +671,7 @@ impl SamplerService {
             let mut inner = self.lock();
             let i = usize::from(slot);
             inner.generation[i] += 1;
+            inner.rates[i] = None;
             inner.state.slots[i] = SamplerSlotDto::empty(slot);
             let _ = inner.engine.clear_sample(id);
         }

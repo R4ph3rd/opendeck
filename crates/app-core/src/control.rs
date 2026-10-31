@@ -12,13 +12,14 @@ use opendeck_contracts::analysis::CancelFlag;
 use opendeck_contracts::beatgrid::BeatGrid;
 use opendeck_contracts::cue::{Cue, CueKind, FrameRegion, HotCueIndex, LoopRegion};
 use opendeck_contracts::deck::{DeckState, PlayState};
-use opendeck_contracts::ids::TrackId;
+use opendeck_contracts::ids::{SAMPLER_SLOTS, SamplerSlotId, TrackId};
 use opendeck_contracts::mixer::{EqBand, MixerState};
+use opendeck_contracts::sampler::SamplerMode;
 use opendeck_contracts::settings::AudioSettings;
 use opendeck_contracts::tempo::{SyncMode, TempoRange};
 use opendeck_contracts::{
-    DeckId, EngineCommand, EngineEvent, EngineTelemetry, HOT_CUES_PER_DECK, MAX_DECKS, MVP_DECKS,
-    SampleRate, Seconds,
+    Bpm, DeckId, EngineCommand, EngineEvent, EngineTelemetry, Gain, HOT_CUES_PER_DECK, MAX_DECKS,
+    MVP_DECKS, SampleRate, Seconds,
 };
 use opendeck_engine::device::{AudioOutput, open_output};
 use opendeck_engine::{EngineConfig, EngineHandle, OfflineRenderer, TrackBuffer};
@@ -153,6 +154,14 @@ pub(crate) enum Msg {
     GetStatus(Sender<AudioStatus>),
     Subscribe(Sender<CoreEvent>),
     Fx(FxMsg),
+    /// Hands a decoded sample to a sampler slot.
+    SamplerLoad {
+        slot: SamplerSlotId,
+        buffer: TrackBuffer,
+        bpm: Option<Bpm>,
+    },
+    /// Empties a sampler slot.
+    SamplerClear(SamplerSlotId),
     Shutdown,
 }
 
@@ -244,6 +253,42 @@ impl Default for DeckControls {
 
 type HotCueSlots = [Option<Cue>; HOT_CUES_PER_DECK];
 
+/// Sampler settings replayed after an engine restart (engine defaults).
+#[derive(Debug, Clone, Copy)]
+struct SamplerControls {
+    mode: [SamplerMode; SAMPLER_SLOTS],
+    gain: [Gain; SAMPLER_SLOTS],
+    sync: [bool; SAMPLER_SLOTS],
+    level: Gain,
+    quantize: bool,
+    pfl: bool,
+}
+
+impl Default for SamplerControls {
+    fn default() -> Self {
+        Self {
+            mode: [SamplerMode::OneShot; SAMPLER_SLOTS],
+            gain: [Gain(1.0); SAMPLER_SLOTS],
+            sync: [false; SAMPLER_SLOTS],
+            level: Gain(1.0),
+            quantize: true,
+            pfl: false,
+        }
+    }
+}
+
+/// A sample a sampler slot holds, kept for an engine restart.
+struct HeldSample {
+    buffer: TrackBuffer,
+    bpm: Option<Bpm>,
+    /// Engine rate when it arrived; `None` with no engine running.
+    rate: Option<SampleRate>,
+}
+
+fn sampler_slots() -> impl Iterator<Item = SamplerSlotId> {
+    (0..SAMPLER_SLOTS).filter_map(|i| u8::try_from(i).ok().and_then(SamplerSlotId::new))
+}
+
 /// A decoded track waiting for room on the hand-off ring.
 struct Pending {
     deck: DeckId,
@@ -282,6 +327,12 @@ struct Control {
     latest: Option<EngineTelemetry>,
     last_sequence: Option<u64>,
     fx: FxController,
+    /// Samples of the sampler slots.
+    sampler: [Option<HeldSample>; SAMPLER_SLOTS],
+    /// A slot change (load or clear) the hand-off ring had no room for;
+    /// retried each tick.
+    sampler_unsent: [bool; SAMPLER_SLOTS],
+    sampler_controls: SamplerControls,
 }
 
 /// Runs the control loop until [`Msg::Shutdown`] or every sender is gone.
@@ -313,6 +364,9 @@ pub(crate) fn run(opts: LaunchOptions, inbox: Receiver<Msg>, loader: Sender<Load
         latest: None,
         last_sequence: None,
         fx,
+        sampler: std::array::from_fn(|_| None),
+        sampler_unsent: [false; SAMPLER_SLOTS],
+        sampler_controls: SamplerControls::default(),
     };
     let initial = control.settings.audio.clone();
     if let Err(err) = control.start_engine(&initial) {
@@ -460,6 +514,17 @@ impl Control {
             }
             Msg::Subscribe(tx) => self.subscribers.push(tx),
             Msg::Fx(msg) => self.fx_msg(msg),
+            Msg::SamplerLoad { slot, buffer, bpm } => {
+                let rate = self.rate();
+                self.sampler[slot.index()] = Some(HeldSample { buffer, bpm, rate });
+                self.sampler_unsent[slot.index()] = true;
+                self.flush_sampler();
+            }
+            Msg::SamplerClear(slot) => {
+                self.sampler[slot.index()] = None;
+                self.sampler_unsent[slot.index()] = true;
+                self.flush_sampler();
+            }
             Msg::Shutdown => {}
         }
     }
@@ -485,6 +550,18 @@ impl Control {
             EngineCommand::SetQuantize { deck, on } => self.controls[deck.index()].quantize = on,
             EngineCommand::SetSlip { deck, on } => self.controls[deck.index()].slip = on,
             EngineCommand::SetVinylMode { deck, on } => self.controls[deck.index()].vinyl = on,
+            EngineCommand::SetSamplerMode { slot, mode } => {
+                self.sampler_controls.mode[slot.index()] = mode;
+            }
+            EngineCommand::SetSamplerGain { slot, gain } => {
+                self.sampler_controls.gain[slot.index()] = gain;
+            }
+            EngineCommand::SetSamplerSync { slot, on } => {
+                self.sampler_controls.sync[slot.index()] = on;
+            }
+            EngineCommand::SetSamplerLevel { gain } => self.sampler_controls.level = gain,
+            EngineCommand::SetSamplerQuantize { on } => self.sampler_controls.quantize = on,
+            EngineCommand::SetSamplerPfl { on } => self.sampler_controls.pfl = on,
             other => self.track_mixer(other),
         }
         if let Some(engine) = self.engine.as_mut()
@@ -1046,12 +1123,76 @@ impl Control {
         }
     }
 
+    /// Hands changed sampler slots to the engine; keeps what does not fit.
+    fn flush_sampler(&mut self) {
+        let Some(engine) = self.engine.as_mut() else {
+            return;
+        };
+        for slot in sampler_slots() {
+            let i = slot.index();
+            if !self.sampler_unsent[i] {
+                continue;
+            }
+            let sent = match &self.sampler[i] {
+                Some(held) => engine
+                    .handle()
+                    .load_sampler(slot, held.buffer.clone(), held.bpm)
+                    .is_ok(),
+                None => engine.handle().clear_sampler(slot),
+            };
+            if !sent {
+                break;
+            }
+            self.sampler_unsent[i] = false;
+        }
+    }
+
+    /// After a (re)start: restore the sampler settings and hand the samples
+    /// over again. A sample decoded at another rate is dropped
+    /// (`SamplerService::follow_rate` decodes it again).
+    fn replay_sampler(&mut self) {
+        let rate = self.rate();
+        for (held, unsent) in self.sampler.iter_mut().zip(&mut self.sampler_unsent) {
+            if held
+                .as_ref()
+                .is_some_and(|h| h.rate.is_some() && h.rate != rate)
+            {
+                *held = None;
+            }
+            if let Some(h) = held.as_mut() {
+                h.rate = rate;
+            }
+            *unsent = held.is_some();
+        }
+        let c = self.sampler_controls;
+        for slot in sampler_slots() {
+            let i = slot.index();
+            self.command(EngineCommand::SetSamplerMode {
+                slot,
+                mode: c.mode[i],
+            });
+            self.command(EngineCommand::SetSamplerGain {
+                slot,
+                gain: c.gain[i],
+            });
+            self.command(EngineCommand::SetSamplerSync {
+                slot,
+                on: c.sync[i],
+            });
+        }
+        self.command(EngineCommand::SetSamplerLevel { gain: c.level });
+        self.command(EngineCommand::SetSamplerQuantize { on: c.quantize });
+        self.command(EngineCommand::SetSamplerPfl { on: c.pfl });
+        self.flush_sampler();
+    }
+
     // ----- tick -----
 
     fn tick(&mut self) {
         self.render_offline();
         self.flush_pending();
         self.flush_grids();
+        self.flush_sampler();
         let mut lost = false;
         let mut events: Vec<EngineEvent> = Vec::new();
         let mut telemetry = None;
@@ -1115,6 +1256,7 @@ impl Control {
     fn render_now(&mut self, frames: usize) -> Result<OfflineAudio, CoreError> {
         self.flush_pending();
         self.flush_grids();
+        self.flush_sampler();
         let Some(Engine::Offline {
             renderer,
             last_render,
@@ -1202,6 +1344,7 @@ impl Control {
         self.pending.clear();
         self.replay_mixer();
         self.replay_state();
+        self.replay_sampler();
         self.with_fx(|fx, env| fx.resync(env));
         Ok(())
     }

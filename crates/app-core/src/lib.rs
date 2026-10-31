@@ -72,7 +72,7 @@ pub use crate::pads::{
     PadEvent, PadModes, PadOp, PadStateDto, beat_jump_beats, pad_semitones, plan,
 };
 pub use crate::sampler::{
-    SAMPLER_PADS, SAMPLER_PEAKS, SAMPLER_SETTINGS_KEY, SamplerEngine, SamplerLayout,
+    EngineSampler, SAMPLER_PADS, SAMPLER_PEAKS, SAMPLER_SETTINGS_KEY, SamplerEngine, SamplerLayout,
     SamplerPlayMode, SamplerService, SamplerSlotDto, SamplerSlotParams, SamplerSlotPatch,
     SamplerStateDto, StubSamplerEngine,
 };
@@ -696,7 +696,9 @@ impl AppCore {
     pub fn launch(opts: LaunchOptions) -> std::io::Result<Self> {
         let mut core = Self::new();
         let audio = AudioController::launch(opts)?;
-        core.pad_modes.sampler().attach(audio.clone(), None);
+        let sampler = core.pad_modes.sampler();
+        sampler.set_engine(Arc::new(EngineSampler::new(audio.clone())));
+        sampler.attach(audio.clone(), None);
         core.actions = Some(PadActions::new(audio.clone(), core.pad_modes.clone()));
         core.audio = Some(audio);
         Ok(core)
@@ -713,9 +715,9 @@ impl AppCore {
         let audio = AudioController::launch(opts)?;
         library.attach_audio(audio.clone());
         let mut core = Self::new();
-        core.pad_modes
-            .sampler()
-            .attach(audio.clone(), Some(library.clone()));
+        let sampler = core.pad_modes.sampler();
+        sampler.set_engine(Arc::new(EngineSampler::new(audio.clone())));
+        sampler.attach(audio.clone(), Some(library.clone()));
         core.actions = Some(PadActions::new(audio.clone(), core.pad_modes.clone()));
         core.audio = Some(audio);
         core.library = Some(library);

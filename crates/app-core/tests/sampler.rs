@@ -1,18 +1,26 @@
-//! The sampler's slot assignment survives a restart (library settings).
+//! The sampler's slot assignment survives a restart (library settings), and
+//! a pad press in SAMPLER mode plays the slot through the engine.
 
 use std::path::Path;
 use std::time::{Duration, Instant};
 
 use opendeck_app_core::{
-    AppCore, Backend, LaunchOptions, LibraryService, SamplerLayout, SamplerPlayMode,
+    AppCore, Backend, CoreEvent, LaunchOptions, LibraryService, SamplerLayout, SamplerPlayMode,
     SamplerSlotPatch, SettingsStore,
 };
+use opendeck_contracts::DeckId;
+use opendeck_contracts::pad::PadMode;
 use opendeck_library::import::ImportConfig;
 
 const RATE: u32 = 48_000;
 
 fn write_wav(path: &Path) {
-    let frames = RATE as usize / 4;
+    write_wav_secs(path, 0.25);
+}
+
+/// A 16-bit stereo sine at the engine rate, `secs` long.
+fn write_wav_secs(path: &Path, secs: f64) {
+    let frames = (f64::from(RATE) * secs) as usize;
     let data_len = (frames * 4) as u32;
     let mut bytes = Vec::new();
     bytes.extend(b"RIFF");
@@ -106,4 +114,96 @@ fn slot_assignment_and_settings_persist() {
 
     sampler.clear(3).expect("clear");
     assert!(!sampler.state().slots[3].loaded);
+}
+
+fn peak(samples: &[f32]) -> f32 {
+    samples.iter().fold(0.0f32, |m, v| m.max(v.abs()))
+}
+
+/// Waits for a telemetry snapshot where slot `slot` is (or is not) playing.
+fn wait_playing(events: &crossbeam_channel::Receiver<CoreEvent>, slot: usize, playing: bool) {
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        let left = deadline.saturating_duration_since(Instant::now());
+        assert!(!left.is_zero(), "timed out: slot {slot} playing={playing}");
+        if let Ok(CoreEvent::Telemetry(t)) = events.recv_timeout(left)
+            && t.sampler[slot].loaded
+            && t.sampler[slot].playing == playing
+        {
+            return;
+        }
+    }
+}
+
+#[test]
+fn sampler_pad_plays_slot_one_and_gate_stops_on_release() {
+    let dir = std::env::temp_dir().join(format!("opendeck-sampler-pad-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("dir");
+    let wav = dir.join("tone.wav");
+    write_wav_secs(&wav, 3.0);
+
+    let mut core = AppCore::launch(LaunchOptions {
+        backend: Backend::Offline { sample_rate: RATE },
+        store: SettingsStore::memory(),
+        ..LaunchOptions::default()
+    })
+    .expect("launch");
+    let audio = core.audio().expect("audio");
+    let events = audio.subscribe().expect("subscribe");
+    let sampler = core.sampler();
+    sampler.load_path(0, &wav, None).expect("load");
+    wait("slot 1 loaded", || sampler.state().slots[0].loaded);
+    sampler
+        .patch(
+            0,
+            SamplerSlotPatch {
+                play_mode: Some(SamplerPlayMode::Gate),
+                ..SamplerSlotPatch::default()
+            },
+        )
+        .expect("gate");
+
+    let deck = DeckId::new(0).expect("deck");
+    core.set_pad_mode(deck, PadMode::Sampler);
+    let pads = core.pad_actions().expect("pads");
+
+    let before = audio.render_offline(4_800).expect("render");
+    assert!(
+        peak(&before.master) < 1e-4,
+        "master is silent before the press"
+    );
+
+    pads.press(deck, PadMode::Sampler, 0, false, true, None);
+    let held = audio.render_offline(4_800).expect("render");
+    assert!(
+        peak(&held.master) > 0.1,
+        "the sample reaches the master: peak {}",
+        peak(&held.master)
+    );
+    wait_playing(&events, 0, true);
+
+    pads.press(deck, PadMode::Sampler, 0, false, false, None);
+    let released = audio.render_offline(4_800).expect("render");
+    // The gate fades out over 2 ms (96 frames); skip 4 ms.
+    assert!(
+        peak(&released.master[2 * 192..]) < 1e-4,
+        "the gate stops on release: peak {}",
+        peak(&released.master[2 * 192..])
+    );
+    wait_playing(&events, 0, false);
+
+    // An engine restart at the same rate keeps the sample and its mode.
+    audio
+        .set_audio_settings(audio.audio_settings().expect("settings"))
+        .expect("restart");
+    pads.press(deck, PadMode::Sampler, 0, false, true, None);
+    let again = audio.render_offline(4_800).expect("render");
+    assert!(peak(&again.master) > 0.1, "the slot survives a restart");
+    pads.press(deck, PadMode::Sampler, 0, false, false, None);
+    let after = audio.render_offline(4_800).expect("render");
+    assert!(
+        peak(&after.master[2 * 192..]) < 1e-4,
+        "still a gate after a restart"
+    );
 }
