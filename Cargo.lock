@@ -2910,6 +2910,7 @@ dependencies = [
  "opendeck-app-core",
  "opendeck-contracts",
  "opendeck-media",
+ "opendeck-plugin-host",
  "serde",
  "specta",
  "specta-typescript",
