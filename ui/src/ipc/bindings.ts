@@ -406,6 +406,18 @@ export type AudioHostInfo = {
 	available: boolean,
 	/**  The platform default host. */
 	is_default: boolean,
+	/**  The host exposes at least one input device (mic and aux inputs). */
+	input?: boolean,
+	/**
+	 *  Some output device offers four channels or more (separate master,
+	 *  headphone and booth pairs).
+	 */
+	multichannel_output?: boolean,
+	/**
+	 *  Some device reports a buffer size range, so the buffer size setting
+	 *  takes effect. Without it the device default is used.
+	 */
+	configurable_buffer?: boolean,
 };
 
 /**  Audio host API. */
@@ -422,10 +434,21 @@ export type AudioHostKind =
 "jack";
 
 /**
- *  Persisted audio output settings (`settings` table, key `audio`).
+ *  Persisted audio settings (`settings` table, key `audio`).
  * 
  *  Default routing is one multichannel device: master on channels 1/2 and
- *  headphones on 3/4, as on the DDJ-FLX4 (ADR 0001, deviation 5).
+ *  headphones on 3/4, as on the DDJ-FLX4 (ADR 0001, deviation 5). Every field
+ *  has a serde default if it is new in M8, so settings stored by an older build still load.
+ * 
+ *  Output pairs index the output device's channels (up to
+ *  [`MAX_DEVICE_CHANNELS`]). A device that cannot carry them drops the booth,
+ *  then the headphones, then falls back to stereo on channels 1/2
+ *  (`stereo_fallback` in the status). A mono output plays the sum of left and
+ *  right on both channels of its pair.
+ * 
+ *  Inputs are opened only when `mic` or `aux` is set. `input_device` `None`
+ *  means the input of the output device when it has one, else the host
+ *  default input.
  */
 export type AudioSettings = {
 	/**  Host API, `None` for the platform default. */
@@ -438,8 +461,29 @@ export type AudioSettings = {
 	buffer_frames: number | null,
 	/**  Master output channels. */
 	master: ChannelPair,
+	/**  Play the master as the mono sum of left and right. */
+	master_mono?: boolean,
 	/**  Headphone output channels, `None` to disable headphone output. */
 	headphones: ChannelPair | null,
+	/**  Play the headphones as the mono sum of left and right. */
+	headphones_mono?: boolean,
+	/**
+	 *  Booth output channels, `None` to disable the booth output. The booth
+	 *  plays a copy of the master with its own level.
+	 */
+	booth?: ChannelPair | null,
+	/**  Play the booth as the mono sum of left and right. */
+	booth_mono?: boolean,
+	/**  Booth level, linear gain (`1.0` = same as the master). */
+	booth_level?: number | null,
+	/**  Input device name, `None` for the output device or the host default. */
+	input_device?: string | null,
+	/**  Microphone channels on the input device, `None` for no mic. */
+	mic?: InputChannels | null,
+	/**  Aux / line input pair on the input device, `None` for no aux. */
+	aux?: ChannelPair | null,
+	/**  Talk-over (ducking) settings. */
+	talkover?: TalkOverSettings,
 };
 
 /**  State of the audio output, for the top bar and the settings screen. */
@@ -458,14 +502,54 @@ export type AudioStatus = {
 	channels: number | null,
 	/**  Requested buffer size in frames; `None` is the device default. */
 	buffer_frames: number | null,
-	/**  Output buffer latency in milliseconds, known only for a fixed buffer. */
+	/**
+	 *  Output latency in milliseconds: measured from backend callback
+	 *  timestamps when `latency_measured`, else the buffer size estimate.
+	 *  `None` when neither is known (device default buffer, no timestamps).
+	 */
 	latency_ms: number | null,
+	/**  `latency_ms` comes from callback timestamps, not an estimate. */
+	latency_measured?: boolean,
 	/**  Master pair in use. */
 	master: ChannelPair | null,
+	/**  Master is played as the mono sum. */
+	master_mono?: boolean,
 	/**  Headphone pair in use. */
 	headphones: ChannelPair | null,
-	/**  The device could not carry the requested routing; stereo is used. */
+	/**  Headphones are played as the mono sum. */
+	headphones_mono?: boolean,
+	/**  Booth pair in use. */
+	booth?: ChannelPair | null,
+	/**  Booth is played as the mono sum. */
+	booth_mono?: boolean,
+	/**
+	 *  The device could not carry the requested routing; buses were dropped
+	 *  or stereo is used.
+	 */
 	stereo_fallback: boolean,
+	/**  Input device name when mic or aux is open. */
+	input_device?: string | null,
+	/**  Input device channel count. */
+	input_channels?: number | null,
+	/**
+	 *  Input latency in milliseconds (capture to engine), measured from
+	 *  callback timestamps. The mic path adds the input prefill and the
+	 *  output latency.
+	 */
+	input_latency_ms?: number | null,
+	/**  Frames the engine queues before it consumes input (mic latency). */
+	input_prefill_frames?: number | null,
+	/**  Why mic and aux are not available although routed. */
+	input_error?: string | null,
+	/**
+	 *  Buffer xruns the backend reported since the engine started (also in
+	 *  telemetry).
+	 */
+	xruns?: number,
+	/**  The device was lost and the core is waiting to reopen it. */
+	reconnecting?: boolean,
+	/**  Reopen attempts so far while `reconnecting`. */
+	reconnect_attempts?: number,
 	/**  Why the engine is not running, if it is not. */
 	error: string | null,
 };
@@ -1121,6 +1205,10 @@ export type EngineTelemetry = {
 	master: StereoMeter,
 	/**  Headphone output level. */
 	headphones: StereoMeter,
+	/**  Booth output level (master copy after the booth level). */
+	booth: StereoMeter,
+	/**  Microphone and aux inputs. */
+	inputs: InputTelemetry,
 	/**  Deck FX units (insert chains), indexed by [`DeckId::index`]. */
 	fx_decks: [FxUnitTelemetry, FxUnitTelemetry, FxUnitTelemetry, FxUnitTelemetry],
 	/**  Master FX unit. */
@@ -1548,6 +1636,45 @@ export type ImportOptionsDto = {
 
 /**  Progress of an import or analysis job, at most about 10 per second per job. */
 export type ImportProgressEvent = JobProgress;
+
+/**
+ *  Input channels of the input device that carry one source: a single channel
+ *  (mono, heard on both sides) or a pair.
+ */
+export type InputChannels = {
+	/**  Left (or only) channel index, zero-based. */
+	left: number,
+	/**  Right channel index, `None` for a mono source. */
+	right: number | null,
+};
+
+/**  State of the microphone and aux inputs over the last block(s). RT-safe. */
+export type InputTelemetry = {
+	/**
+	 *  Input frames have reached the engine since the stream started (an
+	 *  input stream is open and delivering).
+	 */
+	connected: boolean,
+	/**  Microphone level after its level and EQ, before the on/off switch. */
+	mic: StereoMeter,
+	/**  Aux level after its level and fader. */
+	aux: StereoMeter,
+	/**
+	 *  Current talk-over attenuation of the program in dB (positive, 0 when
+	 *  not ducking).
+	 */
+	duck_db: number | null,
+	/**
+	 *  Output blocks that found the input ring short (silence was inserted)
+	 *  since the stream started.
+	 */
+	underruns: number,
+	/**
+	 *  Input frames dropped because the input ring was full or ran too far
+	 *  ahead, since the stream started.
+	 */
+	overruns: number,
+};
 
 /**  An import or analysis job (`import_jobs.id`). */
 export type JobId = number;
@@ -2228,6 +2355,19 @@ export type SyncMode =
 "tempo" | 
 /**  Match tempo and beat phase. */
 "beat";
+
+/**
+ *  Talk-over: the program (decks, sampler, aux) is ducked while the mic is
+ *  louder than a threshold.
+ */
+export type TalkOverSettings = {
+	/**  Duck the program while the mic is active. */
+	enabled?: boolean,
+	/**  How far the program is lowered, in dB (positive, `0..=40`). */
+	depth_db?: number | null,
+	/**  Mic level in dBFS above which the program ducks (`-80..=0`). */
+	threshold_db?: number | null,
+};
 
 /**  Tempo fader range: how far a full fader throw changes playback speed. */
 export type TempoRange = 

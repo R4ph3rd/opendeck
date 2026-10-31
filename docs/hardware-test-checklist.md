@@ -121,3 +121,22 @@ KEYBOARD and KEY SHIFT
 - [ ] Round-trip latency measured and recorded per device.
 - [ ] First-run flow on a clean user profile.
 - [ ] Installer upgrade keeps the library.
+
+### M8 audio routing, inputs and robustness
+
+Source for the FLX4 audio facts: manual p.161-162 (44.1 and 48 kHz, MASTER RCA out, headphones out, MIC input on 6.35 mm TS; the USB interface shows the outputs as one multichannel device).
+
+- [ ] FLX4 routing: pick the DDJ-FLX4 device. Master on 1/2 and headphones on 3/4 play on the right jacks. Move the master to another pair, then back. Check `stereo_fallback` is off.
+- [ ] Mono per output: turn on master mono, then headphones mono. A hard-panned test file plays on both sides. Turn them off again.
+- [ ] Booth on a multi-output interface (6 or more channels): booth on pair 5/6 plays the master at its own level. Booth level 0 is silent, master unaffected. A device with fewer channels drops the booth and reports the fallback.
+- [ ] Channel pickers: on an interface with 8 or more channels every pair is selectable and plays on the right outputs (check the highest pair).
+- [ ] Mic: plug a mic into the FLX4 MIC jack, route the mic channel (check which input channel carries it), set the input device. The mic meter moves, the master carries the mic. Level, low and high EQ, and on/off work. Mic off still shows the meter.
+- [ ] Talk-over: enable it, speak, the decks duck by the set depth and come back about a second after you stop. A switched-off mic does not duck.
+- [ ] Aux: route a line source to an input pair. Aux level and its fader reach the master; the aux fader at 0 is silent.
+- [ ] Separate input device: mic on a different interface than the output. Note audible drift or crackle over 10 minutes (no resampler; the input ring cuts or inserts silence, see `underruns` and `overruns` in telemetry).
+- [ ] Mic latency by ear and with a loopback: input latency plus prefill plus output latency (shown in the status). Record per device and buffer size.
+- [ ] Unplug and replug: with a track playing, pull the FLX4 USB cable. The status shows "reconnecting". Replug: the engine reopens within about 5 s, the track reloads and resumes at the same position and play state, mixer settings are kept. Repeat with the cable out for over a minute.
+- [ ] Mic unplugged on a separate input device while the output keeps playing: the status shows the input error and the mic returns after replug without interrupting the decks.
+- [ ] Buffer sizes 64, 128, 256, 512, 1024 and sample rates 44.1 and 48 kHz: changing them keeps loaded decks, playheads and play state. Note the smallest buffer without xruns (status `xruns` stays at 0 over 10 minutes with 2 decks, FX and sampler).
+- [ ] Reported output latency (measured) is close to buffer size plus device latency on WASAPI, ASIO, CoreAudio and ALSA. Record the numbers.
+- [ ] Hosts: the list shows WASAPI (and ASIO in builds with `--features asio`) on Windows, CoreAudio on macOS, ALSA (and JACK in builds with `--features jack`) on Linux, with input, multichannel and buffer flags matching the machine.

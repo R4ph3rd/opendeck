@@ -15,6 +15,7 @@ use rtrb::{Consumer, Producer, RingBuffer};
 
 use crate::audio::{CoreRings, EngineCore};
 use crate::fx::{FX_UNITS, FxEvent, FxHandoff, FxHost, FxTempoSource, SendTap, SlotRt};
+use crate::inputs::{InputProducer, InputShared, input_ring};
 use crate::track::{Handoff, TrackBuffer};
 use crate::{ConfigError, EngineConfig};
 
@@ -39,6 +40,25 @@ pub const EVENT_RING: usize = 256;
 #[error("engine command ring is full")]
 pub struct CommandRingFull;
 
+/// A buffer or effect the audio thread gave back. Dropping it frees the
+/// memory, so send it to a thread that may block on the allocator.
+pub struct Reclaimed(ReclaimedInner);
+
+#[allow(dead_code)] // The payload is only held until it is dropped.
+enum ReclaimedInner {
+    Track(TrackBuffer),
+    Effect(Box<SlotRt>),
+}
+
+impl std::fmt::Debug for Reclaimed {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self.0 {
+            ReclaimedInner::Track(_) => "Reclaimed(track)",
+            ReclaimedInner::Effect(_) => "Reclaimed(effect)",
+        })
+    }
+}
+
 /// Control-side endpoints of the engine rings. Owned by one thread.
 pub struct EngineHandle {
     commands: Producer<EngineCommand>,
@@ -49,6 +69,8 @@ pub struct EngineHandle {
     telemetry: Consumer<EngineTelemetry>,
     events: Consumer<EngineEvent>,
     dropped_commands: u32,
+    input: Option<InputProducer>,
+    input_shared: Arc<InputShared>,
     sample_rate: SampleRate,
     max_block_frames: usize,
 }
@@ -73,6 +95,7 @@ pub fn engine_with_xruns(
     let (fx_returns_tx, fx_returns_rx) = RingBuffer::new(FX_RETURN_RING);
     let (telemetry_tx, telemetry_rx) = RingBuffer::new(TELEMETRY_RING);
     let (events_tx, events_rx) = RingBuffer::new(EVENT_RING);
+    let (input_tx, input_rx, input_shared) = input_ring();
     let core = EngineCore::new(
         config,
         CoreRings {
@@ -83,6 +106,8 @@ pub fn engine_with_xruns(
             fx_returns: fx_returns_tx,
             telemetry: telemetry_tx,
             events: events_tx,
+            input: input_rx,
+            input_shared: Arc::clone(&input_shared),
         },
         xruns,
     );
@@ -95,6 +120,8 @@ pub fn engine_with_xruns(
         telemetry: telemetry_rx,
         events: events_rx,
         dropped_commands: 0,
+        input: Some(input_tx),
+        input_shared,
         sample_rate: config.sample_rate,
         max_block_frames: config.max_block_frames as usize,
     };
@@ -319,18 +346,45 @@ impl EngineHandle {
 
     /// Drops every buffer and effect the audio thread has returned and
     /// reports how many. Call from the control or loader thread, never from
-    /// the audio thread.
+    /// the audio thread. ADR 0003 wants the loader thread to free them: see
+    /// [`reclaim_with`](Self::reclaim_with).
     pub fn reclaim(&mut self) -> usize {
-        let mut dropped = 0;
+        self.reclaim_with(drop)
+    }
+
+    /// Hands every buffer and effect the audio thread has returned to `sink`
+    /// instead of dropping it here, and reports how many. The control thread
+    /// forwards them to the loader thread, which drops them (ADR 0003), so a
+    /// 100 MB buffer is never freed on the control thread.
+    pub fn reclaim_with(&mut self, mut sink: impl FnMut(Reclaimed)) -> usize {
+        let mut count = 0;
         while let Ok(buffer) = self.returns.pop() {
-            drop(buffer);
-            dropped += 1;
+            sink(Reclaimed(ReclaimedInner::Track(buffer)));
+            count += 1;
         }
         while let Ok(old) = self.fx_returns.pop() {
-            drop(old);
-            dropped += 1;
+            sink(Reclaimed(ReclaimedInner::Effect(old)));
+            count += 1;
         }
-        dropped
+        count
+    }
+
+    /// Takes the writer end of the input ring, for the input stream callback
+    /// (or a test feeding synthetic input). `None` after the first call.
+    pub fn take_input(&mut self) -> Option<InputProducer> {
+        self.input.take()
+    }
+
+    pub(crate) fn input_shared(&self) -> Arc<InputShared> {
+        Arc::clone(&self.input_shared)
+    }
+
+    /// Frames the engine queues before it starts consuming input, and the
+    /// cushion it cuts back to when the input runs ahead. `0` (the default)
+    /// means one render block. The device layer sets the larger of the input
+    /// and output buffer. Adds this many frames of mic latency.
+    pub fn set_input_prefill(&mut self, frames: u32) {
+        self.input_shared.set_prefill(frames);
     }
 
     /// Newest telemetry snapshot since the last call, skipping older ones.

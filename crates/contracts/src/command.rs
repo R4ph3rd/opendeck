@@ -319,6 +319,57 @@ pub enum EngineCommand {
         /// `true` for cue left, master right.
         on: bool,
     },
+    /// Booth output level (default unity). The booth plays the master after
+    /// the master level, scaled by this gain; it is only heard when the
+    /// device routing has a booth pair.
+    SetBoothLevel {
+        /// Linear gain.
+        gain: Gain,
+    },
+
+    // ----- Inputs -----
+    /// Microphone level (trim), linear gain, clamped to `TRIM_MAX_GAIN_DB`
+    /// (default unity).
+    SetMicLevel {
+        /// Linear gain.
+        gain: Gain,
+    },
+    /// Microphone 2-band EQ: a low shelf and a high shelf. `band` `Low` and
+    /// `High` set the shelf gain (linear, `0..=db_to_gain(EQ_MAX_GAIN_DB)`,
+    /// unity is flat, 0 is about -26 dB); `Mid` is ignored.
+    SetMicEq {
+        /// Shelf to set.
+        band: EqBand,
+        /// Linear gain.
+        gain: Gain,
+    },
+    /// Microphone on or off (default on; silent anyway without a mic input).
+    SetMicOn {
+        /// `true` to pass the mic to the master.
+        on: bool,
+    },
+    /// Aux input level (trim), linear gain, clamped to `TRIM_MAX_GAIN_DB`
+    /// (default unity).
+    SetAuxLevel {
+        /// Linear gain.
+        gain: Gain,
+    },
+    /// Aux channel fader to the master in `[0, 1]`, linear (default 1).
+    SetAuxFader {
+        /// Fader position.
+        position: f32,
+    },
+    /// Talk-over: while on and the mic is louder than `threshold_db`, the
+    /// program (decks, sampler, aux; not the mic) is lowered by `depth_db`.
+    /// Default off.
+    SetTalkOver {
+        /// Ducking enabled.
+        on: bool,
+        /// Attenuation in dB, positive, clamped to `0..=40`.
+        depth_db: f32,
+        /// Mic level in dBFS that triggers ducking, clamped to `-80..=0`.
+        threshold_db: f32,
+    },
 
     // ----- Effects -----
     /// Enable or bypass an effect slot (click-free crossfade, tail kept).

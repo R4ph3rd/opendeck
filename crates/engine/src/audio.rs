@@ -12,6 +12,7 @@ use rtrb::{Consumer, Producer};
 use crate::EngineConfig;
 use crate::deck::{Deck, DeckStatus, EventSink};
 use crate::fx::{FxHandoff, FxHost, FxSlotStatus, FxUnitStatus, FxView, SlotRt};
+use crate::inputs::{InputRt, InputShared};
 use crate::mixer::Mixer;
 use crate::sampler::{Sampler, SamplerSlotStatus};
 use crate::sync::SyncState;
@@ -36,6 +37,7 @@ pub struct EngineCore {
     decks: Vec<Deck>,
     mixer: Mixer,
     sampler: Sampler,
+    inputs: InputRt,
     sync: SyncState,
     fx: FxHost,
     fx_handoff: Consumer<FxHandoff>,
@@ -51,6 +53,8 @@ pub struct EngineCore {
     deck_buf: Vec<f32>,
     /// Headphone bus for callers that only want the master.
     hp_scratch: Vec<f32>,
+    /// Booth bus for callers that only want the master.
+    booth_scratch: Vec<f32>,
 
     sequence: u64,
     engine_time: u64,
@@ -69,6 +73,8 @@ pub(crate) struct CoreRings {
     pub(crate) fx_returns: Producer<Box<SlotRt>>,
     pub(crate) telemetry: Producer<EngineTelemetry>,
     pub(crate) events: Producer<EngineEvent>,
+    pub(crate) input: Consumer<f32>,
+    pub(crate) input_shared: Arc<InputShared>,
 }
 
 impl EngineCore {
@@ -84,6 +90,12 @@ impl EngineCore {
             decks,
             mixer: Mixer::new(config.sample_rate.as_f64(), max_block),
             sampler: Sampler::new(config.sample_rate, max_block, config.interpolation),
+            inputs: InputRt::new(
+                rings.input,
+                rings.input_shared,
+                config.sample_rate.as_f64(),
+                max_block,
+            ),
             sync: SyncState::new(config.sample_rate.as_f64()),
             fx: FxHost::new(config.sample_rate, max_block),
             fx_handoff: rings.fx_handoff,
@@ -99,6 +111,7 @@ impl EngineCore {
             },
             deck_buf: vec![0.0; max_block * 2],
             hp_scratch: vec![0.0; max_block * 2],
+            booth_scratch: vec![0.0; max_block * 2],
             sequence: 0,
             engine_time: 0,
             frames_since_publish: 0,
@@ -147,7 +160,7 @@ impl EngineCore {
     /// chunk boundaries. Real-time safe; wrapped in `assert_no_alloc` when the
     /// `alloc-guard` feature is on and in tests.
     pub fn render(&mut self, out: &mut [f32]) {
-        crate::rt_guard(|| self.render_inner(out, None));
+        crate::rt_guard(|| self.render_inner(out, None, None));
     }
 
     /// Like [`render`](Self::render), and also renders the headphone bus
@@ -155,34 +168,55 @@ impl EngineCore {
     /// stereo of the same length. A shorter `headphones` is filled as far as
     /// it goes.
     pub fn render_with_headphones(&mut self, master: &mut [f32], headphones: &mut [f32]) {
-        crate::rt_guard(|| self.render_inner(master, Some(headphones)));
+        crate::rt_guard(|| self.render_inner(master, Some(headphones), None));
     }
 
-    fn render_inner(&mut self, out: &mut [f32], mut headphones: Option<&mut [f32]>) {
+    /// Like [`render_with_headphones`](Self::render_with_headphones), and
+    /// also renders the booth bus (the master after the master level, times
+    /// the booth level) into `booth`: interleaved stereo of the same length.
+    pub fn render_with_booth(
+        &mut self,
+        master: &mut [f32],
+        headphones: &mut [f32],
+        booth: &mut [f32],
+    ) {
+        crate::rt_guard(|| self.render_inner(master, Some(headphones), Some(booth)));
+    }
+
+    fn render_inner(
+        &mut self,
+        out: &mut [f32],
+        mut headphones: Option<&mut [f32]>,
+        mut booth: Option<&mut [f32]>,
+    ) {
         let max_block = (self.config.max_block_frames as usize).max(1);
         let (body, tail) = out.split_at_mut(out.len() & !1);
         tail.fill(0.0);
-        if let Some(hp) = headphones.as_deref_mut() {
-            let odd = hp.len() & 1;
-            if let Some(last) = hp.len().checked_sub(odd).and_then(|at| hp.get_mut(at..)) {
+        for bus in [headphones.as_deref_mut(), booth.as_deref_mut()]
+            .into_iter()
+            .flatten()
+        {
+            let odd = bus.len() & 1;
+            if let Some(last) = bus.len().checked_sub(odd).and_then(|at| bus.get_mut(at..)) {
                 last.fill(0.0);
             }
         }
         let mut scratch = std::mem::take(&mut self.hp_scratch);
+        let mut booth_scratch = std::mem::take(&mut self.booth_scratch);
         let mut offset = 0;
         for chunk in body.chunks_mut(max_block * 2) {
             let started = Instant::now();
             let len = chunk.len();
-            let wanted = headphones
+            let hp = headphones
                 .as_deref_mut()
-                .and_then(|hp| hp.get_mut(offset..offset + len));
-            match wanted {
-                Some(hp) => self.render_chunk(chunk, hp),
-                None => {
-                    if let Some(hp) = scratch.get_mut(..len) {
-                        self.render_chunk(chunk, hp);
-                    }
-                }
+                .and_then(|b| b.get_mut(offset..offset + len))
+                .or_else(|| scratch.get_mut(..len));
+            let booth_out = booth
+                .as_deref_mut()
+                .and_then(|b| b.get_mut(offset..offset + len))
+                .or_else(|| booth_scratch.get_mut(..len));
+            if let (Some(hp), Some(booth_out)) = (hp, booth_out) {
+                self.render_chunk(chunk, hp, booth_out);
             }
             offset += len;
             let frames = len / 2;
@@ -191,15 +225,17 @@ impl EngineCore {
             self.dsp_load = self.dsp_load * LOAD_SMOOTHING + load * (1.0 - LOAD_SMOOTHING);
         }
         self.hp_scratch = scratch;
+        self.booth_scratch = booth_scratch;
     }
 
-    fn render_chunk(&mut self, out: &mut [f32], headphones: &mut [f32]) {
+    fn render_chunk(&mut self, out: &mut [f32], headphones: &mut [f32], booth: &mut [f32]) {
         let frames = out.len() / 2;
         self.flush_pending_returns();
         self.drain_fx_handoff();
         self.drain_handoff();
         self.drain_commands();
         self.sync.update(&mut self.decks);
+        self.inputs.begin_block(frames);
 
         // Tempo and phase for FX, read before the decks move.
         let mut views = [FxView::default(); MAX_DECKS];
@@ -225,7 +261,8 @@ impl EngineCore {
             self.mixer.add_sampler(bus, out, pfl);
         }
         self.fx.process_master(out);
-        self.mixer.finish(out, headphones);
+        self.inputs.mix_into(out);
+        self.mixer.finish(out, headphones, booth);
 
         self.engine_time = self.engine_time.saturating_add(frames as u64);
         self.frames_since_publish = self.frames_since_publish.saturating_add(frames as u32);
@@ -244,6 +281,8 @@ impl EngineCore {
             master: self.mixer.master_meter.take(),
             sampler_meter: self.sampler.take_meter(),
             headphones: self.mixer.headphone_meter.take(),
+            booth: self.mixer.booth_meter.take(),
+            inputs: self.inputs.take_telemetry(),
             leader: self.sync.leader(),
             dsp_load: self.dsp_load,
             xruns: self.xruns.load(Ordering::Relaxed),
@@ -384,7 +423,11 @@ impl EngineCore {
 
     fn apply(&mut self, command: EngineCommand) {
         use EngineCommand as C;
-        if self.mixer.apply(command) || self.fx.apply(command) || self.sampler.apply(command) {
+        if self.mixer.apply(command)
+            || self.inputs.apply(command)
+            || self.fx.apply(command)
+            || self.sampler.apply(command)
+        {
             return;
         }
         if let C::SetLeader { deck } = command {

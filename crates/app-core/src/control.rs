@@ -21,17 +21,17 @@ use opendeck_contracts::{
     Bpm, DeckId, EngineCommand, EngineEvent, EngineTelemetry, Gain, HOT_CUES_PER_DECK, MAX_DECKS,
     MVP_DECKS, SampleRate, Seconds,
 };
-use opendeck_engine::device::{AudioOutput, open_output};
-use opendeck_engine::{EngineConfig, EngineHandle, OfflineRenderer, TrackBuffer};
+use opendeck_engine::device::{AudioOutput, device_present, input_device_present, open_output};
+use opendeck_engine::{EngineConfig, EngineHandle, OfflineRenderer, Reopener, TrackBuffer};
 use opendeck_library::{Library, SavedSetEntry, now_ms};
 
 use crate::fx::{FxController, FxEnv};
 use crate::fx_types::{FxEffectDto, FxOp, FxPresetsDto, FxSlotRef, FxStateDto, FxUnitRef};
-use crate::loader::{DecodeResult, LoadRequest};
+use crate::loader::{DecodeResult, LoadRequest, LoaderJob};
 use crate::settings_store::{SettingsStore, StoredSettings};
 use crate::types::{
-    AudioStatus, CoreError, CoreEvent, HotCues, OfflineAudio, TrackInfo, TrackLoadFailed,
-    TrackLoaded,
+    AudioStatus, CoreError, CoreEvent, HotCues, InputState, OfflineAudio, TrackInfo,
+    TrackLoadFailed, TrackLoaded,
 };
 
 /// Control tick: telemetry is forwarded at this period (~60 Hz).
@@ -40,6 +40,9 @@ pub const TICK: Duration = Duration::from_millis(16);
 /// How far from the playhead a memory cue may be and still be deleted by
 /// `delete_memory_cue`, in seconds.
 const MEMORY_CUE_DELETE_REACH: f64 = 1.0;
+
+/// Ticks between status refreshes (xruns, measured latency): about a second.
+const STATUS_REFRESH_TICKS: u32 = 60;
 
 /// Capacity of each subscriber queue. A stalled subscriber loses events
 /// rather than growing memory.
@@ -144,6 +147,7 @@ pub(crate) enum Msg {
     },
     GetHotCues(DeckId, Sender<HotCues>),
     GetMixer(Sender<MixerState>),
+    GetInputs(Sender<InputState>),
     GetDeck(DeckId, Sender<DeckState>),
     Decoded(DecodeResult),
     SetSettings {
@@ -162,6 +166,9 @@ pub(crate) enum Msg {
     },
     /// Empties a sampler slot.
     SamplerClear(SamplerSlotId),
+    /// Test hook: behave as if the output device was unplugged.
+    #[cfg(test)]
+    SimulateDeviceLoss,
     Shutdown,
 }
 
@@ -289,18 +296,52 @@ fn sampler_slots() -> impl Iterator<Item = SamplerSlotId> {
     (0..SAMPLER_SLOTS).filter_map(|i| u8::try_from(i).ok().and_then(SamplerSlotId::new))
 }
 
+/// Mic and aux settings replayed after an engine restart (engine defaults).
+/// The booth level and talk-over live in the stored audio settings.
+#[derive(Debug, Clone, Copy)]
+struct InputControls {
+    mic_level: Gain,
+    /// Low and high shelf.
+    mic_eq: [Gain; 2],
+    mic_on: bool,
+    aux_level: Gain,
+    aux_fader: f32,
+}
+
+impl Default for InputControls {
+    fn default() -> Self {
+        Self {
+            mic_level: Gain::UNITY,
+            mic_eq: [Gain::UNITY; 2],
+            mic_on: true,
+            aux_level: Gain::UNITY,
+            aux_fader: 1.0,
+        }
+    }
+}
+
+/// Where a deck was when the engine stopped, so a restart picks up there.
+#[derive(Debug, Clone, Copy)]
+struct Resume {
+    position: Seconds,
+    playing: bool,
+    cue_point: Option<Seconds>,
+}
+
 /// A decoded track waiting for room on the hand-off ring.
 struct Pending {
     deck: DeckId,
     buffer: TrackBuffer,
     info: TrackInfo,
     grid: Option<BeatGrid>,
+    /// Set for a reload after an engine restart.
+    resume: Option<Resume>,
 }
 
 struct Control {
     opts: LaunchOptions,
     inbox: Receiver<Msg>,
-    loader: Sender<LoadRequest>,
+    loader: Sender<LoaderJob>,
     settings: StoredSettings,
     engine: Option<Engine>,
     status: AudioStatus,
@@ -333,10 +374,22 @@ struct Control {
     /// retried each tick.
     sampler_unsent: [bool; SAMPLER_SLOTS],
     sampler_controls: SamplerControls,
+    input_controls: InputControls,
+    /// Backoff for reopening a lost output device.
+    reopen: Reopener,
+    /// Backoff for reattaching a lost input stream while the output runs.
+    input_reopen: Reopener,
+    /// Main cue point of each deck in seconds, for a restart.
+    cue_points: [Option<Seconds>; MAX_DECKS],
+    /// Playhead and play state captured when the engine stopped; consumed
+    /// when the reloaded track is handed to the new engine.
+    resume: [Option<Resume>; MAX_DECKS],
+    /// Ticks since launch, for slow periodic work.
+    ticks: u32,
 }
 
 /// Runs the control loop until [`Msg::Shutdown`] or every sender is gone.
-pub(crate) fn run(opts: LaunchOptions, inbox: Receiver<Msg>, loader: Sender<LoadRequest>) {
+pub(crate) fn run(opts: LaunchOptions, inbox: Receiver<Msg>, loader: Sender<LoaderJob>) {
     let settings = opts.store.load();
     let fx = FxController::new(opts.library.as_ref());
     let mut control = Control {
@@ -367,11 +420,22 @@ pub(crate) fn run(opts: LaunchOptions, inbox: Receiver<Msg>, loader: Sender<Load
         sampler: std::array::from_fn(|_| None),
         sampler_unsent: [false; SAMPLER_SLOTS],
         sampler_controls: SamplerControls::default(),
+        input_controls: InputControls::default(),
+        reopen: Reopener::new(),
+        input_reopen: Reopener::new(),
+        cue_points: [None; MAX_DECKS],
+        resume: [None; MAX_DECKS],
+        ticks: 0,
     };
     let initial = control.settings.audio.clone();
     if let Err(err) = control.start_engine(&initial) {
         tracing::warn!(%err, "audio engine did not start");
         control.status = stopped_status(control.opts.backend, &err.to_string());
+        if matches!(control.opts.backend, Backend::Device) {
+            // The device may not be plugged in yet: keep looking for it.
+            control.reopen.device_lost(Instant::now());
+            control.status.reconnecting = true;
+        }
     }
     control.main_loop();
     control.fx.flush(control.opts.library.as_ref());
@@ -404,6 +468,41 @@ fn stopped_status(backend: Backend, reason: &str) -> AudioStatus {
     AudioStatus {
         backend: backend_name(backend).into(),
         error: Some(reason.to_owned()),
+        ..AudioStatus::default()
+    }
+}
+
+/// Status of an open device stream, with the latency and xrun figures known now.
+fn status_of(output: &AudioOutput, backend: Backend) -> AudioStatus {
+    let info = output.info();
+    let ms = |d: Duration| d.as_secs_f32() * 1000.0;
+    let measured = output.output_latency();
+    let estimate = info
+        .buffer_frames
+        .map(|f| f as f32 * 1000.0 / info.sample_rate.0.max(1) as f32);
+    AudioStatus {
+        running: true,
+        backend: backend_name(backend).into(),
+        host: Some(info.host_id.clone()),
+        device: Some(info.device.clone()),
+        sample_rate: Some(info.sample_rate.0),
+        channels: Some(info.channels),
+        buffer_frames: info.buffer_frames,
+        latency_ms: measured.map(ms).or(estimate),
+        latency_measured: measured.is_some(),
+        master: Some(info.master),
+        master_mono: info.master_mono,
+        headphones: info.headphones,
+        headphones_mono: info.headphones_mono,
+        booth: info.booth,
+        booth_mono: info.booth_mono,
+        stereo_fallback: info.stereo_fallback,
+        input_device: info.input.as_ref().map(|i| i.device.clone()),
+        input_channels: info.input.as_ref().map(|i| i.channels),
+        input_latency_ms: output.input_latency().map(ms),
+        input_prefill_frames: info.input.as_ref().map(|i| i.prefill_frames),
+        input_error: info.input_error.clone(),
+        xruns: output.xruns(),
         ..AudioStatus::default()
     }
 }
@@ -466,10 +565,14 @@ impl Control {
                 reply,
             } => {
                 self.restoring[deck.index()] = false;
+                self.resume[deck.index()] = None;
                 let _ = reply.send(self.request_load(deck, path, info, grid));
             }
             Msg::Eject(deck) => {
                 self.invalidate(deck);
+                self.restoring[deck.index()] = false;
+                self.resume[deck.index()] = None;
+                self.cue_points[deck.index()] = None;
                 self.loaded[deck.index()] = None;
                 self.grids[deck.index()] = None;
                 self.grid_unsent[deck.index()] = false;
@@ -499,6 +602,9 @@ impl Control {
             Msg::GetMixer(reply) => {
                 let _ = reply.send(self.mixer);
             }
+            Msg::GetInputs(reply) => {
+                let _ = reply.send(self.input_state());
+            }
             Msg::GetDeck(deck, reply) => {
                 let _ = reply.send(self.deck_state(deck));
             }
@@ -510,6 +616,7 @@ impl Control {
                 let _ = reply.send(self.settings.audio.clone());
             }
             Msg::GetStatus(reply) => {
+                self.refresh_status();
                 let _ = reply.send(self.status.clone());
             }
             Msg::Subscribe(tx) => self.subscribers.push(tx),
@@ -525,6 +632,8 @@ impl Control {
                 self.sampler_unsent[slot.index()] = true;
                 self.flush_sampler();
             }
+            #[cfg(test)]
+            Msg::SimulateDeviceLoss => self.lose_engine("Output device lost"),
             Msg::Shutdown => {}
         }
     }
@@ -562,12 +671,68 @@ impl Control {
             EngineCommand::SetSamplerLevel { gain } => self.sampler_controls.level = gain,
             EngineCommand::SetSamplerQuantize { on } => self.sampler_controls.quantize = on,
             EngineCommand::SetSamplerPfl { on } => self.sampler_controls.pfl = on,
-            other => self.track_mixer(other),
+            EngineCommand::SetCuePoint { deck, position } => {
+                let rate = self.rate();
+                self.cue_points[deck.index()] = rate.map(|r| position.to_seconds(r));
+            }
+            other => self.track_inputs(other),
         }
         if let Some(engine) = self.engine.as_mut()
             && engine.handle().send(command).is_err()
         {
             tracing::warn!(?command, "engine command ring full, command dropped");
+        }
+    }
+
+    fn input_state(&self) -> InputState {
+        let c = &self.input_controls;
+        InputState {
+            booth_level: Gain(self.settings.audio.booth_level),
+            mic_level: c.mic_level,
+            mic_eq_low: c.mic_eq[0],
+            mic_eq_high: c.mic_eq[1],
+            mic_on: c.mic_on,
+            aux_level: c.aux_level,
+            aux_fader: c.aux_fader,
+            talk_over: self.settings.audio.talkover,
+        }
+    }
+
+    /// Mirrors mic, aux, booth and talk-over commands so a restart replays
+    /// them. Booth level and talk-over live in the audio settings (in memory
+    /// until the next `set_audio_settings` saves them).
+    fn track_inputs(&mut self, command: EngineCommand) {
+        let c = &mut self.input_controls;
+        match command {
+            EngineCommand::SetMicLevel { gain } => c.mic_level = gain,
+            EngineCommand::SetMicEq { band, gain } => match band {
+                EqBand::Low => c.mic_eq[0] = gain,
+                EqBand::High => c.mic_eq[1] = gain,
+                EqBand::Mid => {}
+            },
+            EngineCommand::SetMicOn { on } => c.mic_on = on,
+            EngineCommand::SetAuxLevel { gain } => c.aux_level = gain,
+            EngineCommand::SetAuxFader { position } if position.is_finite() => {
+                c.aux_fader = position.clamp(0.0, 1.0);
+            }
+            EngineCommand::SetBoothLevel { gain } if gain.0.is_finite() => {
+                self.settings.audio.booth_level = gain.0.max(0.0);
+            }
+            EngineCommand::SetTalkOver {
+                on,
+                depth_db,
+                threshold_db,
+            } => {
+                let t = &mut self.settings.audio.talkover;
+                t.enabled = on;
+                if depth_db.is_finite() {
+                    t.depth_db = depth_db.clamp(0.0, 40.0);
+                }
+                if threshold_db.is_finite() {
+                    t.threshold_db = threshold_db.clamp(-80.0, 0.0);
+                }
+            }
+            other => self.track_mixer(other),
         }
     }
 
@@ -996,14 +1161,14 @@ impl Control {
         let cancel = CancelFlag::new();
         self.cancel[deck.index()] = Some(cancel.clone());
         self.loader
-            .send(LoadRequest {
+            .send(LoaderJob::Load(Box::new(LoadRequest {
                 deck,
                 generation,
                 path,
                 info,
                 rate,
                 cancel,
-            })
+            })))
             .map_err(|_| CoreError::NotRunning)
     }
 
@@ -1026,11 +1191,17 @@ impl Control {
         match TrackBuffer::from_vec(samples) {
             Ok(buffer) => {
                 let grid = self.requested_grids[deck.index()];
+                let resume = if self.restoring[deck.index()] {
+                    self.resume[deck.index()].take()
+                } else {
+                    None
+                };
                 self.pending.push(Pending {
                     deck,
                     buffer,
                     info,
                     grid,
+                    resume,
                 });
                 self.flush_pending();
             }
@@ -1052,6 +1223,7 @@ impl Control {
         let Some(engine) = self.engine.as_mut() else {
             return;
         };
+        let rate = engine.handle().sample_rate();
         let mut queue = std::mem::take(&mut self.pending).into_iter();
         let mut delivered = Vec::new();
         while let Some(Pending {
@@ -1059,38 +1231,60 @@ impl Control {
             buffer,
             info,
             grid,
+            resume,
         }) = queue.next()
         {
             let frames = buffer.duration();
+            let cue_point = resume
+                .and_then(|r| r.cue_point)
+                .map(|cue| cue.to_frames(rate));
             match engine
                 .handle()
-                .load_track_with_grid(deck, buffer, None, grid)
+                .load_track_with_grid(deck, buffer, cue_point, grid)
             {
-                Ok(()) => delivered.push((deck, info, frames, grid)),
+                Ok(()) => delivered.push((deck, info, frames, grid, resume)),
                 Err(buffer) => {
                     self.pending.push(Pending {
                         deck,
                         buffer,
                         info,
                         grid,
+                        resume,
                     });
                     self.pending.extend(queue);
                     break;
                 }
             }
         }
-        for (deck, info, frames, grid) in delivered {
+        for (deck, info, frames, grid, resume) in delivered {
             self.grids[deck.index()] = grid;
             self.grid_unsent[deck.index()] = false;
             self.loaded[deck.index()] = Some(info.clone());
             // A new track takes its cues from the library; an engine restart
             // keeps the ones in memory.
-            if !std::mem::take(&mut self.restoring[deck.index()]) {
+            if std::mem::take(&mut self.restoring[deck.index()]) {
+                self.cue_points[deck.index()] = resume.and_then(|r| r.cue_point);
+            } else {
+                self.cue_points[deck.index()] = None;
                 self.load_stored_cues(deck);
                 self.record_played(deck, &info);
             }
             // The engine clears hot cues on every load.
             self.resend_hot_cues(deck);
+            // After a restart the deck goes back to where it was. The
+            // hand-off is applied before commands, so these land on the new track.
+            if let Some(resume) = resume {
+                self.command(EngineCommand::Seek {
+                    deck,
+                    position: resume.position.to_frames(rate),
+                });
+                if resume.playing {
+                    self.command(EngineCommand::SetPlaying {
+                        deck,
+                        playing: true,
+                    });
+                }
+            }
             self.publish(CoreEvent::TrackLoaded(TrackLoaded {
                 deck,
                 track: info,
@@ -1196,9 +1390,14 @@ impl Control {
         let mut lost = false;
         let mut events: Vec<EngineEvent> = Vec::new();
         let mut telemetry = None;
+        let mut input_lost = false;
         if let Some(engine) = self.engine.as_mut() {
             let handle = engine.handle();
-            handle.reclaim();
+            // Replaced buffers are freed on the loader thread (ADR 0003).
+            let loader = &self.loader;
+            handle.reclaim_with(|old| {
+                let _ = loader.send(LoaderJob::Free(old));
+            });
             telemetry = handle.poll_telemetry();
             while let Some(event) = handle.poll_event() {
                 events.push(event);
@@ -1207,6 +1406,7 @@ impl Control {
                 while let Some(event) = output.poll_event() {
                     events.push(event);
                 }
+                input_lost = output.input_lost();
             }
         }
         if let Some(snapshot) = telemetry {
@@ -1219,16 +1419,152 @@ impl Control {
         self.with_fx(|fx, env| fx.tick(env));
         for event in events {
             lost |= event == EngineEvent::DeviceLost;
-            if let EngineEvent::HotCueSet { deck, index, cue } = event {
-                self.engine_set_hot_cue(deck, index, cue);
+            match event {
+                EngineEvent::HotCueSet { deck, index, cue } => {
+                    self.engine_set_hot_cue(deck, index, cue);
+                }
+                EngineEvent::CuePointSet { deck, position } => {
+                    let rate = self.rate();
+                    self.cue_points[deck.index()] = rate.map(|r| position.to_seconds(r));
+                }
+                _ => {}
             }
             self.publish(CoreEvent::Engine(event));
         }
         if lost {
-            self.engine = None;
-            self.pending.clear();
-            self.status = stopped_status(self.opts.backend, "Output device lost");
+            self.lose_engine("Output device lost");
+            return;
+        }
+        self.tick_input(input_lost);
+        self.try_reopen();
+        self.ticks = self.ticks.wrapping_add(1);
+        if self.ticks.is_multiple_of(STATUS_REFRESH_TICKS) {
+            self.refresh_status();
+        }
+    }
+
+    /// The output device is gone: remember where the decks were, drop the
+    /// engine and start waiting for the device to come back.
+    fn lose_engine(&mut self, reason: &str) {
+        self.capture_resume();
+        self.engine = None;
+        self.pending.clear();
+        self.status = stopped_status(self.opts.backend, reason);
+        self.reopen.device_lost(Instant::now());
+        self.status.reconnecting = true;
+        self.publish(CoreEvent::AudioStatus(self.status.clone()));
+    }
+
+    /// Keeps each loaded deck's playhead, play state and cue point so the
+    /// next engine picks up where this one stopped. Decks whose position is
+    /// unknown (no telemetry yet) keep what an earlier capture stored.
+    fn capture_resume(&mut self) {
+        let Some(t) = self.latest else {
+            return;
+        };
+        for deck in DeckId::ALL.iter().take(MVP_DECKS) {
+            let i = deck.index();
+            let d = t.decks[i];
+            if self.loaded[i].is_some() && d.loaded {
+                self.resume[i] = Some(Resume {
+                    position: d.position.to_seconds(t.sample_rate),
+                    playing: d.playing,
+                    cue_point: self.cue_points[i],
+                });
+            }
+        }
+    }
+
+    /// While the engine is down and a reopen is due, tries again: waits for
+    /// the configured device to show up by name, then restarts the engine
+    /// with the stored settings (decks reload and resume).
+    fn try_reopen(&mut self) {
+        let now = Instant::now();
+        if self.engine.is_some() || !self.reopen.due(now) {
+            return;
+        }
+        let settings = self.settings.audio.clone();
+        let present = !matches!(self.opts.backend, Backend::Device) || device_present(&settings);
+        let result = if present {
+            self.start_engine(&settings)
+        } else {
+            Err(CoreError::Audio("output device not present".to_owned()))
+        };
+        match result {
+            Ok(()) => {
+                self.reopen.opened();
+                tracing::info!("audio device reopened");
+                self.publish(CoreEvent::AudioStatus(self.status.clone()));
+            }
+            Err(err) => {
+                self.reopen.failed(now);
+                self.status.reconnecting = true;
+                self.status.reconnect_attempts = self.reopen.attempts();
+                if present {
+                    self.status.error = Some(err.to_string());
+                }
+                self.publish(CoreEvent::AudioStatus(self.status.clone()));
+            }
+        }
+    }
+
+    /// Watches the input stream of a running engine: a lost one (mic
+    /// unplugged while the output plays) is reattached with backoff, without
+    /// restarting the engine.
+    fn tick_input(&mut self, input_lost: bool) {
+        if !matches!(self.engine, Some(Engine::Device { .. })) {
+            return;
+        }
+        let wants_input = self.settings.audio.wants_input();
+        let broken = input_lost
+            || (wants_input
+                && self.status.input_device.is_none()
+                && self.status.input_error.is_some());
+        let now = Instant::now();
+        if !broken {
+            self.input_reopen.cancel();
+            return;
+        }
+        if input_lost && !self.input_reopen.is_waiting() {
+            self.status.input_device = None;
+            self.status.input_channels = None;
+            self.status.input_error = Some("Input device lost".to_owned());
             self.publish(CoreEvent::AudioStatus(self.status.clone()));
+        }
+        self.input_reopen.device_lost(now);
+        if !self.input_reopen.due(now) {
+            return;
+        }
+        let settings = self.settings.audio.clone();
+        let Some(Engine::Device { output, .. }) = self.engine.as_mut() else {
+            return;
+        };
+        if !input_device_present(&settings) {
+            self.input_reopen.failed(now);
+            return;
+        }
+        match output.reopen_input(&settings) {
+            Ok(()) => {
+                self.input_reopen.opened();
+                self.status = status_of(output, self.opts.backend);
+                self.publish(CoreEvent::AudioStatus(self.status.clone()));
+            }
+            Err(err) => {
+                self.input_reopen.failed(now);
+                self.status.input_error = Some(err.to_string());
+            }
+        }
+    }
+
+    /// Refreshes the parts of the status that change while running: xruns,
+    /// measured latency, input state.
+    fn refresh_status(&mut self) {
+        if let Some(Engine::Device { output, .. }) = self.engine.as_ref() {
+            let fresh = status_of(output, self.opts.backend);
+            self.status.xruns = fresh.xruns;
+            self.status.latency_ms = fresh.latency_ms;
+            self.status.latency_measured = fresh.latency_measured;
+            self.status.input_latency_ms = fresh.input_latency_ms;
         }
     }
 
@@ -1251,8 +1587,8 @@ impl Control {
         renderer.render_into(scratch);
     }
 
-    /// Renders `frames` of master and headphones at once, ahead of the wall
-    /// clock, so tests can inspect the audio. Offline backend only.
+    /// Renders `frames` of master, headphones and booth at once, ahead of the
+    /// wall clock, so tests can inspect the audio. Offline backend only.
     fn render_now(&mut self, frames: usize) -> Result<OfflineAudio, CoreError> {
         self.flush_pending();
         self.flush_grids();
@@ -1270,8 +1606,9 @@ impl Control {
         let mut audio = OfflineAudio {
             master: vec![0.0; frames * 2],
             headphones: vec![0.0; frames * 2],
+            booth: vec![0.0; frames * 2],
         };
-        renderer.render_both(&mut audio.master, &mut audio.headphones);
+        renderer.render_all(&mut audio.master, &mut audio.headphones, &mut audio.booth);
         // The wall clock resumes from here; what was just rendered is not repeated.
         *last_render = Instant::now();
         Ok(audio)
@@ -1288,26 +1625,13 @@ impl Control {
             Backend::Device => {
                 let (output, handle) =
                     open_output(settings, config).map_err(|e| CoreError::Audio(e.to_string()))?;
-                let info = output.info().clone();
-                let status = AudioStatus {
-                    running: true,
-                    backend: "device".into(),
-                    host: Some(info.host_id.clone()),
-                    device: Some(info.device.clone()),
-                    sample_rate: Some(info.sample_rate.0),
-                    channels: Some(info.channels),
-                    buffer_frames: info.buffer_frames,
-                    latency_ms: info
-                        .buffer_frames
-                        .map(|f| f as f32 * 1000.0 / info.sample_rate.0 as f32),
-                    master: Some(info.master),
-                    headphones: info.headphones,
-                    stereo_fallback: info.stereo_fallback,
-                    error: None,
-                };
+                let status = status_of(&output, self.opts.backend);
                 (Engine::Device { output, handle }, status)
             }
             Backend::Offline { sample_rate } => {
+                // The offline backend honours the sample rate and routing of
+                // the settings (so restarts can be tested) but opens no device.
+                let sample_rate = settings.sample_rate.unwrap_or(sample_rate);
                 let renderer = OfflineRenderer::new(EngineConfig {
                     sample_rate: SampleRate(sample_rate),
                     ..config
@@ -1320,12 +1644,20 @@ impl Control {
                     device: Some("offline".into()),
                     sample_rate: Some(sample_rate),
                     channels: Some(2),
-                    buffer_frames: None,
-                    latency_ms: None,
+                    buffer_frames: settings.buffer_frames,
+                    latency_ms: settings
+                        .buffer_frames
+                        .map(|f| f as f32 * 1000.0 / sample_rate as f32),
                     master: Some(settings.master),
+                    master_mono: settings.master_mono,
                     headphones: settings.headphones,
-                    stereo_fallback: false,
-                    error: None,
+                    headphones_mono: settings.headphones_mono,
+                    booth: settings.booth,
+                    booth_mono: settings.booth_mono,
+                    input_error: settings
+                        .wants_input()
+                        .then(|| "the offline backend has no input".to_owned()),
+                    ..AudioStatus::default()
                 };
                 (
                     Engine::Offline {
@@ -1342,11 +1674,50 @@ impl Control {
         self.latest = None;
         self.last_sequence = None;
         self.pending.clear();
+        self.input_reopen.cancel();
         self.replay_mixer();
+        self.replay_inputs(settings);
         self.replay_state();
         self.replay_sampler();
         self.with_fx(|fx, env| fx.resync(env));
         Ok(())
+    }
+
+    /// Re-sends the booth, talk-over, mic and aux settings after a (re)start.
+    fn replay_inputs(&mut self, settings: &AudioSettings) {
+        let c = self.input_controls;
+        let t = settings.talkover;
+        for command in [
+            EngineCommand::SetBoothLevel {
+                gain: Gain(settings.booth_level),
+            },
+            EngineCommand::SetTalkOver {
+                on: t.enabled,
+                depth_db: t.depth_db,
+                threshold_db: t.threshold_db,
+            },
+            EngineCommand::SetMicLevel { gain: c.mic_level },
+            EngineCommand::SetMicEq {
+                band: EqBand::Low,
+                gain: c.mic_eq[0],
+            },
+            EngineCommand::SetMicEq {
+                band: EqBand::High,
+                gain: c.mic_eq[1],
+            },
+            EngineCommand::SetMicOn { on: c.mic_on },
+            EngineCommand::SetAuxLevel { gain: c.aux_level },
+            EngineCommand::SetAuxFader {
+                position: c.aux_fader,
+            },
+        ] {
+            // Straight to the engine: these are already tracked.
+            if let Some(engine) = self.engine.as_mut()
+                && engine.handle().send(command).is_err()
+            {
+                tracing::warn!(?command, "engine command ring full, command dropped");
+            }
+        }
     }
 
     /// After a (re)start: restore tempo controls and reload loaded tracks at
@@ -1452,10 +1823,13 @@ impl Control {
         for deck in DeckId::ALL {
             self.invalidate(deck);
         }
+        // Tracks reload at the new rate and decks go back to where they were.
+        self.capture_resume();
         self.engine = None;
         match self.start_engine(&settings) {
             Ok(()) => {
                 self.settings.audio = settings;
+                self.reopen.cancel();
                 if let Err(err) = self.opts.store.save(&self.settings) {
                     tracing::warn!(%err, "could not save settings");
                 }
@@ -1463,9 +1837,13 @@ impl Control {
                 Ok(self.status.clone())
             }
             Err(err) => {
-                // Best effort: go back to what worked.
+                // Best effort: go back to what worked, or keep trying to.
                 if self.start_engine(&previous).is_err() {
                     self.status = stopped_status(self.opts.backend, &err.to_string());
+                    self.status.reconnecting = true;
+                    self.reopen.device_lost(Instant::now());
+                } else {
+                    self.reopen.cancel();
                 }
                 self.publish(CoreEvent::AudioStatus(self.status.clone()));
                 Err(err)

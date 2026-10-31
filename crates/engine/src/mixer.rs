@@ -318,6 +318,7 @@ pub(crate) struct Mixer {
     curve: CrossfaderCurve,
     master: Ramp,
     headphone_level: Ramp,
+    booth_level: Ramp,
     headphone_mix: f32,
     cue_gain: Ramp,
     master_gain: Ramp,
@@ -325,6 +326,7 @@ pub(crate) struct Mixer {
     split_mix: Ramp,
     pub(crate) master_meter: MeterAcc,
     pub(crate) headphone_meter: MeterAcc,
+    pub(crate) booth_meter: MeterAcc,
     cue_bus: Vec<f32>,
 }
 
@@ -337,6 +339,7 @@ impl Mixer {
             curve: CrossfaderCurve::default(),
             master: Ramp::new(1.0),
             headphone_level: Ramp::new(1.0),
+            booth_level: Ramp::new(1.0),
             headphone_mix: 0.0,
             cue_gain: Ramp::new(1.0),
             master_gain: Ramp::new(0.0),
@@ -344,6 +347,7 @@ impl Mixer {
             split_mix: Ramp::new(0.0),
             master_meter: MeterAcc::default(),
             headphone_meter: MeterAcc::default(),
+            booth_meter: MeterAcc::default(),
             cue_bus: vec![0.0; max_block_frames.max(1) * 2],
         }
     }
@@ -401,6 +405,7 @@ impl Mixer {
             C::SetCrossfaderCurve { curve } => self.curve = curve,
             C::SetMasterLevel { gain } => self.master.set(gain.0),
             C::SetHeadphoneLevel { gain } => self.headphone_level.set(gain.0),
+            C::SetBoothLevel { gain } => self.booth_level.set(gain.0),
             C::SetHeadphoneMix { mix } => {
                 if mix.is_finite() {
                     self.headphone_mix = mix.clamp(0.0, 1.0);
@@ -476,9 +481,10 @@ impl Mixer {
             .map_or_else(StereoMeter::default, |s| s.meter.take())
     }
 
-    /// Applies the master level to `master` (in place) and renders the
-    /// headphone bus into `headphones`. Both are interleaved stereo.
-    pub(crate) fn finish(&mut self, master: &mut [f32], headphones: &mut [f32]) {
+    /// Applies the master level to `master` (in place), renders the booth
+    /// bus (the master after its level, times the booth level) into `booth`
+    /// and the headphone bus into `headphones`. All are interleaved stereo.
+    pub(crate) fn finish(&mut self, master: &mut [f32], headphones: &mut [f32], booth: &mut [f32]) {
         let n = master.len() / 2;
         let (start, step) = self.master.advance(n);
         for (i, frame) in master.chunks_exact_mut(2).enumerate() {
@@ -489,6 +495,18 @@ impl Mixer {
             }
         }
         self.master_meter.add(master);
+
+        let (b0, bstep) = self.booth_level.advance(n);
+        for (i, (out, m)) in booth
+            .chunks_exact_mut(2)
+            .zip(master.chunks_exact(2))
+            .enumerate()
+        {
+            let g = b0 + bstep * (i + 1) as f32;
+            out[0] = m[0] * g;
+            out[1] = m[1] * g;
+        }
+        self.booth_meter.add(booth);
 
         let angle = self.headphone_mix * std::f32::consts::FRAC_PI_2;
         self.cue_gain.set(angle.cos());
