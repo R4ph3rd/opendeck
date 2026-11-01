@@ -131,15 +131,25 @@ impl Scanner {
         "opendeck-plugin-scan"
     };
 
-    /// A scanner using the binary next to the running executable (where the
-    /// app bundle ships it), with [`DEFAULT_SCAN_TIMEOUT`]. `None` if it is
-    /// not there.
+    /// A scanner using the binary next to the running executable, with
+    /// [`DEFAULT_SCAN_TIMEOUT`]. That is where the Tauri bundles put the
+    /// `externalBin` sidecar (`/usr/bin` in the .deb, `usr/bin` in the
+    /// AppImage, `Contents/MacOS` in the .app, the install folder on
+    /// Windows), where `tauri-build` copies it in `target/<profile>`, and
+    /// where `cargo build` puts it. A symlinked executable is also resolved
+    /// to its real folder. `None` if it is not there.
     pub fn next_to_current_exe() -> Option<Self> {
-        let exe = std::env::current_exe().ok()?.parent()?.join(Self::EXE_NAME);
-        exe.is_file().then_some(Self {
-            exe,
-            timeout: DEFAULT_SCAN_TIMEOUT,
-        })
+        let exe = std::env::current_exe().ok()?;
+        let real = std::fs::canonicalize(&exe).ok();
+        [Some(exe), real]
+            .into_iter()
+            .flatten()
+            .filter_map(|exe| Some(exe.parent()?.join(Self::EXE_NAME)))
+            .find(|path| path.is_file())
+            .map(|exe| Self {
+                exe,
+                timeout: DEFAULT_SCAN_TIMEOUT,
+            })
     }
 
     /// Scans one file in a subprocess.
