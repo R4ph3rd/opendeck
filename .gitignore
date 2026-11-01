@@ -12,6 +12,8 @@ storybook-static/
 # Tauri
 src-tauri/target/
 src-tauri/gen/schemas/
+# Sidecars built by scripts/build-sidecars.mjs
+src-tauri/binaries/
 
 # Third-party documents kept locally only (copyright of their owners)
 docs/sources/*.pdf
