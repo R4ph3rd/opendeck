@@ -2330,11 +2330,14 @@ pub fn run() {
                 app: app.handle().clone(),
                 main: std::thread::current().id(),
             });
-            let plugins = PluginService::new(
-                main,
-                Some(library.library()),
-                Scanner::next_to_current_exe(),
-            );
+            // The bundles ship `opendeck-plugin-scan` next to the app
+            // (`bundle.externalBin`, scripts/build-sidecars.mjs).
+            let scanner = Scanner::next_to_current_exe();
+            match &scanner {
+                Some(s) => tracing::info!(path = %s.exe.display(), "plugin scanner found"),
+                None => tracing::warn!("plugin scanner not found next to the app, scanning is off"),
+            }
+            let plugins = PluginService::new(main, Some(library.library()), scanner);
             let handle = app.handle().clone();
             plugins.set_sink(move |state| {
                 let _ = PluginsChangedEvent(state).emit(&handle);
