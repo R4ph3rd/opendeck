@@ -21,6 +21,9 @@
   --text-lg: 15px;
   --text-xl: 18px;
   --text-2xl: 24px;
+  --text-label: 10.5px; /* button and tab labels (HOT CUE, SLIP, menu items) */
+  --weight-label: 500;
+  --tracking-label: 0.04em;
 
   /* spacing (4px scale) */
   --space-1: 4px;
@@ -45,7 +48,7 @@
   --deck-tabs-h: 24px; /* pad mode tabs above the hot cue grid */
   --deck-strip-h: 28px; /* beat loop and beat jump strip under the pads */
   --mixer-w: 312px; /* centre mixer column between the decks */
-  --jog-max: 240px; /* largest jog wheel diameter; it shrinks to fit the deck */
+  --jog-max: 520px; /* largest jog wheel diameter; it shrinks to fit the deck */
   --transport-w: 52px; /* CUE and PLAY column */
   --modes-w: 40px; /* SLIP, Q, MT column */
   --tempo-w: 36px; /* tempo fader column at the outer deck edge */
@@ -79,6 +82,8 @@
 
   /* slider */
   --slider-track-length: 10rem;
+  --slider-thumb-along: 5px; /* cap size in the travel direction */
+  --slider-thumb-across: 12px; /* cap size across the track */
 
   /* waveform dimming for the played part of a track */
   --wave-played-opacity: 0.45;
@@ -89,15 +94,15 @@
 :root,
 [data-theme="dark"] {
   /* SURFACES: neutral greys. App bg darkest, panels a step lighter, raised controls lighter again */
-  --bg: #1a1d20;
-  --bg-subtle: #202428;
-  --surface: #282c30;
-  --surface-raised: #343a3f;
-  --surface-hover: #3f464c;
-  --border: #111315;
-  --border-strong: #5b636a;
+  --bg: #0b0c0d;
+  --bg-subtle: #101214;
+  --surface: #15171a;
+  --surface-raised: #1d2023;
+  --surface-hover: #292d31;
+  --border: #060707;
+  --border-strong: #4a5157;
   --overlay: rgb(8 10 12 / 0.72);
-  --scrollbar-thumb: #4a5157;
+  --scrollbar-thumb: #33383c;
   --scrollbar-thumb-hover: #636b72;
 
   /* TEXT */
@@ -109,7 +114,7 @@
   --accent: #ff5a55;
   --accent-hover: #ff7872;
   --accent-fg: #1c0706;
-  --accent-muted: #3d1f21;
+  --accent-muted: #2a1618;
   --focus-ring: #ff7872;
   --selection: rgb(255 90 85 / 0.32);
 
@@ -130,19 +135,19 @@
   --shadow-lg: 0 4px 12px rgb(0 0 0 / 0.5), inset 0 1px 0 rgb(255 255 255 / 0.06);
 
   /* SHELL: tab bar, toolbar */
-  --tabbar-bg: #141618;
-  --toolbar-bg: #282c30;
-  --tab-hover-bg: #1e2124;
+  --tabbar-bg: #08090a;
+  --toolbar-bg: #131517;
+  --tab-hover-bg: #181a1d;
 
   /* CUES: hot cue pad colours, muted. Only the pads use them */
-  --cue-1: #e0726f;
-  --cue-2: #dc9856;
-  --cue-3: #d2bd5b;
-  --cue-4: #88ba6c;
-  --cue-5: #5fabbf;
-  --cue-6: #8199d8;
-  --cue-7: #a087d0;
-  --cue-8: #cf82b0;
+  --cue-1: #b87a78;
+  --cue-2: #b8936f;
+  --cue-3: #b3a572;
+  --cue-4: #869f80;
+  --cue-5: #7a9fa8;
+  --cue-6: #8a96b8;
+  --cue-7: #9988b0;
+  --cue-8: #b08aa2;
   --cue-fg: #14161a;
 
   /* LEDS: lit state of SYNC, MASTER and lit pads follows the accent */
@@ -158,7 +163,7 @@
   --meter-amber: #c9a64e;
   --meter-red: #d1675f;
   --meter-clip: #ec4a42;
-  --meter-off: #33383d;
+  --meter-off: #24282b;
 
   color-scheme: dark;
 }
@@ -246,7 +251,7 @@
    * The ground is near-black in both themes, like DJ software. The played
    * part is dimmed with --wave-played-opacity.
    */
-  --wave-bg: #14161a;
+  --wave-bg: #08090a;
   --wave-low: #b52b33;
   --wave-mid: #ea5a3c;
   --wave-high: #ffcfb0;

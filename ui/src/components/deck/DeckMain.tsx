@@ -101,7 +101,7 @@ function LoopColumn({ deck, ready }: Props) {
       <DeckButton
         className={cn(
           "h-6 w-10 font-mono text-base tabular-nums normal-case",
-          looping && "bg-accent text-accent-fg hover:bg-accent-hover",
+          looping && "text-accent shadow-[inset_0_0_0_1px_var(--accent)]",
         )}
         disabled={!ready}
         aria-label={

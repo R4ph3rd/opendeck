@@ -87,8 +87,11 @@ export function Slider({
           aria-labelledby={ariaLabelledBy}
           aria-valuetext={ariaValueText}
           className={cn(
-            "block size-4 rounded-full border border-border-strong bg-fg shadow-sm",
-            "transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-accent-hover",
+            "block rounded-sm border border-border-strong bg-fg-muted shadow-sm",
+            vertical
+              ? "h-[var(--slider-thumb-along)] w-[var(--slider-thumb-across)]"
+              : "h-[var(--slider-thumb-across)] w-[var(--slider-thumb-along)]",
+            "transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-fg",
             "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring",
           )}
         />

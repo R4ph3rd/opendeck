@@ -26,7 +26,7 @@ const KHZ = 1000;
 const CLOCK_TICK_MS = 15_000;
 
 /** Flat toolbar button: uppercase label, no icon, like the menu row of a DJ application. */
-const MENU_BUTTON = "h-5 rounded-sm bg-surface-raised px-2 text-xs font-bold uppercase";
+const MENU_BUTTON = "h-5 rounded-sm bg-surface-raised px-2 ds-label";
 
 function MenuTrigger({ className, children, ...props }: ComponentProps<typeof Button>) {
   return (
@@ -197,7 +197,7 @@ export function TopBar() {
         aria-label="Show effects"
         pressed={fxOpen}
         onPressedChange={setFxOpen}
-        className={cn(MENU_BUTTON, "data-[state=on]:bg-accent data-[state=on]:text-accent-fg")}
+        className={cn(MENU_BUTTON, "data-[state=on]:text-accent data-[state=on]:shadow-[inset_0_0_0_1px_var(--accent)]")}
       >
         FX
       </Toggle>
@@ -206,7 +206,7 @@ export function TopBar() {
         aria-label="Show sampler"
         pressed={samplerOpen}
         onPressedChange={setSamplerOpen}
-        className={cn(MENU_BUTTON, "data-[state=on]:bg-accent data-[state=on]:text-accent-fg")}
+        className={cn(MENU_BUTTON, "data-[state=on]:text-accent data-[state=on]:shadow-[inset_0_0_0_1px_var(--accent)]")}
       >
         Sampler
       </Toggle>
@@ -222,7 +222,7 @@ export function TopBar() {
       <ViewMenu />
       <ImportMenu />
 
-      <h1 className="pointer-events-none absolute inset-x-0 text-center text-sm font-semibold tracking-wider text-fg">
+      <h1 className="pointer-events-none absolute inset-x-0 text-center text-sm font-medium tracking-wider text-fg">
         OpenDeck
       </h1>
 

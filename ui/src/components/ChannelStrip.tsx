@@ -116,7 +116,7 @@ export function ChannelStrip({ deck }: ChannelStripProps) {
           size="sm"
           aria-label={`Headphone cue ${letter}`}
           pressed={channel.pfl}
-          className="rounded-sm bg-surface-raised px-1.5 text-xs font-bold data-[state=on]:bg-accent data-[state=on]:text-accent-fg"
+          className="rounded-sm bg-surface-raised px-1.5 ds-label data-[state=on]:text-accent data-[state=on]:shadow-[inset_0_0_0_1px_var(--accent)]"
           onPressedChange={(on) => setPfl(deck, on)}
         >
           CUE
