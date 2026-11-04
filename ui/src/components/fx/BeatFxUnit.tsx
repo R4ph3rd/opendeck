@@ -82,7 +82,7 @@ export function BeatFxUnit({ index }: BeatFxUnitProps) {
       className="flex min-w-72 flex-1 flex-col gap-2 rounded-md border border-border bg-bg-subtle p-2"
     >
       <header className="flex flex-wrap items-center gap-2">
-        <h3 className="text-sm font-semibold text-fg">{`FX ${n}`}</h3>
+        <h3 className="text-sm font-medium text-fg">{`FX ${n}`}</h3>
         <ToggleGroup
           type="single"
           aria-label={`${scope} channel`}
@@ -278,7 +278,7 @@ function ReleaseSettings({ unit, index, effects, scope }: ReleaseSettingsProps) 
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="flex w-60 flex-col gap-2 p-3">
-        <h4 className="text-xs font-semibold uppercase tracking-wide text-fg-muted">Release FX</h4>
+        <h4 className="ds-label text-fg-muted">Release FX</h4>
         <EffectSelect
           label={`${scope} release effect`}
           effects={effects}

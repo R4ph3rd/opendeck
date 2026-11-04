@@ -57,7 +57,7 @@ export function PadModeTabs({ deck }: { deck: number }) {
             size="sm"
             aria-label={`${MODE_LABEL[base]}, SHIFT-click for ${MODE_LABEL[shifted]}`}
             data-mode={here ? active : base}
-            className="h-6 flex-1 rounded-sm bg-surface-raised px-1 text-xs font-semibold uppercase leading-none"
+            className="h-6 flex-1 rounded-sm bg-surface-raised px-1 ds-label leading-none data-[state=on]:bg-surface-raised data-[state=on]:text-accent data-[state=on]:shadow-[inset_0_0_0_1px_var(--accent)]"
             onClick={(event) => selectPadMode(deck, event.shiftKey ? shifted : base)}
           >
             {here ? MODE_LABEL[active] : MODE_LABEL[base]}
@@ -83,7 +83,7 @@ function DeckPads({ deck, mode }: { deck: number; mode: PadMode }) {
       className="flex size-full min-w-0 flex-col bg-bg-subtle"
     >
       <div className="flex h-[var(--deck-tabs-h)] shrink-0 items-center justify-between gap-2 px-2">
-        <h3 className="truncate text-xs font-semibold uppercase tracking-wide text-fg-muted">
+        <h3 className="truncate ds-label text-fg-muted">
           {paneTitle(deck, mode)}
         </h3>
         {mode === "sampler" ? <SamplerControls deck={deck} /> : null}

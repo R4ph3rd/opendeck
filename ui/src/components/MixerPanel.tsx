@@ -57,7 +57,7 @@ function MasterBpm() {
   });
   return (
     <div className="flex h-6 shrink-0 items-baseline justify-center gap-1.5 border-b border-border px-2 pt-0.5">
-      <span className="text-xs font-semibold uppercase text-fg-muted">Master</span>
+      <span className="ds-label text-fg-muted">Master</span>
       <output
         ref={ref}
         aria-label="Master BPM"
@@ -122,7 +122,7 @@ export function MixerPanel() {
             size="sm"
             aria-label="Split cue"
             pressed={splitCue}
-            className="rounded-sm bg-surface-raised px-1.5 text-xs font-bold data-[state=on]:bg-accent data-[state=on]:text-accent-fg"
+            className="rounded-sm bg-surface-raised px-1.5 ds-label data-[state=on]:text-accent data-[state=on]:shadow-[inset_0_0_0_1px_var(--accent)]"
             onPressedChange={setSplitCue}
           >
             SPLIT

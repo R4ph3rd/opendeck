@@ -1,6 +1,6 @@
 import type { DeckFrame } from "./deckFrame";
 import { cueMarks, drawCueFlag, type DeckMarkers } from "./markers";
-import { sampleRange, selectLevel, type PeakLevelData, type PeakSample } from "./peaks";
+import { aggregateColumns, selectLevel, type PeakLevelData, type PeakSample } from "./peaks";
 import type { CanvasFrame } from "./useCanvasLoop";
 import { ZOOM_SECONDS, beatLines, pixelsPerSecond, timeToX, type BeatLine } from "./waveformMath";
 
@@ -64,12 +64,14 @@ export function drawWaveform(f: CanvasFrame, s: WaveformState, scratch: Waveform
   scratch.levels = s.levels;
   scratch.markers = s.markers;
 
+  ctx.imageSmoothingEnabled = false;
   ctx.clearRect(0, 0, w, h);
   const pps = pixelsPerSecond(w, visible);
   const cx = Math.round(w / 2);
   const t0 = position - visible / 2;
   const t1 = position + visible / 2;
   const mid = h / 2;
+  const midPx = Math.round(mid);
 
   // Loop region behind the waveform.
   if (loop) {
@@ -91,17 +93,8 @@ export function drawWaveform(f: CanvasFrame, s: WaveformState, scratch: Waveform
     }
     const bars = scratch.bars;
     const centreOffset = Math.round(position * pps);
-    const sr = level.sampleRate;
-    for (let x = 0; x < w; x += 1) {
-      const c = x - cx + centreOffset;
-      sampleRange(level, (c / pps) * sr, ((c + 1) / pps) * sr, scratch.sample);
-      const o = x * 4;
-      bars[o] = scratch.sample.peak;
-      bars[o + 1] = scratch.sample.low;
-      bars[o + 2] = scratch.sample.mid;
-      bars[o + 3] = scratch.sample.high;
-    }
-    const half = mid * 0.94;
+    aggregateColumns(level, w, cx, centreOffset, pps, bars, scratch.sample);
+    const half = Math.floor(mid * 0.94);
     const bands: readonly [number, "wave-low" | "wave-mid" | "wave-high"][] = [
       [1, "wave-low"],
       [2, "wave-mid"],
@@ -115,15 +108,14 @@ export function drawWaveform(f: CanvasFrame, s: WaveformState, scratch: Waveform
       ctx.globalAlpha = alpha;
       for (const [offset, token] of bands) {
         ctx.fillStyle = colors.color[token];
-        ctx.beginPath();
+        // One hard-edged column per device pixel, whole-pixel heights.
         for (let x = from; x < to; x += 1) {
           const v = bars[x * 4 + offset] ?? 0;
           if (v > 0) {
-            const hh = Math.max(dpr * 0.5, (v / 255) * half);
-            ctx.rect(x, mid - hh, 1, hh * 2);
+            const hh = Math.max(1, Math.round((v / 255) * half));
+            ctx.fillRect(x, midPx - hh, 1, hh * 2);
           }
         }
-        ctx.fill();
       }
     }
     ctx.globalAlpha = 1;
@@ -132,12 +124,11 @@ export function drawWaveform(f: CanvasFrame, s: WaveformState, scratch: Waveform
   // Beat grid.
   if (s.markers.grid) {
     const lines = beatLines(s.markers.grid, t0, t1, pps, scratch.beats);
-    const beatW = Math.max(1, Math.round(dpr));
+    const beatW = 1;
     for (const line of lines) {
       const x = timeToX(line.time, position, w, pps);
       ctx.fillStyle = line.downbeat ? colors.color["beat-grid-downbeat"] : colors.color["beat-grid"];
-      const width = line.downbeat ? beatW * 2 : beatW;
-      ctx.fillRect(x - Math.floor(width / 2), 0, width, h);
+      ctx.fillRect(x, 0, beatW, h);
     }
   }
 
@@ -152,7 +143,7 @@ export function drawWaveform(f: CanvasFrame, s: WaveformState, scratch: Waveform
   }
 
   // Cue marks, hot and memory.
-  const lineW = Math.max(1, Math.round(dpr));
+  const lineW = 1;
   for (const mark of cueMarks(s.markers)) {
     if (mark.time < t0 - 1 || mark.time > t1 + 1) {
       continue;
@@ -164,7 +155,7 @@ export function drawWaveform(f: CanvasFrame, s: WaveformState, scratch: Waveform
   }
 
   // Playhead.
-  const headW = Math.max(2, Math.round(dpr * 2));
+  const headW = 2;
   ctx.fillStyle = colors.color["playhead"];
   ctx.fillRect(cx - Math.floor(headW / 2), 0, headW, h);
   return true;

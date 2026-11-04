@@ -86,3 +86,11 @@
 
   --ease-standard: var(--ease-standard);
 }
+
+/* Small control label: light weight, small size, subtle tracking. Tokens in tokens.css. */
+@utility ds-label {
+  font-size: var(--text-label);
+  font-weight: var(--weight-label);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}

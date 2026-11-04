@@ -15,6 +15,7 @@ import { TopBar } from "./components/TopBar";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { DECK_A, DECK_B, useAppStore } from "./state/app";
 import { BAND_MIN_PX, px } from "./lib/layout";
+import { applyUiScale, resolveScale } from "./lib/uiScale";
 import { readStored, writeStored } from "./lib/persist";
 import { commands } from "./ipc/bindings";
 import {
@@ -92,6 +93,14 @@ export function App() {
   }, []);
 
   useEffect(() => applyTheme(theme), [theme]);
+
+  const uiScale = usePrefsStore((s) => s.uiScale);
+  useEffect(() => {
+    const update = () => applyUiScale(resolveScale(uiScale, window.innerHeight));
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, [uiScale]);
 
   useEffect(() => {
     let stop: (() => void) | null = null;

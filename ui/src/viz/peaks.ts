@@ -119,8 +119,8 @@ export function selectLevel(
 /**
  * Band levels over the frame range `[startFrame, endFrame)` of the level's own
  * sample rate. A range spanning several points takes the max of each band. A
- * range narrower than one point interpolates linearly between neighbouring points so
- * deep zoom does not show steps. Outside the track the result is zero.
+ * range narrower than one point takes that point as is: no interpolation, so
+ * every column shows real data. Outside the track the result is zero.
  */
 export function sampleRange(
   level: PeakLevelData,
@@ -160,15 +160,39 @@ export function sampleRange(
     out.high = high;
     return out;
   }
-  // Narrower than a point: interpolate between point centres.
-  const pos = (startFrame + endFrame) / 2 / fpp - 0.5;
-  const i0 = Math.floor(pos);
-  const t = pos - i0;
-  const at = (i: number, k: number): number =>
-    i < 0 || i >= level.count ? 0 : (p[i * PEAK_POINT_LEN + k] ?? 0);
-  out.peak = at(i0, 0) * (1 - t) + at(i0 + 1, 0) * t;
-  out.low = at(i0, 1) * (1 - t) + at(i0 + 1, 1) * t;
-  out.mid = at(i0, 2) * (1 - t) + at(i0 + 1, 2) * t;
-  out.high = at(i0, 3) * (1 - t) + at(i0 + 1, 3) * t;
+  // Narrower than a point: take that single point. Never interpolate.
+  const idx = Math.min(level.count - 1, Math.max(0, Math.floor((startFrame + endFrame) / 2 / fpp)));
+  const o = idx * PEAK_POINT_LEN;
+  out.peak = p[o] ?? 0;
+  out.low = p[o + 1] ?? 0;
+  out.mid = p[o + 2] ?? 0;
+  out.high = p[o + 3] ?? 0;
   return out;
+}
+
+/**
+ * Fills `out` (4 bytes per column: peak, low, mid, high) for `columns` device
+ * pixel columns. Column `x` covers world pixels `[x - centre + offset, +1)` at
+ * `pps` device pixels per second; each column takes the max of the points it
+ * touches in the given level and never blends neighbours.
+ */
+export function aggregateColumns(
+  level: PeakLevelData,
+  columns: number,
+  centre: number,
+  offset: number,
+  pps: number,
+  out: Uint8Array,
+  scratch: PeakSample,
+): void {
+  const sr = level.sampleRate;
+  for (let x = 0; x < columns; x += 1) {
+    const c = x - centre + offset;
+    sampleRange(level, (c / pps) * sr, ((c + 1) / pps) * sr, scratch);
+    const o = x * PEAK_POINT_LEN;
+    out[o] = scratch.peak;
+    out[o + 1] = scratch.low;
+    out[o + 2] = scratch.mid;
+    out[o + 3] = scratch.high;
+  }
 }

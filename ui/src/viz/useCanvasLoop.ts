@@ -38,23 +38,29 @@ export function useCanvasLoop(
     if (!canvas || !ctx) {
       return undefined;
     }
+    ctx.imageSmoothingEnabled = false;
     let colors = readColors(canvas);
     let invalidated = true;
     let raf = 0;
 
-    const resize = () => {
+    // Device pixels of the box, correct under CSS zoom: prefer the exact
+    // device-pixel size from the observer, else the visual rect times DPR.
+    const resize = (entries?: ResizeObserverEntry[]) => {
       const dpr = globalThis.devicePixelRatio || 1;
-      const width = Math.max(1, Math.round(canvas.clientWidth * dpr));
-      const height = Math.max(1, Math.round(canvas.clientHeight * dpr));
+      const exact = entries?.[0]?.devicePixelContentBoxSize?.[0];
+      const rect = canvas.getBoundingClientRect();
+      const width = Math.max(1, Math.round(exact ? exact.inlineSize : rect.width * dpr));
+      const height = Math.max(1, Math.round(exact ? exact.blockSize : rect.height * dpr));
       if (canvas.width !== width || canvas.height !== height) {
         canvas.width = width;
         canvas.height = height;
+        ctx.imageSmoothingEnabled = false;
         invalidated = true;
       }
     };
     resize();
-    const observer = new ResizeObserver(resize);
-    observer.observe(canvas);
+    const observer = new ResizeObserver((entries) => resize(entries));
+    observer.observe(canvas, { box: "device-pixel-content-box" });
     const stopTheme = onThemeChange(canvas, () => {
       colors = readColors(canvas);
       invalidated = true;

@@ -306,7 +306,7 @@ describe("sampler view", () => {
     slots[0] = { loaded: true, playing: true, progress: 0.5 };
     snapshot.sampler = slots;
     act(() => telemetryStore.getState().push(snapshot));
-    expect(pad("Sample slot 1, Kick").className).toContain("ring-2");
+    expect(pad("Sample slot 1, Kick").className).toContain("bg-surface-hover");
   });
 
   it("follows the shared layout", () => {

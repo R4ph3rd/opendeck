@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   PeakDecodeError,
+  aggregateColumns,
   decodePeaks,
   encodePeaks,
   levelSeconds,
@@ -100,10 +101,17 @@ describe("sampleRange", () => {
   it("takes the max over several points", () => {
     expect(sampleRange(l, 0, 300, blank())).toEqual({ peak: 200, low: 60, mid: 70, high: 80 });
   });
-  it("interpolates inside a point", () => {
-    // Midway between the centres of points 0 and 1.
-    const s = sampleRange(l, 90, 110, blank());
-    expect(s.peak).toBeCloseTo(105, 5);
+  it("never interpolates inside a point", () => {
+    // 90..110 is centred on the boundary of points 0 and 1: one real point, no blend.
+    const values = new Set<number>();
+    for (let a = 0; a < 300; a += 7) {
+      values.add(sampleRange(l, a, a + 3, blank()).peak);
+    }
+    expect([...values].every((v) => [10, 200, 40].includes(v))).toBe(true);
+    expect(sampleRange(l, 110, 120, blank()).peak).toBe(200);
+  });
+  it("aggregates max across a column that spans points, per band", () => {
+    expect(sampleRange(l, 50, 250, blank())).toEqual({ peak: 200, low: 60, mid: 70, high: 80 });
   });
   it("is zero outside the track", () => {
     expect(sampleRange(l, -500, -400, blank()).peak).toBe(0);
@@ -111,5 +119,25 @@ describe("sampleRange", () => {
   });
   it("clips a range that hangs over the start", () => {
     expect(sampleRange(l, -200, 150, blank()).peak).toBe(200);
+  });
+});
+
+describe("aggregateColumns", () => {
+  // 100 frames per point at 100 Hz: one point per second.
+  const l = level(100, [[10, 1, 2, 3], [200, 4, 5, 6], [40, 7, 8, 9], [90, 1, 1, 1]], 100);
+  it("takes the max over points when a column spans several (coarse zoom)", () => {
+    const out = new Uint8Array(8);
+    aggregateColumns(l, 2, 0, 0, 0.5, out, blank());
+    expect(Array.from(out)).toEqual([200, 4, 5, 6, 90, 7, 8, 9]);
+  });
+  it("repeats the real point at deep zoom and never blends", () => {
+    const out = new Uint8Array(16);
+    aggregateColumns(l, 4, 0, 0, 2, out, blank());
+    expect(Array.from(out.filter((_, i) => i % 4 === 0))).toEqual([10, 10, 200, 200]);
+  });
+  it("is zero before the start of the track", () => {
+    const out = new Uint8Array(8).fill(9);
+    aggregateColumns(l, 2, 2, 0, 1, out, blank());
+    expect(Array.from(out.slice(0, 4))).toEqual([0, 0, 0, 0]);
   });
 });

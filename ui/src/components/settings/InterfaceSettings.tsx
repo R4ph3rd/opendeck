@@ -9,6 +9,7 @@ import {
   SelectValue,
 } from "@opendeck/design-system";
 import { useState } from "react";
+import { UI_SCALE_CHOICES, type UiScalePref } from "../../lib/uiScale";
 import { DEFAULT_LAYOUT, usePrefsStore, type Theme } from "../../state/prefs";
 import { ZOOM_SECONDS } from "../../viz/waveformMath";
 import { useVizStore } from "../../viz/useTrackData";
@@ -18,6 +19,8 @@ import { Row, Section } from "./parts";
 export function InterfaceSettings() {
   const theme = usePrefsStore((s) => s.theme);
   const setTheme = usePrefsStore((s) => s.setTheme);
+  const uiScale = usePrefsStore((s) => s.uiScale);
+  const setUiScale = usePrefsStore((s) => s.setUiScale);
   const zoom = usePrefsStore((s) => s.waveformZoom);
   const setZoom = usePrefsStore((s) => s.setWaveformZoom);
   const presets = usePrefsStore((s) => s.layoutPresets);
@@ -47,6 +50,23 @@ export function InterfaceSettings() {
               { value: "light", label: "Light" },
             ]}
           />
+        </Row>
+        <Row label="Interface scale" hint="Auto follows the window height, up to 200%.">
+          <Select
+            value={String(uiScale)}
+            onValueChange={(v) => setUiScale(v === "auto" ? "auto" : (Number(v) as UiScalePref))}
+          >
+            <SelectTrigger aria-label="Interface scale" className="w-28">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {UI_SCALE_CHOICES.map((choice) => (
+                <SelectItem key={choice} value={String(choice)}>
+                  {choice === "auto" ? "Auto" : `${choice * 100}%`}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </Row>
         <Row label="Default waveform zoom" hint="Window shown on the deck waveforms at launch.">
           <Select value={String(zoom)} onValueChange={chooseZoom}>

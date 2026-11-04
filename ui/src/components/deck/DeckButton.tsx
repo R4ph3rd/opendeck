@@ -5,10 +5,10 @@ import type { ComponentProps } from "react";
 export type Tone = "accent" | "cyan" | "sync" | "master";
 
 const LIT: Record<Tone, string> = {
-  accent: "data-[state=on]:bg-accent data-[state=on]:text-accent-fg",
-  cyan: "data-[state=on]:bg-accent data-[state=on]:text-accent-fg",
-  sync: "data-[state=on]:bg-sync-on data-[state=on]:text-accent-fg",
-  master: "data-[state=on]:bg-master-on data-[state=on]:text-accent-fg",
+  accent: "data-[state=on]:text-accent data-[state=on]:shadow-[inset_0_0_0_1px_var(--accent)]",
+  cyan: "data-[state=on]:text-accent data-[state=on]:shadow-[inset_0_0_0_1px_var(--accent)]",
+  sync: "data-[state=on]:text-sync-on data-[state=on]:shadow-[inset_0_0_0_1px_var(--sync-on)]",
+  master: "data-[state=on]:text-master-on data-[state=on]:shadow-[inset_0_0_0_1px_var(--master-on)]",
 };
 
 /** Flat grey latching button (SLIP, Q, MT, BEAT SYNC): lit with `tone` when on. */
@@ -20,8 +20,8 @@ export function DeckToggle({
   return (
     <Toggle
       className={cn(
-        "h-6 min-w-0 shrink-0 rounded-sm bg-surface-raised px-1.5 text-xs font-bold uppercase",
-        "data-[state=on]:hover:brightness-110",
+        "h-6 min-w-0 shrink-0 rounded-sm bg-surface-raised px-1.5 ds-label",
+        "data-[state=on]:bg-surface-raised data-[state=on]:hover:bg-surface-hover",
         LIT[tone],
         className,
       )}
@@ -36,7 +36,7 @@ export function DeckButton({ className, ...props }: ComponentProps<typeof Button
     <Button
       size="sm"
       className={cn(
-        "min-w-0 rounded-sm bg-surface-raised px-1.5 text-xs font-bold uppercase hover:bg-surface-hover",
+        "min-w-0 rounded-sm bg-surface-raised px-1.5 ds-label hover:bg-surface-hover",
         "border-0",
         className,
       )}
@@ -54,7 +54,7 @@ export function RingButton({
   return (
     <Button
       className={cn(
-        "size-[min(100cqh,100cqw)] rounded-full border-4 bg-surface-raised p-0 text-sm font-bold",
+        "size-[min(100cqh,100cqw)] rounded-full border-4 bg-surface-raised p-0 text-sm font-medium",
         ring === "cue" ? "border-accent" : "border-fg-muted",
         "hover:bg-surface-hover data-[active=true]:bg-surface-hover",
         className,

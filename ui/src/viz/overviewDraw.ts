@@ -38,7 +38,6 @@ function renderStatic(
   colors: VizColors,
   w: number,
   h: number,
-  dpr: number,
   sample: PeakSample,
 ): void {
   target.width = w;
@@ -47,10 +46,11 @@ function renderStatic(
   if (!ctx) {
     return;
   }
+  ctx.imageSmoothingEnabled = false;
   ctx.clearRect(0, 0, w, h);
   const seconds = levelSeconds(level);
-  const mid = h / 2;
-  const half = mid * 0.94;
+  const mid = Math.round(h / 2);
+  const half = Math.floor((h / 2) * 0.94);
   const bars = new Uint8Array(w * 3);
   for (let x = 0; x < w; x += 1) {
     const a = ((x / w) * seconds * level.sampleRate) | 0;
@@ -63,15 +63,13 @@ function renderStatic(
   const bands = ["wave-low", "wave-mid", "wave-high"] as const;
   bands.forEach((token, i) => {
     ctx.fillStyle = colors.color[token];
-    ctx.beginPath();
     for (let x = 0; x < w; x += 1) {
       const v = bars[x * 3 + i] ?? 0;
       if (v > 0) {
-        const hh = Math.max(dpr * 0.5, (v / 255) * half);
-        ctx.rect(x, mid - hh, 1, hh * 2);
+        const hh = Math.max(1, Math.round((v / 255) * half));
+        ctx.fillRect(x, mid - hh, 1, hh * 2);
       }
     }
-    ctx.fill();
   });
 }
 
@@ -96,11 +94,12 @@ export function drawOverview(f: CanvasFrame, s: OverviewState, scratch: Overview
   scratch.key = key;
   scratch.markers = s.markers;
 
+  ctx.imageSmoothingEnabled = false;
   ctx.clearRect(0, 0, w, h);
   if (s.level && duration > 0) {
     if (!cacheValid) {
       scratch.cache ??= document.createElement("canvas");
-      renderStatic(scratch.cache, s.level, colors, w, h, dpr, scratch.sample);
+      renderStatic(scratch.cache, s.level, colors, w, h, scratch.sample);
       scratch.cacheKey = { level: s.level, colors, w, h };
     }
     if (scratch.cache) {
@@ -131,7 +130,7 @@ export function drawOverview(f: CanvasFrame, s: OverviewState, scratch: Overview
     ctx.globalAlpha = 1;
   }
 
-  const lineW = Math.max(1, Math.round(dpr));
+  const lineW = 1;
   for (const mark of cueMarks(s.markers)) {
     const mx = x(mark.time);
     ctx.fillStyle = colors.color[mark.token];
@@ -142,7 +141,7 @@ export function drawOverview(f: CanvasFrame, s: OverviewState, scratch: Overview
   }
 
   ctx.fillStyle = colors.color["playhead"];
-  const headW = Math.max(2, Math.round(dpr * 2));
+  const headW = 2;
   ctx.fillRect(Math.min(px, w - headW), 0, headW, h);
   return true;
 }
