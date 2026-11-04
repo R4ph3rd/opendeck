@@ -1,6 +1,6 @@
 # Status
 
-MVP reached (v0.8.0). v0.8.1 revamps the UI after owner feedback (stacked full-window layout, reference-style decks, slim mixer, 2x4 pad grids). A second UI rework on `workbench` follows the reference performance layout (menu row, deck panels, middle row) with flat FL-style visuals and a red palette; tokens are grouped and documented in `docs/design/theming.md`. UI polish done: precise per-pixel waveform (raw peak columns, no smoothing), darker surfaces, neutral pads, thin faders and light labels, UI scale auto (window height) or manual, applied as the root font size with rem tokens (CSS zoom offset Radix menus and tooltips). Milestone 9 (VST3/CLAP hosting) in progress: ADR 0008 accepted, wave 9a-1 (scanner and CLAP effects) merged.
+MVP reached (v0.8.0). v0.8.1 revamps the UI after owner feedback (stacked full-window layout, reference-style decks, slim mixer, 2x4 pad grids). A second UI rework on `workbench` follows the reference performance layout (menu row, deck panels, middle row) with flat FL-style visuals and a red palette; tokens are grouped and documented in `docs/design/theming.md`. UI polish done: precise per-pixel waveform (raw peak columns, no smoothing), darker surfaces, neutral pads, thin faders and light labels, UI scale auto (window height) or manual, applied as the root font size with rem tokens (CSS zoom offset Radix menus and tooltips). Milestone 9 (VST3/CLAP hosting) in progress: ADR 0008 accepted, waves 9a-1 (scanner and CLAP effects) and 9a-2 (VST3 effects) merged. The release workflow (ported from gittrunk) signs Windows and macOS builds when the signing secrets exist and ships unsigned builds otherwise.
 
 ## Milestones
 
@@ -15,7 +15,7 @@ MVP reached (v0.8.0). v0.8.1 revamps the UI after owner feedback (stacked full-w
 | 6 | MIDI layer, DDJ-FLX4 mapping, LED feedback, MIDI monitor, replay harness | done (v0.6.0) |
 | 7 | Pad modes with the dynamic middle panel, sampler | done (v0.7.0) |
 | 8 | Hardening: latency, error handling, settings, installer, first-run (MVP) | done (v0.8.0) |
-| 9 | VST3/CLAP plugin hosting (ADR 0008 accepted); later 4 decks, recording, more controllers | in progress (9a-1 done) |
+| 9 | VST3/CLAP plugin hosting (ADR 0008 accepted); later 4 decks, recording, more controllers | in progress (9a-1, 9a-2 done) |
 
 ## Milestone 0
 
@@ -60,7 +60,11 @@ ADR 0008 accepted. Merged: `opendeck-plugin-host` skeleton (fake backend, CLAP a
 
 Wave 9a-1 done: CLAP effects in FX slots through clack-host (params, latency, state, audio ports, transport), out-of-process scan with a cache, blacklist, retry and rescan of changed files, plugin effects in the FX registry, plugin scan commands and `plugins-changed` event, main-thread work on the UI thread. `opendeck-plugin-scan` ships next to the app in every bundle (Tauri `externalBin`, `scripts/build-sidecars.mjs`; checked in the Linux .deb). Tests use a CLAP fixture plugin; no third-party CLAP plugin was run (`docs/hardware-test-checklist.md`).
 
-Carried to later 9a waves: session marker for unclean exits; acting on plugin restart and latency-change requests (`take_requests`); CPU figure for 6 slots with real plugins; note-port fixture for instruments (CLAP notes mapped, untested). (Wave 9a-2 replaced `HostWake` with an atomic wake flag polled by the host, so plugin audio threads no longer allocate through the callbacks.)
+Wave 9a-2 done: VST3 effects in FX slots through the `vst3` crate (on by default): scan of `Audio Module Class` classes, separate and single-component controllers, stereo main buses, parameters through fixed-capacity `IParameterChanges` and `IEventList` allocated at activation, editor edits and restart flags through `IComponentHandler`, latency, tail, state. Plugin callbacks only set an atomic `WakeFlag` that the host polls every 20 ms, so plugin audio threads no longer allocate through the callbacks. app-core registers the VST3 factories beside CLAP. Tests use a VST3 fixture plugin (`tests/vst3_fixture.rs`, `tests/vst3_edits.rs`).
+
+Carried from 9a-2: the macOS module entry path (`bundleEntry`) is written from the SDK docs and untested; no third-party VST3 or CLAP plugin was run (`docs/hardware-test-checklist.md`); `reset` calls `setProcessing(false)` then `(true)` on the audio thread, `TODO(verify)` that plugins accept it there.
+
+Carried to later 9a waves: session marker for unclean exits; acting on plugin restart and latency-change requests (`take_requests`); CPU figure for 6 slots with real plugins; note-port fixture for instruments (CLAP notes mapped, untested).
 
 ## Post-MVP
 
@@ -77,7 +81,7 @@ Carried to later 9a waves: session marker for unclean exits; acting on plugin re
 
 ## Branch model
 
-- `main`: released milestones only. Every push to `main` runs the release workflow.
+- `main`: released milestones only. A push to `main` is released once CI passes for that commit (`docs/RELEASING.md`).
 - `workbench`: integration branch. All work lands here after the checker gate.
 - `feat/*`: one branch per task, opened from `workbench`, merged back by pull request.
 - Checker gate: fmt, clippy `-D warnings`, `cargo test --workspace`, bindings diff, UI typecheck/lint/test, Storybook build, `cargo deny check`. CI runs the same steps.
