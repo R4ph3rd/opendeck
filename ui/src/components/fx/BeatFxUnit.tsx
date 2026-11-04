@@ -235,19 +235,21 @@ export function BeatFxUnit({ index }: BeatFxUnitProps) {
 
 interface LevelKnobProps {
   effect: FxEffectDto;
+  compact?: boolean;
   value: number;
   onChange: (value: number) => void;
   scope: string;
 }
 
 /** LEVEL/DEPTH: the effect's primary parameter. */
-function LevelKnob({ effect, value, onChange, scope }: LevelKnobProps) {
+export function LevelKnob({ effect, compact, value, onChange, scope }: LevelKnobProps) {
   const desc = effect.params.find((p) => p.id === effect.primary);
   if (!desc) {
     return null;
   }
   return (
     <Knob
+      compact={compact ?? false}
       label="Level"
       name={`${scope} level`}
       value={value}

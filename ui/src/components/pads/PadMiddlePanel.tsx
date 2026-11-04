@@ -1,18 +1,7 @@
-import {
-  Panel,
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-  ToggleGroup,
-  ToggleGroupItem,
-  cn,
-  type ResizableLayout,
-} from "@opendeck/design-system";
+import { Panel, ToggleGroup, ToggleGroupItem } from "@opendeck/design-system";
 import { motion, useReducedMotion } from "motion/react";
 import type { PadMode } from "../../ipc/bindings";
-import { DECK_BORDER } from "../../lib/deck";
 import { MODE_BUTTONS, MODE_FADE_SECONDS, MODE_LABEL, baseMode } from "../../lib/pads";
-import { readStored, writeStored } from "../../lib/persist";
 import { VISIBLE_DECKS, useAppStore } from "../../state/app";
 import { selectPadMode } from "../../state/pads";
 import { BeatJumpView } from "./BeatJumpView";
@@ -22,9 +11,6 @@ import { KeyboardView } from "./KeyboardView";
 import { KeyShiftView } from "./KeyShiftView";
 import { PadFxView } from "./PadFxView";
 import { SamplerControls, SamplerView } from "./SamplerView";
-
-/** Storage key of the split between the two deck pad panes. */
-export const PADS_LAYOUT_KEY = "opendeck.layout.pads";
 
 /** The view of one pad mode for one deck. */
 export function PadModeView({ deck, mode }: { deck: number; mode: PadMode }) {
@@ -71,7 +57,7 @@ export function PadModeTabs({ deck }: { deck: number }) {
             size="sm"
             aria-label={`${MODE_LABEL[base]}, SHIFT-click for ${MODE_LABEL[shifted]}`}
             data-mode={here ? active : base}
-            className="rounded-sm bg-surface-raised px-2 text-xs font-semibold uppercase"
+            className="h-6 flex-1 rounded-sm bg-surface-raised px-1 text-xs font-semibold uppercase leading-none"
             onClick={(event) => selectPadMode(deck, event.shiftKey ? shifted : base)}
           >
             {here ? MODE_LABEL[active] : MODE_LABEL[base]}
@@ -82,20 +68,24 @@ export function PadModeTabs({ deck }: { deck: number }) {
   );
 }
 
-/** One deck's pane: a thin strip of mode tabs, then the pads filling the rest. */
-function DeckPads({ deck }: { deck: number }) {
-  const mode = useAppStore((s) => s.padModes[deck] ?? "hot_cue");
+/** Label of the view a deck pane shows, for its header. */
+const paneTitle = (deck: number, mode: PadMode): string => `Deck ${deck + 1} ${MODE_LABEL[mode]}`;
+
+/**
+ * One deck's pad-mode pane in the middle row: a thin header with the mode
+ * name, then the pads filling the rest.
+ */
+function DeckPads({ deck, mode }: { deck: number; mode: PadMode }) {
   const reduce = useReducedMotion();
   return (
     <section
       aria-label={`Deck ${deck + 1} pads`}
-      className={cn(
-        "flex size-full min-w-0 flex-col bg-bg-subtle border-t-2",
-        DECK_BORDER[deck] ?? "",
-      )}
+      className="flex size-full min-w-0 flex-col bg-bg-subtle"
     >
-      <div className="flex h-8 shrink-0 items-center justify-between gap-2 px-1">
-        <PadModeTabs deck={deck} />
+      <div className="flex h-[var(--deck-tabs-h)] shrink-0 items-center justify-between gap-2 px-2">
+        <h3 className="truncate text-xs font-semibold uppercase tracking-wide text-fg-muted">
+          {paneTitle(deck, mode)}
+        </h3>
         {mode === "sampler" ? <SamplerControls deck={deck} /> : null}
       </div>
       <motion.div
@@ -113,34 +103,34 @@ function DeckPads({ deck }: { deck: number }) {
   );
 }
 
-const DEFAULT_PADS_LAYOUT: ResizableLayout = { "pads-1": 50, "pads-2": 50 };
-
-/** Middle band: one pad pane per deck, side by side with a draggable separator. */
+/**
+ * Centre of the middle row. A deck in HOT CUE mode keeps its cues in the deck
+ * panel, so its pane here shows the sampler (when SAMPLER is on); any other
+ * pad mode shows its view. Panes sit side by side, deck 1 then deck 2.
+ */
 export function PadMiddlePanel() {
-  const stored = readStored<ResizableLayout | null>(PADS_LAYOUT_KEY, null);
+  const modes = useAppStore((s) => s.padModes);
+  const samplerOpen = useAppStore((s) => s.samplerOpen);
+  const panes = VISIBLE_DECKS.flatMap((deck) => {
+    const mode = modes[deck] ?? "hot_cue";
+    const shown: PadMode | null = mode === "hot_cue" ? (samplerOpen ? "sampler" : null) : mode;
+    return shown === null ? [] : [{ deck, mode: shown }];
+  });
   return (
-    <Panel flush aria-label="Pads and effects" className="size-full">
-      <ResizablePanelGroup
-        orientation="horizontal"
-        id="pads-layout"
-        defaultLayout={stored && typeof stored === "object" ? stored : DEFAULT_PADS_LAYOUT}
-        onLayoutChanged={(layout) => writeStored(PADS_LAYOUT_KEY, layout)}
-      >
-        {VISIBLE_DECKS.map((deck, i) => (
-          <ResizablePanelPair key={deck} deck={deck} last={i === VISIBLE_DECKS.length - 1} />
-        ))}
-      </ResizablePanelGroup>
+    <Panel flush aria-label="Pads and effects" className="size-full min-w-0">
+      {panes.length === 0 ? (
+        <p className="p-3 text-sm text-fg-subtle">
+          Turn on SAMPLER or pick a pad mode on a deck to show pads here.
+        </p>
+      ) : (
+        <div className="flex size-full min-h-0 gap-px bg-border">
+          {panes.map(({ deck, mode }) => (
+            <div key={deck} className="min-w-0 flex-1">
+              <DeckPads deck={deck} mode={mode} />
+            </div>
+          ))}
+        </div>
+      )}
     </Panel>
-  );
-}
-
-function ResizablePanelPair({ deck, last }: { deck: number; last: boolean }) {
-  return (
-    <>
-      <ResizablePanel id={`pads-${deck + 1}`} minSize="20%">
-        <DeckPads deck={deck} />
-      </ResizablePanel>
-      {last ? null : <ResizableHandle />}
-    </>
   );
 }

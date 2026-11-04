@@ -52,7 +52,13 @@ export const PREFS_KEY = "opendeck.library.v1";
 
 const DEFAULT_PREFS: LibraryPrefs = {
   keyNotation: "camelot",
-  columnVisibility: { album: false, bitrate: false, year: false, comment: false, analysis: false },
+  columnVisibility: {
+    bitrate: false,
+    year: false,
+    date_added: false,
+    comment: false,
+    analysis: false,
+  },
   columnSizing: {},
   sort: DEFAULT_SORT,
 };

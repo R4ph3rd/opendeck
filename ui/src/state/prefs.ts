@@ -15,29 +15,21 @@ export const PREF = {
 } as const;
 
 /** localStorage key of the vertical split between the stacked bands. */
-export const LAYOUT_KEY = "opendeck.layout.main.v2";
-
-/** Same split with the effects band open. */
-export const FX_LAYOUT_KEY = `${LAYOUT_KEY}.fx`;
+export const LAYOUT_KEY = "opendeck.layout.main.v3";
 
 /** Other split layouts that reset together with the main one. */
-export const EXTRA_LAYOUT_KEYS = ["opendeck.layout.pads", "opendeck.layout.library"] as const;
+export const EXTRA_LAYOUT_KEYS = [
+  "opendeck.layout.decks",
+  "opendeck.layout.middle",
+  "opendeck.layout.library",
+] as const;
 
-/** Bands top to bottom: zoomed waveforms, decks and mixer, pads, library (percent). */
+/** Bands top to bottom: zoomed waveforms, decks and mixer, FX and pad modes, browser (percent). */
 export const DEFAULT_LAYOUT: ResizableLayout = {
-  waves: 12,
-  decks: 44,
-  pads: 15,
-  library: 29,
-};
-
-/** Bands with the effects strip open between the decks and the pads. */
-export const DEFAULT_FX_LAYOUT: ResizableLayout = {
-  waves: 10.8,
-  decks: 44,
-  fx: 13.2,
-  pads: 14.2,
-  library: 17.8,
+  waves: 15,
+  decks: 33,
+  middle: 16,
+  library: 36,
 };
 
 export type Theme = "dark" | "light";
@@ -245,8 +237,14 @@ export const usePrefsStore = create<PrefsState>()((set, get) => ({
   resetAll: () => {
     set({ ...initial(), loaded: true, firstRunDone: true });
     try {
-      for (const key of [LAYOUT_KEY, FX_LAYOUT_KEY, ...EXTRA_LAYOUT_KEYS]) {
+      for (const key of [LAYOUT_KEY, ...EXTRA_LAYOUT_KEYS]) {
         globalThis.localStorage?.removeItem(key);
+      }
+      // Layouts of hidden-band combinations.
+      const storage = globalThis.localStorage;
+      for (let i = (storage?.length ?? 0) - 1; i >= 0; i--) {
+        const key = storage?.key(i);
+        if (key?.startsWith(`${LAYOUT_KEY}.`)) storage?.removeItem(key);
       }
     } catch {
       // Storage may be blocked; the layout then resets on the next launch.

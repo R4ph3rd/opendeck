@@ -68,7 +68,7 @@ export function ChannelStrip({ deck }: ChannelStripProps) {
   return (
     <section
       aria-label={`Channel ${letter}`}
-      className="relative flex min-h-0 min-w-0 flex-1 flex-col items-center gap-1 px-1 pb-1 pt-2"
+      className="relative flex min-h-0 min-w-0 flex-1 flex-col items-center gap-1 px-0.5 pb-1 pt-2"
     >
       <span aria-hidden className={cn("absolute inset-x-0 top-0 h-0.5", DECK_FILL[deck] ?? "")} />
       <div className="grid w-full grid-cols-2 gap-x-1 gap-y-0.5">

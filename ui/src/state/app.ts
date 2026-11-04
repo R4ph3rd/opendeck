@@ -75,9 +75,15 @@ export interface AppState {
   leader: number | null;
   audio: AudioStatus | null;
   settingsOpen: boolean;
-  /** The effects band between the decks and the pads is shown. */
+  /** View toggles of the performance layout (toolbar FX, SAMPLER and VIEW). */
   fxOpen: boolean;
+  samplerOpen: boolean;
+  wavesOpen: boolean;
+  browserOpen: boolean;
   setFxOpen: (open: boolean) => void;
+  setSamplerOpen: (open: boolean) => void;
+  setWavesOpen: (open: boolean) => void;
+  setBrowserOpen: (open: boolean) => void;
   patchDeck: (deck: number, patch: Partial<DeckUi>) => void;
   /** Applies a backend `DeckState` (startup hydration). */
   applyDeckState: (state: DeckState) => void;
@@ -129,7 +135,10 @@ const initial = () => ({
   leader: null,
   audio: null,
   settingsOpen: false,
-  fxOpen: false,
+  fxOpen: true,
+  samplerOpen: true,
+  wavesOpen: true,
+  browserOpen: true,
 });
 
 export const useAppStore = create<AppState>()((set) => ({
@@ -165,6 +174,9 @@ export const useAppStore = create<AppState>()((set) => ({
   setLeader: (leader) => set({ leader }),
   setAudio: (audio) => set({ audio }),
   setFxOpen: (fxOpen) => set({ fxOpen }),
+  setSamplerOpen: (samplerOpen) => set({ samplerOpen }),
+  setWavesOpen: (wavesOpen) => set({ wavesOpen }),
+  setBrowserOpen: (browserOpen) => set({ browserOpen }),
   setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
   openSettings: (page) =>
     set((state) => ({

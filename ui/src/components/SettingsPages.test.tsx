@@ -134,7 +134,7 @@ describe("Interface page", () => {
   it("saves the current layout and restores it", async () => {
     localStorage.setItem(
       LAYOUT_KEY,
-      JSON.stringify({ waves: 30, decks: 30, pads: 20, library: 20 }),
+      JSON.stringify({ waves: 30, decks: 30, middle: 20, library: 20 }),
     );
     renderSettings("interface");
     fireEvent.change(screen.getByLabelText("Layout name"), {
@@ -144,7 +144,7 @@ describe("Interface page", () => {
     expect(usePrefsStore.getState().layoutPresets).toEqual([
       {
         name: "Wide stage",
-        layout: { waves: 30, decks: 30, pads: 20, library: 20 },
+        layout: { waves: 30, decks: 30, middle: 20, library: 20 },
       },
     ]);
     await waitFor(() =>
@@ -154,17 +154,17 @@ describe("Interface page", () => {
     // Restore the built-in default, then the saved one.
     fireEvent.click(screen.getAllByRole("button", { name: "Restore" })[0] as HTMLElement);
     expect(JSON.parse(localStorage.getItem(LAYOUT_KEY) ?? "{}")).toEqual({
-      waves: 12,
-      decks: 44,
-      pads: 15,
-      library: 29,
+      waves: 15,
+      decks: 33,
+      middle: 16,
+      library: 36,
     });
     expect(usePrefsStore.getState().layoutRevision).toBe(1);
     fireEvent.click(screen.getAllByRole("button", { name: "Restore" })[1] as HTMLElement);
     expect(JSON.parse(localStorage.getItem(LAYOUT_KEY) ?? "{}")).toEqual({
       waves: 30,
       decks: 30,
-      pads: 20,
+      middle: 20,
       library: 20,
     });
     fireEvent.click(screen.getByRole("button", { name: "Delete Wide stage" }));

@@ -6,9 +6,9 @@ export type Tone = "accent" | "cyan" | "sync" | "master";
 
 const LIT: Record<Tone, string> = {
   accent: "data-[state=on]:bg-accent data-[state=on]:text-accent-fg",
-  cyan: "data-[state=on]:bg-deck-b data-[state=on]:text-cue-fg",
-  sync: "data-[state=on]:bg-sync-on data-[state=on]:text-cue-fg",
-  master: "data-[state=on]:bg-master-on data-[state=on]:text-cue-fg",
+  cyan: "data-[state=on]:bg-accent data-[state=on]:text-accent-fg",
+  sync: "data-[state=on]:bg-sync-on data-[state=on]:text-accent-fg",
+  master: "data-[state=on]:bg-master-on data-[state=on]:text-accent-fg",
 };
 
 /** Flat grey latching button (SLIP, Q, MT, BEAT SYNC): lit with `tone` when on. */
@@ -45,7 +45,7 @@ export function DeckButton({ className, ...props }: ComponentProps<typeof Button
   );
 }
 
-/** Round transport button with a coloured ring (CUE orange, PLAY green). */
+/** Round transport button with a coloured ring (CUE accent, PLAY neutral). */
 export function RingButton({
   ring,
   className,
@@ -55,7 +55,7 @@ export function RingButton({
     <Button
       className={cn(
         "size-[min(100cqh,100cqw)] rounded-full border-4 bg-surface-raised p-0 text-sm font-bold",
-        ring === "cue" ? "border-cue-2" : "border-success",
+        ring === "cue" ? "border-accent" : "border-fg-muted",
         "hover:bg-surface-hover data-[active=true]:bg-surface-hover",
         className,
       )}
