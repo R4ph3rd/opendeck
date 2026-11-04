@@ -85,7 +85,7 @@ export function Overview({ label, level, markers, frameSource, onSeek, className
       aria-valuenow={0}
       tabIndex={0}
       className={cn(
-        "relative h-10 min-w-0 cursor-pointer overflow-hidden bg-surface outline-offset-1 focus-visible:outline-2 focus-visible:outline-focus-ring",
+        "relative h-10 min-w-0 cursor-pointer overflow-hidden bg-wave-bg outline-offset-1 focus-visible:outline-2 focus-visible:outline-focus-ring",
         className,
       )}
       onPointerDown={(event) => {

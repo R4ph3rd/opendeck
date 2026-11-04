@@ -1,6 +1,6 @@
 import { cn } from "@opendeck/design-system";
 import { useEffect, useRef, type KeyboardEvent, type PointerEvent } from "react";
-import { cueToken, deckToken, prefersReducedMotion } from "./colors";
+import { deckToken, prefersReducedMotion } from "./colors";
 import type { DeckFrameSource } from "./deckFrame";
 import {
   KEY_NUDGE_REV,
@@ -131,7 +131,7 @@ export function JogWheel({
 
     // Position marker on the ring, turning with the playhead.
     const mark = -Math.PI / 2 + spin;
-    ctx.strokeStyle = colors.color["danger"];
+    ctx.strokeStyle = colors.color["accent"];
     ctx.lineWidth = Math.max(3, ringW * 0.5);
     ctx.lineCap = "round";
     ctx.beginPath();
@@ -142,7 +142,7 @@ export function JogWheel({
     const cue = view.current.cuePoint;
     if (cue !== null) {
       const a = at(cue);
-      ctx.fillStyle = colors.color[cueToken(2)];
+      ctx.fillStyle = colors.color["accent-hover"];
       ctx.beginPath();
       ctx.arc(
         cx + Math.cos(a) * ringR,
@@ -161,7 +161,7 @@ export function JogWheel({
       ctx.fillStyle = colors.color["fg"];
       ctx.font = `700 ${Math.round(platter * 0.42)}px ${colors.font}`;
       ctx.fillText(readout.main, cx, cy - platter * 0.08);
-      ctx.fillStyle = colors.color["success"];
+      ctx.fillStyle = colors.color["fg-muted"];
       ctx.font = `600 ${Math.round(platter * 0.18)}px ${colors.font}`;
       ctx.fillText(readout.sub, cx, cy + platter * 0.3);
     }
