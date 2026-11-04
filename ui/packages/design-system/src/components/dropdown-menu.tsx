@@ -42,6 +42,23 @@ export function DropdownMenuCheckboxItem({
   );
 }
 
+export function DropdownMenuRadioItem({
+  className,
+  children,
+  ...props
+}: ComponentProps<typeof Primitive.RadioItem>) {
+  return (
+    <Primitive.RadioItem className={cn(menuItem, "pl-7", className)} {...props}>
+      <span className="absolute left-2 flex size-4 items-center justify-center">
+        <Primitive.ItemIndicator>
+          <Check className="size-3.5" aria-hidden />
+        </Primitive.ItemIndicator>
+      </span>
+      {children}
+    </Primitive.RadioItem>
+  );
+}
+
 export function DropdownMenuSubTrigger({
   className,
   children,

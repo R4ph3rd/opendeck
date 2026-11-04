@@ -160,7 +160,7 @@ export function Waveform({
       aria-label={label}
       tabIndex={0}
       className={cn(
-        "group relative h-20 min-w-0 cursor-grab overflow-hidden rounded-md bg-surface outline-offset-1 focus-visible:outline-2 focus-visible:outline-focus-ring active:cursor-grabbing",
+        "group relative h-20 min-w-0 cursor-grab overflow-hidden bg-wave-bg outline-offset-1 focus-visible:outline-2 focus-visible:outline-focus-ring active:cursor-grabbing",
         className,
       )}
       onPointerDown={onPointerDown}

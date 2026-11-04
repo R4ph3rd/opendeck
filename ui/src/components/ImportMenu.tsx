@@ -5,20 +5,23 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@opendeck/design-system";
-import { ChevronDown, Download } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import {
   pickAndImportFolder,
   pickAndImportPlaylist,
   pickAndImportRekordbox,
 } from "../state/libraryActions";
 
-/** Top bar menu: import a folder, an M3U playlist or a rekordbox XML export. */
+/** Menu row entry: import a folder, an M3U playlist or a rekordbox XML export. */
 export function ImportMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button size="sm" variant="ghost">
-          <Download className="size-3.5" aria-hidden />
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-5 gap-1 rounded-sm bg-surface-raised px-2 text-xs font-bold uppercase hover:bg-surface-hover"
+        >
           Import
           <ChevronDown className="size-3" aria-hidden />
         </Button>

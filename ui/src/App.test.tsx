@@ -15,7 +15,7 @@ const { telemetryStore } = await import("./state/telemetry");
 const { releaseAllCues } = await import("./state/actions");
 const { App } = await import("./App");
 const { BAND_MIN_PX, DECK_COLUMN_MIN_PX, TOP_BAR_PX } = await import("./lib/layout");
-const { DEFAULT_FX_LAYOUT, DEFAULT_LAYOUT } = await import("./state/prefs");
+const { DEFAULT_LAYOUT } = await import("./state/prefs");
 
 const { commands } = bindings;
 
@@ -39,7 +39,7 @@ async function mountApp() {
 }
 
 describe("App", () => {
-  it("lays out the top bar and the stacked bands: waveforms, decks with the mixer, pads, library", async () => {
+  it("lays out the menu row and the stacked bands: waveforms, decks with the mixer, middle row, browser", async () => {
     await mountApp();
     expect(screen.getByRole("heading", { name: "OpenDeck" })).toBeTruthy();
     expect(screen.getByRole("region", { name: "Waveforms" })).toBeTruthy();
@@ -51,29 +51,49 @@ describe("App", () => {
     expect(screen.getAllByText("No track loaded")).toHaveLength(2);
     // One resizable band per section, in order.
     const ids = [...document.querySelectorAll("main > div > [data-panel]")].map((el) => el.id);
-    expect(ids).toEqual(["waves", "decks", "pads", "library"]);
+    expect(ids).toEqual(["waves", "decks", "middle", "library"]);
     // Separators only: three between the four bands.
     expect(document.querySelectorAll('main > div > [role="separator"]')).toHaveLength(3);
   });
 
-  it("shows the effects band between the decks and the pads from the top bar", async () => {
+  it("shows Beat FX left and right of the pad panes and hides them from the menu row", async () => {
     await mountApp();
-    expect(screen.queryByRole("region", { name: "Effects" })).toBeNull();
+    expect(screen.getByRole("region", { name: "Beat FX 1" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Beat FX 2" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Show effects" }));
-    expect(screen.getByRole("region", { name: "Effects" })).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "Beat FX 1" })).toBeNull();
+    expect(screen.getByRole("region", { name: "Pads and effects" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Show effects" }));
+    expect(screen.getByRole("region", { name: "Beat FX 1" })).toBeTruthy();
+  });
+
+  it("removes the waveform and browser bands from the View menu", async () => {
+    await mountApp();
+    act(() => {
+      useAppStore.getState().setWavesOpen(false);
+      useAppStore.getState().setBrowserOpen(false);
+    });
     const ids = [...document.querySelectorAll("main > div > [data-panel]")].map((el) => el.id);
-    expect(ids).toEqual(["waves", "decks", "fx", "pads", "library"]);
-    fireEvent.click(screen.getByRole("button", { name: "Show effects" }));
-    expect(screen.queryByRole("region", { name: "Effects" })).toBeNull();
+    expect(ids).toEqual(["decks", "middle"]);
+    expect(screen.queryByRole("region", { name: "Library" })).toBeNull();
+  });
+
+  it("has the menu row entries: mode, FX, SAMPLER, REC, VIEW, layout", async () => {
+    await mountApp();
+    expect(screen.getByRole("button", { name: "Mode: Performance" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Show sampler" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Rec" })).toHaveProperty("disabled", true);
+    expect(screen.getByRole("button", { name: /^View/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Layout: 2 Deck Horizontal" })).toBeTruthy();
   });
 
   it("keeps every band at or above its minimum size in a 1280 x 720 window", () => {
     const usable = 720 - TOP_BAR_PX;
-    const base = BAND_MIN_PX.waves + BAND_MIN_PX.decks + BAND_MIN_PX.pads + BAND_MIN_PX.library;
+    const base =
+      BAND_MIN_PX.waves + BAND_MIN_PX.decks + BAND_MIN_PX.middle + BAND_MIN_PX.library;
     expect(base).toBeLessThanOrEqual(usable);
-    expect(base + BAND_MIN_PX.fx).toBeLessThanOrEqual(usable);
-    for (const layout of [DEFAULT_LAYOUT, DEFAULT_FX_LAYOUT]) {
-      const total = Object.values(layout).reduce((sum, v) => sum + v, 0);
+    for (const layout of [DEFAULT_LAYOUT]) {
+      const total = Object.values(layout).reduce((sum: number, v: number) => sum + v, 0);
       expect(total).toBeCloseTo(100, 6);
       for (const [band, percent] of Object.entries(layout)) {
         const min = BAND_MIN_PX[band as keyof typeof BAND_MIN_PX];

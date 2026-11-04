@@ -1,8 +1,8 @@
 # Palette source
 
-## Current palette: approximated, not sampled
+## Palette notes (tables below are the previous palette)
 
-The palette follows the colour language of a classic DAW dark theme: flat slate-grey surfaces with a faint cool blue-green tint, light grey text, warm orange accent, lime for lit states. No name, logo, icon or asset from any DAW is used in the app or the package.
+The palette follows the colour language of a classic DAW dark theme: flat neutral grey surfaces, light grey text, one red accent for selection, lit states and transport. The waveform is a red ramp (deep red, red-orange, warm light) on a near-black ground. Deck A and B differ by tone, not hue. Hot cue colours are muted and appear only on the pads. Meters stay green, amber, red, desaturated. Current values: `tokens.css` and [theming.md](theming.md); the tables below list the previous orange palette and are kept for history. No name, logo, icon or asset from any DAW is used in the app or the package.
 
 **Every value below is an approximation from general knowledge.** The owner could not provide an extraction and the vendor site was not reachable from the build environment, so nothing was sampled from a real UI. The owner may supply screenshots; exact values can then be sampled and these tokens adjusted in `tokens.css` alone (the contrast tests will say which pairs need tuning).
 

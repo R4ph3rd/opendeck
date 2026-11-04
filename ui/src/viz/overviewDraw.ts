@@ -113,9 +113,9 @@ export function drawOverview(f: CanvasFrame, s: OverviewState, scratch: Overview
   const x = (t: number) => Math.round((Math.min(duration, Math.max(0, t)) / duration) * w);
   const px = x(position);
 
-  // Elapsed region: fade the waveform toward the surface.
+  // Elapsed region: fade the waveform toward the waveform ground.
   ctx.globalAlpha = 1 - colors.playedOpacity;
-  ctx.fillStyle = colors.color["surface"];
+  ctx.fillStyle = colors.color["wave-bg"];
   ctx.fillRect(0, 0, px, h);
   ctx.globalAlpha = 1;
 

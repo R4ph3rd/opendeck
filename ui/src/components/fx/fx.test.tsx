@@ -14,8 +14,9 @@ const bindings = (await import("../../ipc/bindings")) as unknown as ReturnType<
 const { telemetryStore } = await import("../../state/telemetry");
 const { useFxStore, hydrateFx } = await import("../../state/fx");
 const { useMixerStore } = await import("../../state/mixer");
-const { useAppStore } = await import("../../state/app");
 const { FxPanel } = await import("./FxPanel");
+const { BeatFxCompact } = await import("./BeatFxCompact");
+const { MiddleRow } = await import("../MiddleRow");
 const { PadFxEditor } = await import("./PadFxEditor");
 const { ChannelStrip } = await import("../ChannelStrip");
 
@@ -38,6 +39,28 @@ const applied = () => (mock.fxApply?.mock.calls ?? []).map((c) => c[0] as { kind
 function setKnob(name: string, value: number) {
   fireEvent.change(slider(name), { target: { value: String(value) } });
 }
+
+describe("BeatFxCompact and the middle row", () => {
+  it("shows effect, beat, level and ON for a unit and sends the same commands", () => {
+    render(<BeatFxCompact index={0} />);
+    const unit = within(screen.getByRole("region", { name: "Beat FX 1 quick" }));
+    expect(unit.getByRole("combobox", { name: "Beat FX 1 quick effect" })).toBeTruthy();
+    expect(unit.getByRole("group", { name: "Beat FX 1 quick beat division" })).toBeTruthy();
+    expect(slider("Beat FX 1 quick level")).toBeTruthy();
+    fireEvent.click(unit.getByRole("button", { name: "Beat FX 1 quick on/off" }));
+    expect(applied().some((c) => c.kind === "set_unit_on")).toBe(true);
+    expect(unit.getByRole("button", { name: "Beat FX 1 more" })).toBeTruthy();
+  });
+
+  it("puts Beat FX left and right of the pad panes and reaches every effect from All FX", async () => {
+    render(<MiddleRow />);
+    expect(screen.getByRole("region", { name: "Beat FX 1" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Beat FX 2" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Pads and effects" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "All effects, sends and Pad FX" }));
+    expect(await screen.findByRole("button", { name: "Pad FX" })).toBeTruthy();
+  });
+});
 
 describe("FxPanel", () => {
   it("shows two Beat FX units with effect, channel, mode and BPM controls", () => {
@@ -239,14 +262,6 @@ describe("FxPanel", () => {
       bus: 0,
       post_fader: false,
     });
-  });
-
-  it("closes its band", () => {
-    useAppStore.getState().setFxOpen(true);
-    render(<FxPanel />);
-    expect(screen.getByRole("region", { name: "Beat FX 1" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Close effects" }));
-    expect(useAppStore.getState().fxOpen).toBe(false);
   });
 
   it("opens the pad FX editor from the panel", async () => {

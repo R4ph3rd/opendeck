@@ -56,12 +56,12 @@ function MasterBpm() {
     }
   });
   return (
-    <div className="flex h-8 shrink-0 items-baseline justify-center gap-1.5 border-b border-border px-2 pt-1">
+    <div className="flex h-6 shrink-0 items-baseline justify-center gap-1.5 border-b border-border px-2 pt-0.5">
       <span className="text-xs font-semibold uppercase text-fg-muted">Master</span>
       <output
         ref={ref}
         aria-label="Master BPM"
-        className="font-mono text-xl font-medium tabular-nums text-fg"
+        className="font-mono text-base font-medium tabular-nums text-fg"
         data-testid="master-bpm"
       >
         --
@@ -71,7 +71,7 @@ function MasterBpm() {
 }
 
 /**
- * Slim centre mixer: master BPM, two channel strips around the master and
+ * Slim centre mixer (width `--mixer-w`): master BPM, two channel strips around the master and
  * headphone section, and the crossfader at the bottom.
  */
 export function MixerPanel() {
@@ -89,7 +89,7 @@ export function MixerPanel() {
         <ChannelStrip deck={0} />
         <section
           aria-label="Master and headphones"
-          className="flex min-h-0 w-20 shrink-0 flex-col items-center gap-1 px-1 py-2"
+          className="flex min-h-0 w-14 shrink-0 flex-col items-center gap-1 px-0.5 py-2"
         >
           <Knob
             compact
@@ -150,7 +150,7 @@ export function MixerPanel() {
           onValueChange={(value) => setCrossfaderCurve(value as CrossfaderCurve)}
         >
           <SelectTrigger
-            className="h-6 w-20 shrink-0 rounded-sm border-0 bg-surface-raised px-1.5 text-xs"
+            className="h-6 w-16 shrink-0 rounded-sm border-0 bg-surface-raised px-1 text-xs"
             aria-label="Crossfader curve"
           >
             <SelectValue />

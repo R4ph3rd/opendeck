@@ -45,7 +45,7 @@ function DeckClock({ deck }: { deck: number }) {
   });
 
   return (
-    <div className="flex shrink-0 flex-col items-end font-mono text-lg font-medium leading-tight tabular-nums">
+    <div className="flex shrink-0 items-baseline gap-2 font-mono text-sm font-medium leading-none tabular-nums">
       <span
         ref={elapsedRef}
         aria-label={`Deck ${deck + 1} elapsed`}
@@ -71,8 +71,8 @@ interface DeckHeaderProps {
 }
 
 /**
- * Top row of a deck: number, artwork, title, artist, track BPM and key, the
- * big clocks, key shift with KEY SYNC, BEAT SYNC and MASTER.
+ * Top row of a deck, one line: number, artwork, title, artist, track BPM and
+ * key, elapsed and remaining time, key shift with KEY SYNC, SYNC and MASTER.
  */
 export function DeckHeader({ deck, ready }: DeckHeaderProps) {
   const ui = useAppStore(selectDeckUi(deck));
@@ -88,18 +88,18 @@ export function DeckHeader({ deck, ready }: DeckHeaderProps) {
   const name = `Deck ${deck + 1}`;
 
   return (
-    <div className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-2">
+    <div className="flex h-[var(--deck-header-h)] shrink-0 items-center gap-2 border-b border-border px-2">
       <span
-        className={cn("w-4 shrink-0 text-center text-xl font-bold", DECK_TEXT[deck] ?? "")}
+        className={cn("w-4 shrink-0 text-center text-lg font-bold", DECK_TEXT[deck] ?? "")}
         aria-hidden
       >
         {deck + 1}
       </span>
-      <div className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-sm bg-surface-raised text-fg-subtle">
+      <div className="grid size-8 shrink-0 place-items-center overflow-hidden rounded-sm bg-surface-raised text-fg-subtle">
         {art ? (
           <img src={art} alt="" className="size-full object-cover" />
         ) : (
-          <Music className="size-5" aria-hidden />
+          <Music className="size-4" aria-hidden />
         )}
       </div>
       <div className="min-w-0 flex-1">
@@ -141,39 +141,47 @@ export function DeckHeader({ deck, ready }: DeckHeaderProps) {
           </div>
         )}
       </div>
+      <div className="flex shrink-0 flex-col items-end gap-0.5">
       <DeckClock deck={deck} />
-      <div className="flex shrink-0 flex-col gap-0.5">
-        <div className="flex items-center gap-0.5">
-          <IconButton
-            size="sm"
-            aria-label={`${name} key down`}
-            disabled={!ready}
-            onClick={() => stepKeyShift(deck, -1)}
-          >
-            <ChevronLeft className="size-4" aria-hidden />
-          </IconButton>
-          <output
-            aria-label={`${name} key shift`}
-            className="w-8 text-center font-mono text-sm tabular-nums text-fg"
-            data-testid={`key-shift-readout-${deck}`}
-          >
-            {ui.keyShift === 0 ? "±0" : ui.keyShift > 0 ? `+${ui.keyShift}` : String(ui.keyShift)}
-          </output>
-          <IconButton
-            size="sm"
-            aria-label={`${name} key up`}
-            disabled={!ready}
-            onClick={() => stepKeyShift(deck, 1)}
-          >
-            <ChevronRight className="size-4" aria-hidden />
-          </IconButton>
-        </div>
-        <DeckButton aria-label={`${name} key sync`} disabled={!ready} onClick={() => keySync(deck)}>
+      <div className="flex items-center gap-0.5">
+        <IconButton
+          size="sm"
+          className="size-5"
+          aria-label={`${name} key down`}
+          disabled={!ready}
+          onClick={() => stepKeyShift(deck, -1)}
+        >
+          <ChevronLeft className="size-4" aria-hidden />
+        </IconButton>
+        <output
+          aria-label={`${name} key shift`}
+          className="w-7 text-center font-mono text-sm tabular-nums text-fg"
+          data-testid={`key-shift-readout-${deck}`}
+        >
+          {ui.keyShift === 0 ? "±0" : ui.keyShift > 0 ? `+${ui.keyShift}` : String(ui.keyShift)}
+        </output>
+        <IconButton
+          size="sm"
+          className="size-5"
+          aria-label={`${name} key up`}
+          disabled={!ready}
+          onClick={() => stepKeyShift(deck, 1)}
+        >
+          <ChevronRight className="size-4" aria-hidden />
+        </IconButton>
+        <DeckButton
+          className="h-5"
+          aria-label={`${name} key sync`}
+          disabled={!ready}
+          onClick={() => keySync(deck)}
+        >
           KEY SYNC
         </DeckButton>
       </div>
-      <div className="flex w-20 shrink-0 flex-col gap-0.5">
+      </div>
+      <div className="flex w-16 shrink-0 flex-col gap-0.5">
         <DeckToggle
+          className="h-5"
           tone="sync"
           aria-label="Sync"
           title="Beat sync. SHIFT-click for tempo-only sync"
@@ -188,9 +196,10 @@ export function DeckHeader({ deck, ready }: DeckHeaderProps) {
           }}
           onPressedChange={() => undefined}
         >
-          {sync === "tempo" ? "TEMPO SYNC" : "BEAT SYNC"}
+          {sync === "tempo" ? "TEMPO SYNC" : "SYNC"}
         </DeckToggle>
         <DeckToggle
+          className="h-5"
           tone="master"
           aria-label="Master"
           pressed={isLeader}
@@ -203,6 +212,7 @@ export function DeckHeader({ deck, ready }: DeckHeaderProps) {
       <div className="flex shrink-0 flex-col">
         <IconButton
           size="sm"
+          className="size-5"
           aria-label={`Load track into ${name}`}
           onClick={() => void pickAndLoad(deck)}
         >
@@ -210,6 +220,7 @@ export function DeckHeader({ deck, ready }: DeckHeaderProps) {
         </IconButton>
         <IconButton
           size="sm"
+          className="size-5"
           aria-label={`Eject ${name}`}
           disabled={track === null}
           onClick={() => void ejectDeck(deck)}

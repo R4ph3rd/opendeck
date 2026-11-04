@@ -43,6 +43,8 @@ import {
 } from "../../state/app";
 import { selectLoopActive, telemetryStore } from "../../state/telemetry";
 import { DeckJog, VinylToggle } from "../../viz/DeckJog";
+import { HotCueView } from "../pads/HotCueView";
+import { PadModeTabs } from "../pads/PadMiddlePanel";
 import { beatLabel } from "../../lib/beatLabel";
 import { DeckButton, DeckToggle, RingButton } from "./DeckButton";
 
@@ -95,10 +97,10 @@ function LoopColumn({ deck, ready }: Props) {
   };
 
   return (
-    <div className="flex w-16 shrink-0 flex-col gap-1" role="group" aria-label="Loop">
+    <div className="flex shrink-0 items-center gap-1" role="group" aria-label="Loop">
       <DeckButton
         className={cn(
-          "h-9 font-mono text-xl tabular-nums normal-case",
+          "h-6 w-10 font-mono text-base tabular-nums normal-case",
           looping && "bg-accent text-accent-fg hover:bg-accent-hover",
         )}
         disabled={!ready}
@@ -117,9 +119,9 @@ function LoopColumn({ deck, ready }: Props) {
       >
         {manual ? (looping ? "EXIT" : "RELOOP") : beatLabel(beats)}
       </DeckButton>
-      <div className="flex gap-1">
+      <div className="flex gap-0.5">
         <DeckButton
-          className="h-7 flex-1"
+          className="h-6 w-6 px-0"
           aria-label="Halve loop"
           disabled={!ready}
           onClick={() => step(-1)}
@@ -127,7 +129,7 @@ function LoopColumn({ deck, ready }: Props) {
           <ChevronLeft className="size-4" aria-hidden />
         </DeckButton>
         <DeckButton
-          className="h-7 flex-1"
+          className="h-6 w-6 px-0"
           aria-label="Double loop"
           disabled={!ready}
           onClick={() => step(1)}
@@ -136,11 +138,11 @@ function LoopColumn({ deck, ready }: Props) {
         </DeckButton>
       </div>
       {manual ? (
-        <div className="flex gap-1">
-          <DeckButton className="flex-1" disabled={!ready} onClick={() => loopIn(deck)}>
+        <div className="flex gap-0.5">
+          <DeckButton disabled={!ready} onClick={() => loopIn(deck)}>
             IN
           </DeckButton>
-          <DeckButton className="flex-1" disabled={!ready} onClick={() => loopOut(deck)}>
+          <DeckButton disabled={!ready} onClick={() => loopOut(deck)}>
             OUT
           </DeckButton>
         </div>
@@ -154,9 +156,8 @@ function LoopColumn({ deck, ready }: Props) {
           ROLL
         </DeckToggle>
       )}
-      <div className="flex gap-1">
+      <div className="flex gap-0.5">
         <DeckToggle
-          className="flex-1"
           aria-label="Auto loop"
           pressed={!manual}
           onPressedChange={() => setManual(false)}
@@ -164,7 +165,6 @@ function LoopColumn({ deck, ready }: Props) {
           AU
         </DeckToggle>
         <DeckToggle
-          className="flex-1"
           aria-label="Manual loop"
           pressed={manual}
           onPressedChange={() => setManual(true)}
@@ -195,7 +195,7 @@ function TransportColumn({ deck, ready }: Props) {
     }
   };
   return (
-    <div className="flex w-16 shrink-0 flex-col gap-1">
+    <div className="flex w-[var(--transport-w)] shrink-0 flex-col gap-1">
       <div className={CELL}>
         <RingButton
           ring="cue"
@@ -237,7 +237,7 @@ function TransportColumn({ deck, ready }: Props) {
 function ModeColumn({ deck, ready }: Props) {
   const { slip, quantize, keyLock } = useAppStore(selectDeckUi(deck));
   return (
-    <div className="flex w-12 shrink-0 flex-col justify-between gap-1">
+    <div className="flex w-[var(--modes-w)] shrink-0 flex-col justify-between gap-1">
       <DeckToggle
         aria-label="Slip"
         disabled={!ready}
@@ -273,14 +273,14 @@ function ModeColumn({ deck, ready }: Props) {
 function JumpColumn({ deck, ready }: Props) {
   const { jumpBeats } = useAppStore(selectDeckUi(deck));
   return (
-    <div className="flex w-14 shrink-0 flex-col gap-1" role="group" aria-label="Beat jump">
+    <div className="flex shrink-0 items-center gap-1" role="group" aria-label="Beat jump">
       <Select
         value={String(jumpBeats)}
         disabled={!ready}
         onValueChange={(value) => setJumpBeats(deck, Number(value))}
       >
         <SelectTrigger
-          className="h-9 gap-0 rounded-sm border-0 bg-surface-raised px-1.5 font-mono text-lg"
+          className="h-6 w-14 gap-0 rounded-sm border-0 bg-surface-raised px-1.5 font-mono text-base"
           aria-label="Beat jump size"
         >
           <SelectValue>{beatLabel(jumpBeats)}</SelectValue>
@@ -293,9 +293,9 @@ function JumpColumn({ deck, ready }: Props) {
           ))}
         </SelectContent>
       </Select>
-      <div className="flex gap-1">
+      <div className="flex gap-0.5">
         <DeckButton
-          className="h-7 flex-1"
+          className="h-6 w-6 px-0"
           aria-label="Beat jump back"
           disabled={!ready}
           onClick={() => beatJump(deck, -1)}
@@ -303,7 +303,7 @@ function JumpColumn({ deck, ready }: Props) {
           <ChevronLeft className="size-4" aria-hidden />
         </DeckButton>
         <DeckButton
-          className="h-7 flex-1"
+          className="h-6 w-6 px-0"
           aria-label="Beat jump forward"
           disabled={!ready}
           onClick={() => beatJump(deck, 1)}
@@ -327,7 +327,7 @@ function TempoColumn({ deck, ready }: Props) {
     onPointerCancel: () => pitchBend(deck, 0),
   });
   return (
-    <div className="flex w-12 shrink-0 flex-col items-center gap-1" aria-label="Tempo">
+    <div className="flex w-[var(--tempo-w)] shrink-0 flex-col items-center gap-1" aria-label="Tempo">
       <output aria-label="Tempo change" className="sr-only" data-testid={`tempo-readout-${deck}`}>
         {formatTempo(tempoFader, TEMPO_RANGE_FRACTION[tempoRange])}
       </output>
@@ -387,20 +387,39 @@ function TempoColumn({ deck, ready }: Props) {
   );
 }
 
-/** The deck's working row: loop, transport, wheel, modes, beat jump and tempo. */
+/**
+ * The deck's working row, outer edge to jog: tempo fader, the hot cue pad
+ * grid with beat loop and beat jump under it, CUE and PLAY, the jog wheel and
+ * SLIP, Q, MT. Deck 2 mirrors deck 1 so both jogs sit at the mixer side.
+ */
 export function DeckMain({ deck, ready }: Props) {
   return (
-    <div className="flex min-h-0 flex-1 items-stretch gap-2 p-2">
-      <LoopColumn deck={deck} ready={ready} />
+    <div
+      className={cn(
+        "flex min-h-0 flex-1 items-stretch gap-2 p-2",
+        deck % 2 === 1 && "flex-row-reverse",
+      )}
+    >
+      <TempoColumn deck={deck} ready={ready} />
+      <div className="flex min-w-[calc(var(--pad-min-w)*4)] flex-1 flex-col gap-1">
+        <div className="flex h-[var(--deck-tabs-h)] shrink-0 items-center">
+          <PadModeTabs deck={deck} />
+        </div>
+        <div className="min-h-[var(--pad-min-w)] min-w-0 flex-1">
+          <HotCueView deck={deck} />
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1">
+          <LoopColumn deck={deck} ready={ready} />
+          <JumpColumn deck={deck} ready={ready} />
+        </div>
+      </div>
       <TransportColumn deck={deck} ready={ready} />
-      <div className="relative flex min-w-0 flex-1 items-center justify-center [container-type:size]">
+      <div className="flex min-w-0 max-w-[var(--jog-max)] flex-[0_1_var(--jog-max)] items-center justify-center [container-type:size]">
         <div className="size-[min(100cqh,100cqw)]">
           <DeckJog deck={deck} disabled={!ready} />
         </div>
       </div>
       <ModeColumn deck={deck} ready={ready} />
-      <JumpColumn deck={deck} ready={ready} />
-      <TempoColumn deck={deck} ready={ready} />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 # OpenDeck design system
 
-Package: `ui/packages/design-system` (`@opendeck/design-system`). Palette: flat slate with a warm orange accent, approximated from general knowledge of a classic DAW dark theme (not sampled; see [palette-source.md](palette-source.md)).
+Package: `ui/packages/design-system` (`@opendeck/design-system`). Palette: flat neutral slate surfaces, one red accent family, a red-ramp waveform (see [palette-source.md](palette-source.md)). To change colours or sizes, read [theming.md](theming.md).
 
 Dark is the default theme. Light is set with `data-theme="light"` on `<html>` (or any wrapper).
 

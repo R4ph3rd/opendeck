@@ -359,7 +359,7 @@ export function PlaylistTree() {
       </section>
 
       <section aria-label="Saved sets" className="flex flex-col gap-0.5">
-        <h3 className="px-2 text-xs font-semibold uppercase tracking-wide text-fg-subtle">Sets</h3>
+        <h3 className="px-2 text-xs font-semibold uppercase tracking-wide text-fg-subtle">Histories</h3>
         {sets.length === 0 ? (
           <p className="px-2 py-1 text-xs text-fg-subtle">Tracks you load are saved to a set.</p>
         ) : null}

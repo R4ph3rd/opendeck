@@ -6,22 +6,18 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-  IconButton,
   Panel,
   PanelBody,
   PanelHeader,
 } from "@opendeck/design-system";
-import { X } from "lucide-react";
 import { BEAT_FX_UNITS_SHOWN, SEND_BUSES_SHOWN } from "../../lib/fx";
-import { useAppStore } from "../../state/app";
 import { useFxStore } from "../../state/fx";
 import { BeatFxUnit } from "./BeatFxUnit";
 import { PadFxEditor } from "./PadFxEditor";
 import { SendUnit } from "./SendUnit";
 
-/** FX band: two Beat FX units, the send buses and the pad FX editor. The top bar toggles it. */
+/** All effects: two Beat FX units in full, the send buses and the pad FX editor. Opened from the middle row. */
 export function FxPanel() {
-  const setFxOpen = useAppStore((s) => s.setFxOpen);
   const ready = useFxStore((s) => s.state !== null);
   return (
     <Panel flush aria-label="Effects" className="size-full">
@@ -46,9 +42,6 @@ export function FxPanel() {
                 <PadFxEditor />
               </DialogContent>
             </Dialog>
-            <IconButton size="sm" aria-label="Close effects" onClick={() => setFxOpen(false)}>
-              <X aria-hidden />
-            </IconButton>
           </div>
         }
       />
