@@ -38,3 +38,6 @@ docs/sources/*.md
 
 # Local screenshots from agent runs
 .claude/*.png
+
+# Self-signed test certificate (scripts/new-test-certificate.ps1); contains secrets
+test-cert/
