@@ -1,6 +1,6 @@
 # Status
 
-MVP reached (v0.8.0). v0.8.1 revamps the UI after owner feedback (stacked full-window layout, reference-style decks, slim mixer, 2x4 pad grids). Milestone 9 (VST3/CLAP hosting) in progress: ADR 0008 accepted, wave 9a-1 (scanner and CLAP effects) merged.
+MVP reached (v0.8.0). v0.8.1 revamps the UI after owner feedback (stacked full-window layout, reference-style decks, slim mixer, 2x4 pad grids). A second UI rework on `workbench` follows the reference performance layout (menu row, deck panels, middle row) with flat FL-style visuals and a red palette; tokens are grouped and documented in `docs/design/theming.md`. Milestone 9 (VST3/CLAP hosting) in progress: ADR 0008 accepted, wave 9a-1 (scanner and CLAP effects) merged.
 
 ## Milestones
 
@@ -117,6 +117,11 @@ Carried to later 9a waves: session marker for unclean exits; acting on plugin re
 | M5 dsp-fx | Effect parameter names, ranges and defaults and the beat division list are `TODO(verify)` pending the rekordbox manual (`docs/fx-catalog.md`) |
 | M5 app-core | Smart CFX mapping (knob to parameter and wet), the default pad FX set and the Release FX set are project choices, not taken from a source |
 | M7 ui | Pad FX view has the assignment grid but no live parameter knobs (the pad model carries effect, division and release only) |
+| UI rework | REC is disabled: there is no recording backend |
+| UI rework | No CPU readout in the menu row: telemetry does not report CPU load |
+| UI rework | Browser Preview column is disabled: there is no preview engine command |
+| UI rework | The browser tree has no Sampler entry |
+| UI rework | The mixer does not collapse below `--mixer-w` |
 
 ## Open questions
 
