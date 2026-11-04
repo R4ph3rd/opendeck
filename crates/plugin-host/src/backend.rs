@@ -21,6 +21,8 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
 
 use opendeck_contracts::SampleRate;
 use opendeck_contracts::fx::{ParamDescriptor, ParamId, ProcessContext, StereoBufferMut};
@@ -39,13 +41,35 @@ pub const MAX_PARAM_EVENTS: usize = 256;
 /// instance's audio half (editor edits in, plugin output changes out).
 pub const PARAM_RING: usize = 1024;
 
-/// Called by a plugin instance (from any thread) when the plugin asks for the
-/// main thread (CLAP `request_callback`, `request_restart`). The host queues a
-/// main-thread job that calls [`PluginInstance::service`] on every live
-/// instance. Cheap and idempotent: repeated calls before the job runs queue
-/// one job. It allocates when it queues, so a plugin that calls it from its
-/// audio callback breaks the no-allocation rule outside our control (ADR 0008).
-pub type HostWake = Arc<dyn Fn() + Send + Sync>;
+/// How a plugin instance asks for the main thread (CLAP `request_callback`,
+/// `request_restart`, VST3 `restartComponent`, `performEdit`).
+///
+/// [`WakeFlag::notify`] only sets an atomic flag: no allocation, lock or
+/// syscall, so it is safe to reach from a plugin's audio thread (plugins do
+/// call `request_restart` and `request_callback` from there). The host polls
+/// the flag from a helper thread (`PluginHost`, every [`WAKE_POLL`]) and then
+/// queues one main-thread job that calls [`PluginInstance::service`] on
+/// every live instance. The cost is up to one poll interval of latency.
+#[derive(Debug, Default)]
+pub struct WakeFlag(AtomicBool);
+
+impl WakeFlag {
+    /// Asks for a `service` pass. RT-safe, idempotent, any thread.
+    pub fn notify(&self) {
+        self.0.store(true, Ordering::Release);
+    }
+
+    /// True (once) if `notify` was called since the last call.
+    pub(crate) fn take(&self) -> bool {
+        self.0.swap(false, Ordering::AcqRel)
+    }
+}
+
+/// Shared wake flag of a host, given to every instance it creates.
+pub type HostWake = Arc<WakeFlag>;
+
+/// How often the host checks the wake flag.
+pub const WAKE_POLL: Duration = Duration::from_millis(20);
 
 /// What an instance asked of the host since the last
 /// [`PluginInstance::service`] call. All flags are sticky until read.

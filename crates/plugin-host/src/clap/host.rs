@@ -49,7 +49,7 @@ pub(super) struct SharedH {
 impl SharedHandler<'_> for SharedH {
     fn request_restart(&self) {
         self.flags.restart.store(true, Ordering::Release);
-        (self.wake)();
+        self.wake.notify();
     }
 
     fn request_process(&self) {
@@ -58,7 +58,7 @@ impl SharedHandler<'_> for SharedH {
 
     fn request_callback(&self) {
         self.flags.callback.store(true, Ordering::Release);
-        (self.wake)();
+        self.wake.notify();
     }
 }
 
@@ -80,7 +80,7 @@ impl MainThreadHandler<'_> for MainH {}
 impl HostLatencyImpl for MainH {
     fn changed(&self) {
         self.flags.latency.store(true, Ordering::Release);
-        (self.wake)();
+        self.wake.notify();
     }
 }
 
@@ -90,7 +90,7 @@ impl HostParamsImplMainThread for MainH {
         if flags.requires_restart() {
             self.flags.restart.store(true, Ordering::Release);
         }
-        (self.wake)();
+        self.wake.notify();
     }
 
     fn clear(&self, _: ClapId, _: ParamClearFlags) {}
@@ -99,7 +99,7 @@ impl HostParamsImplMainThread for MainH {
 impl HostStateImpl for MainH {
     fn mark_dirty(&self) {
         self.flags.dirty.store(true, Ordering::Release);
-        (self.wake)();
+        self.wake.notify();
     }
 }
 

@@ -268,7 +268,10 @@ fn validate(
     backend: &dyn PluginBackend,
     info: &PluginInfo,
 ) -> Result<Vec<ParamDescriptor>, PluginError> {
-    let mut instance = backend.instantiate(info, std::sync::Arc::new(|| {}))?;
+    let mut instance = backend.instantiate(
+        info,
+        std::sync::Arc::new(crate::backend::WakeFlag::default()),
+    )?;
     let params: Vec<ParamDescriptor> = instance
         .params()
         .into_iter()
