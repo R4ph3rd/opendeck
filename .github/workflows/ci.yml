@@ -1,10 +1,16 @@
 name: CI
 
+# Private repo: Actions minutes are billed (Windows x2, macOS x10). feat/**
+# runs Linux only, Windows runs on workbench pushes and PRs to main, and docs-only
+# changes skip CI. See docs/RELEASING.md.
 on:
   push:
-    branches: [workbench, "feat/**"]
+    # main is included so the release workflow can run after CI on a merge commit.
+    branches: [main, workbench, "feat/**"]
+    paths-ignore: ["docs/**", "**.md", "CONTEXT/**"]
   pull_request:
-    branches: [workbench, "feat/**"]
+    branches: [main, workbench, "feat/**"]
+    paths-ignore: ["docs/**", "**.md", "CONTEXT/**"]
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -59,6 +65,9 @@ jobs:
 
   windows:
     name: Windows (primary target)
+    if: >-
+      (github.event_name == 'push' && github.ref == 'refs/heads/workbench') ||
+      (github.event_name == 'pull_request' && github.base_ref == 'main')
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
