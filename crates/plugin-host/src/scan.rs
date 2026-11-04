@@ -80,7 +80,7 @@ pub struct ScanRecord {
     pub provider: String,
     /// File or bundle.
     pub path: PathBuf,
-    /// Size in bytes when scanned (0 for bundles, which are directories).
+    /// Size in bytes when scanned (of the library inside a VST3 bundle).
     pub size: u64,
     /// Modification time when scanned, seconds since the Unix epoch.
     pub modified: u64,
@@ -100,17 +100,28 @@ impl ScanRecord {
     }
 }
 
-/// `(size, mtime seconds)` of a file or bundle directory.
+/// `(size, mtime seconds)` of a file, or of a bundle directory. A VST3
+/// bundle is stamped by its library (the directory's own time does not change
+/// when the library inside is replaced); other directories by their own time
+/// with size 0.
 fn file_stamp(path: &Path) -> Option<(u64, u64)> {
     let meta = std::fs::metadata(path).ok()?;
-    let modified = meta
-        .modified()
-        .ok()?
-        .duration_since(UNIX_EPOCH)
-        .ok()?
-        .as_secs();
-    let size = if meta.is_dir() { 0 } else { meta.len() };
-    Some((size, modified))
+    let stamp = |m: &std::fs::Metadata| {
+        let modified = m
+            .modified()
+            .ok()?
+            .duration_since(UNIX_EPOCH)
+            .ok()?
+            .as_secs();
+        Some((if m.is_dir() { 0 } else { m.len() }, modified))
+    };
+    if meta.is_dir() {
+        let binary = vst3_binary_path(path, TargetOs::current(), std::env::consts::ARCH);
+        if let Some(s) = std::fs::metadata(&binary).ok().and_then(|m| stamp(&m)) {
+            return Some(s);
+        }
+    }
+    stamp(&meta)
 }
 
 /// Runs the scanner binary with a timeout. Control thread (or a scan job
