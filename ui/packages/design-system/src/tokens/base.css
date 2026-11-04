@@ -5,6 +5,10 @@
   #root {
     height: 100%;
   }
+  /* UI scale: --ui-scale is set from the window height or Settings, Interface. */
+  html {
+    zoom: var(--ui-scale, 1);
+  }
   body {
     margin: 0;
     background: var(--bg);

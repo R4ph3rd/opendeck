@@ -48,6 +48,8 @@
   --deck-tabs-h: 24px; /* pad mode tabs above the hot cue grid */
   --deck-strip-h: 28px; /* beat loop and beat jump strip under the pads */
   --mixer-w: 312px; /* centre mixer column between the decks */
+  --ui-scale: 1; /* root zoom, set at runtime: auto = clamp(1, height / 1080, 2) in 0.125 steps */
+  --pad-grid-max-h: 300px; /* tallest hot cue pad grid; extra height goes to the jog */
   --jog-max: 520px; /* largest jog wheel diameter; it shrinks to fit the deck */
   --transport-w: 52px; /* CUE and PLAY column */
   --modes-w: 40px; /* SLIP, Q, MT column */

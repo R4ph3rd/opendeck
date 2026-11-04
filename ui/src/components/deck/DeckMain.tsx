@@ -401,11 +401,11 @@ export function DeckMain({ deck, ready }: Props) {
       )}
     >
       <TempoColumn deck={deck} ready={ready} />
-      <div className="flex min-w-[calc(var(--pad-min-w)*4)] flex-1 flex-col gap-1">
+      <div className="flex min-w-[calc(var(--pad-min-w)*4)] flex-1 flex-col justify-center gap-1">
         <div className="flex h-[var(--deck-tabs-h)] shrink-0 items-center">
           <PadModeTabs deck={deck} />
         </div>
-        <div className="min-h-[var(--pad-min-w)] min-w-0 flex-1">
+        <div className="min-h-[var(--pad-min-w)] min-w-0 max-h-[var(--pad-grid-max-h)] flex-1">
           <HotCueView deck={deck} />
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1">

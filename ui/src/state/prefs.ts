@@ -2,6 +2,7 @@ import type { ResizableLayout } from "@opendeck/design-system";
 import { create } from "zustand";
 import { commands } from "../ipc/bindings";
 import { readStored, writeStored } from "../lib/persist";
+import { parseScalePref, type UiScalePref } from "../lib/uiScale";
 import { clampZoom, DEFAULT_ZOOM_INDEX } from "../viz/waveformMath";
 
 /** Names of the preferences stored in the library settings (`ui.<name>`). */
@@ -12,6 +13,7 @@ export const PREF = {
   layouts: "layoutPresets",
   shortcuts: "shortcuts",
   library: "libraryOptions",
+  uiScale: "uiScale",
 } as const;
 
 /** localStorage key of the vertical split between the stacked bands. */
@@ -130,6 +132,8 @@ export interface PrefsState {
   firstRunDone: boolean;
   firstRunOpen: boolean;
   theme: Theme;
+  /** Interface scale: `auto` follows the window height. */
+  uiScale: UiScalePref;
   /** Default zoom index of the deck waveforms. */
   waveformZoom: number;
   layoutPresets: LayoutPreset[];
@@ -138,6 +142,7 @@ export interface PrefsState {
   library: LibraryOptions;
   hydrate: () => Promise<void>;
   setTheme: (theme: Theme) => void;
+  setUiScale: (scale: UiScalePref) => void;
   setWaveformZoom: (index: number) => void;
   setLibrary: (patch: Partial<LibraryOptions>) => void;
   saveLayoutPreset: (name: string) => void;
@@ -155,6 +160,7 @@ const initial = () => ({
   firstRunDone: true,
   firstRunOpen: false,
   theme: "dark" as Theme,
+  uiScale: "auto" as UiScalePref,
   waveformZoom: DEFAULT_ZOOM_INDEX,
   layoutPresets: [] as LayoutPreset[],
   layoutRevision: 0,
@@ -169,9 +175,10 @@ export function applyTheme(theme: Theme): void {
 export const usePrefsStore = create<PrefsState>()((set, get) => ({
   ...initial(),
   hydrate: async () => {
-    const [done, theme, zoom, layouts, library, range] = await Promise.all([
+    const [done, theme, scale, zoom, layouts, library, range] = await Promise.all([
       readPref<boolean>(PREF.firstRun),
       loadPref<Theme>(PREF.theme, "dark"),
+      loadPref<unknown>(PREF.uiScale, "auto"),
       loadPref<number>(PREF.zoom, DEFAULT_ZOOM_INDEX),
       loadPref<LayoutPreset[]>(PREF.layouts, []),
       loadPref<Partial<LibraryOptions>>(PREF.library, {}),
@@ -184,6 +191,7 @@ export const usePrefsStore = create<PrefsState>()((set, get) => ({
       firstRunDone,
       firstRunOpen: !firstRunDone,
       theme: theme === "light" ? "light" : "dark",
+      uiScale: parseScalePref(scale),
       waveformZoom: clampZoom(Number.isFinite(zoom) ? zoom : DEFAULT_ZOOM_INDEX),
       layoutPresets: Array.isArray(layouts) ? layouts : [],
       library: { ...DEFAULT_LIBRARY_OPTIONS, ...library, ...range },
@@ -192,6 +200,10 @@ export const usePrefsStore = create<PrefsState>()((set, get) => ({
   setTheme: (theme) => {
     set({ theme });
     void savePref(PREF.theme, theme);
+  },
+  setUiScale: (uiScale) => {
+    set({ uiScale });
+    void savePref(PREF.uiScale, uiScale);
   },
   setWaveformZoom: (index) => {
     const waveformZoom = clampZoom(index);
