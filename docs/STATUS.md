@@ -1,6 +1,6 @@
 # Status
 
-MVP reached (v0.8.0). v0.8.1 revamps the UI after owner feedback (stacked full-window layout, reference-style decks, slim mixer, 2x4 pad grids). A second UI rework on `workbench` follows the reference performance layout (menu row, deck panels, middle row) with flat FL-style visuals and a red palette; tokens are grouped and documented in `docs/design/theming.md`. Milestone 9 (VST3/CLAP hosting) in progress: ADR 0008 accepted, wave 9a-1 (scanner and CLAP effects) merged.
+MVP reached (v0.8.0). v0.8.1 revamps the UI after owner feedback (stacked full-window layout, reference-style decks, slim mixer, 2x4 pad grids). A second UI rework on `workbench` follows the reference performance layout (menu row, deck panels, middle row) with flat FL-style visuals and a red palette; tokens are grouped and documented in `docs/design/theming.md`. UI polish done: precise per-pixel waveform (raw peak columns, no smoothing), darker surfaces, neutral pads, thin faders and light labels, UI scale auto (window height) or manual, applied as the root font size with rem tokens (CSS zoom offset Radix menus and tooltips). Milestone 9 (VST3/CLAP hosting) in progress: ADR 0008 accepted, wave 9a-1 (scanner and CLAP effects) merged.
 
 ## Milestones
 
@@ -122,6 +122,8 @@ Carried to later 9a waves: session marker for unclean exits; acting on plugin re
 | UI rework | Browser Preview column is disabled: there is no preview engine command |
 | UI rework | The browser tree has no Sampler entry |
 | UI rework | The mixer does not collapse below `--mixer-w` |
+| UI polish | Waveform peaks are amplitude only, so the waveform is drawn symmetric; a min/max peak format needs an analysis and contracts change |
+| UI polish | Waveform cue and loop marker labels are drawn at a fixed 9 px and do not grow with the UI scale |
 
 ## Open questions
 
