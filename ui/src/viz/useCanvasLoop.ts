@@ -38,6 +38,7 @@ export function useCanvasLoop(
     if (!canvas || !ctx) {
       return undefined;
     }
+    ctx.imageSmoothingEnabled = false;
     let colors = readColors(canvas);
     let invalidated = true;
     let raf = 0;
@@ -49,6 +50,7 @@ export function useCanvasLoop(
       if (canvas.width !== width || canvas.height !== height) {
         canvas.width = width;
         canvas.height = height;
+        ctx.imageSmoothingEnabled = false;
         invalidated = true;
       }
     };
