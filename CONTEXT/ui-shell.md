@@ -31,6 +31,12 @@ React app shell: layout (2 decks shown, 4-deck ready), deck headers and transpor
 - M6: MIDI settings, monitor and learn.
 - M8: layout presets and shortcut editor.
 
+## Performance layout (reference rework)
+- Bands top to bottom: menu row (`TopBar`), zoomed waveforms, decks with the slim mixer (`DeckRow`), middle row (`MiddleRow`: Beat FX 1, pad-mode or sampler panes, Beat FX 2), browser. Sizes come from the LAYOUT SIZES tokens, see `docs/design/theming.md`.
+- Each deck holds its own hot cue grid, pad mode tabs, beat loop and jump strip. The middle row shows the sampler for a deck in HOT CUE mode (SAMPLER toggle) and the mode view for any other pad mode.
+- Menu row: mode, FX, SAMPLER, REC (disabled, no recording yet), VIEW, IMPORT | wordmark | layout selector, MIDI and audio status, clock, help, settings. No CPU load readout: telemetry has no such field.
+- Browser Preview column is a disabled placeholder: auditioning from the browser needs an engine command.
+
 ## Open questions
 - Keyboard shortcut defaults (no source yet).
 - Window layout for 4 decks.
