@@ -60,4 +60,24 @@ describe("useCanvasLoop resize", () => {
     expect(last?.invalidated).toBe(true);
     expect([last?.width, last?.height]).toEqual([2560, 1440]);
   });
+
+  it("falls back to the content box where device-pixel-content-box throws (WebKit)", () => {
+    const ctx = { imageSmoothingEnabled: true } as unknown as CanvasRenderingContext2D;
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(ctx as never);
+    const boxes: Array<string | undefined> = [];
+    class WebKitObserver {
+      observe(_el: Element, options?: ResizeObserverOptions) {
+        boxes.push(options?.box);
+        if (options?.box === "device-pixel-content-box") {
+          throw new TypeError("Type error");
+        }
+      }
+      disconnect() {}
+    }
+    vi.stubGlobal("ResizeObserver", WebKitObserver);
+    vi.stubGlobal("requestAnimationFrame", () => 1);
+    vi.stubGlobal("cancelAnimationFrame", () => undefined);
+    expect(() => render(<Probe onDraw={() => undefined} />)).not.toThrow();
+    expect(boxes).toEqual(["device-pixel-content-box", undefined]);
+  });
 });

@@ -60,7 +60,12 @@ export function useCanvasLoop(
     };
     resize();
     const observer = new ResizeObserver((entries) => resize(entries));
-    observer.observe(canvas, { box: "device-pixel-content-box" });
+    try {
+      observer.observe(canvas, { box: "device-pixel-content-box" });
+    } catch {
+      // WebKit (WebKitGTK, Safari) rejects this box with a TypeError.
+      observer.observe(canvas);
+    }
     const stopTheme = onThemeChange(canvas, () => {
       colors = readColors(canvas);
       invalidated = true;
