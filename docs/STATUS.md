@@ -1,6 +1,6 @@
 # Status
 
-MVP reached (v0.8.0). v0.8.1 revamps the UI after owner feedback (stacked full-window layout, reference-style decks, slim mixer, 2x4 pad grids). Milestone 9 (VST3/CLAP hosting) in progress: ADR 0008 accepted, plugin-host skeleton merged.
+MVP reached (v0.8.0). v0.8.1 revamps the UI after owner feedback (stacked full-window layout, reference-style decks, slim mixer, 2x4 pad grids). Milestone 9 (VST3/CLAP hosting) in progress: ADR 0008 accepted, wave 9a-1 (scanner and CLAP effects) merged.
 
 ## Milestones
 
@@ -15,7 +15,7 @@ MVP reached (v0.8.0). v0.8.1 revamps the UI after owner feedback (stacked full-w
 | 6 | MIDI layer, DDJ-FLX4 mapping, LED feedback, MIDI monitor, replay harness | done (v0.6.0) |
 | 7 | Pad modes with the dynamic middle panel, sampler | done (v0.7.0) |
 | 8 | Hardening: latency, error handling, settings, installer, first-run (MVP) | done (v0.8.0) |
-| 9 | VST3/CLAP plugin hosting (ADR 0008 accepted); later 4 decks, recording, more controllers | in progress (9a design and skeleton) |
+| 9 | VST3/CLAP plugin hosting (ADR 0008 accepted); later 4 decks, recording, more controllers | in progress (9a-1 done) |
 
 ## Milestone 0
 
@@ -57,6 +57,10 @@ ADR 0008 accepted. Merged: `opendeck-plugin-host` skeleton (fake backend, CLAP a
 2. Instrument MVP: 2 live instrument slots on the sampler bus, plus "render to sampler slot".
 3. No VST logo, text "VST3" only. Builds with the `vst3` feature ship Steinberg's MIT notice (`THIRD_PARTY_NOTICES.md`; app resource and about screen when the feature is wired in).
 4. Windows first, then macOS. Linux best effort, X11-only editors.
+
+Wave 9a-1 done: CLAP effects in FX slots through clack-host (params, latency, state, audio ports, transport), out-of-process scan with a cache, blacklist, retry and rescan of changed files, plugin effects in the FX registry, plugin scan commands and `plugins-changed` event, main-thread work on the UI thread. `opendeck-plugin-scan` ships next to the app in every bundle (Tauri `externalBin`, `scripts/build-sidecars.mjs`; checked in the Linux .deb). Tests use a CLAP fixture plugin; no third-party CLAP plugin was run (`docs/hardware-test-checklist.md`).
+
+Carried to later 9a waves: session marker for unclean exits; acting on plugin restart and latency-change requests (`take_requests`); CPU figure for 6 slots with real plugins; note-port fixture for instruments (CLAP notes mapped, untested); `HostWake` allocates and posts to the UI thread when a plugin calls `request_callback` or `request_restart` from its audio thread (ADR 0008 notes it; a polled flag would remove it).
 
 ## Post-MVP
 
