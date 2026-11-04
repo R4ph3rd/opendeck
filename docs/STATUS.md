@@ -60,7 +60,7 @@ ADR 0008 accepted. Merged: `opendeck-plugin-host` skeleton (fake backend, CLAP a
 
 Wave 9a-1 done: CLAP effects in FX slots through clack-host (params, latency, state, audio ports, transport), out-of-process scan with a cache, blacklist, retry and rescan of changed files, plugin effects in the FX registry, plugin scan commands and `plugins-changed` event, main-thread work on the UI thread. `opendeck-plugin-scan` ships next to the app in every bundle (Tauri `externalBin`, `scripts/build-sidecars.mjs`; checked in the Linux .deb). Tests use a CLAP fixture plugin; no third-party CLAP plugin was run (`docs/hardware-test-checklist.md`).
 
-Carried to later 9a waves: session marker for unclean exits; acting on plugin restart and latency-change requests (`take_requests`); CPU figure for 6 slots with real plugins; note-port fixture for instruments (CLAP notes mapped, untested); `HostWake` allocates and posts to the UI thread when a plugin calls `request_callback` or `request_restart` from its audio thread (ADR 0008 notes it; a polled flag would remove it).
+Carried to later 9a waves: session marker for unclean exits; acting on plugin restart and latency-change requests (`take_requests`); CPU figure for 6 slots with real plugins; note-port fixture for instruments (CLAP notes mapped, untested). (Wave 9a-2 replaced `HostWake` with an atomic wake flag polled by the host, so plugin audio threads no longer allocate through the callbacks.)
 
 ## Post-MVP
 

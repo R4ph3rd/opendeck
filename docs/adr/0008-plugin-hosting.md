@@ -31,7 +31,7 @@ Milestone 9a adds third-party CLAP and VST3 plugins as effects in the existing F
 ### Crates
 
 - New crate `crates/plugin-host` (`opendeck-plugin-host`), depending on `contracts` only (plus `rtrb`, `serde`, `serde_json`, `thiserror`). app-core depends on it; the engine does not.
-- Format bindings, each behind a default-off cargo feature: `clap` -> `clack-host` 0.2, `vst3` -> `vst3` 0.3. Both build on Linux without native SDKs; the features are default-off so the default build stays small until wave 9a-1 ships.
+- Format bindings, each behind a cargo feature: `clap` -> `clack-host` 0.2, `vst3` -> `vst3` 0.3. Both build on Linux without native SDKs (the `vst3` crate ships pre-generated bindings, confirmed in wave 9a-2); both are default-on since waves 9a-1 and 9a-2.
 - We write our own host layer on the low-level crates. The engine's slot host already owns wet/dry, bypass, tails and latency compensation (ADR 0006), so a full hosting library would duplicate it.
 - Format code is FFI. The workspace denies `unsafe_code`; the format modules (`clap.rs`, `vst3.rs`, later their submodules) carry a module-level `allow(unsafe_code)` with a `SAFETY` comment per block. The rest of the crate stays safe.
 
