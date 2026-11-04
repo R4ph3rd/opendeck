@@ -484,7 +484,7 @@ describe("middle panel", () => {
     });
     expect(commands.setPadMode).toHaveBeenCalledWith(0, "beat_loop");
     expect(screen.getByTestId("pad-view-0").dataset.mode).toBe("beat_loop");
-    expect(tabs.getByRole("radio", { name: /^Beat jump/ }).textContent).toBe("Beat loop");
+    expect(tabs.getByRole("radio", { name: /^Beat jump/ }).textContent).toBe("Loop");
 
     fireEvent.click(tabs.getByRole("radio", { name: /^Sampler/ }), {
       shiftKey: true,

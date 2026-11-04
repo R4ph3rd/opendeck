@@ -12,6 +12,18 @@ export const MODE_LABEL: Record<PadMode, string> = {
   key_shift: "Key shift",
 };
 
+/** Short mode names for the deck's pad-mode tabs, one line at any UI scale. */
+export const MODE_TAB_LABEL: Record<PadMode, string> = {
+  hot_cue: "Hot cue",
+  pad_fx1: "Pad FX 1",
+  beat_jump: "Jump",
+  sampler: "Sampler",
+  keyboard: "Keys",
+  pad_fx2: "Pad FX 2",
+  beat_loop: "Loop",
+  key_shift: "Key ±",
+};
+
 /**
  * The four mode buttons of a deck, each with its SHIFT partner (manual p.17-18,
  * `PadMode::shift_partner`): HOT CUE / Keyboard, PAD FX 1 / PAD FX 2,
@@ -26,7 +38,9 @@ export const MODE_BUTTONS: readonly (readonly [PadMode, PadMode])[] = [
 
 /** The unshifted mode of the button that selects `mode`. */
 export function baseMode(mode: PadMode): PadMode {
-  return MODE_BUTTONS.find(([a, b]) => a === mode || b === mode)?.[0] ?? "hot_cue";
+  return (
+    MODE_BUTTONS.find(([a, b]) => a === mode || b === mode)?.[0] ?? "hot_cue"
+  );
 }
 
 /** The mode on the same button with the other SHIFT state. */
@@ -56,11 +70,12 @@ export function jumpLabel(beats: number): string {
   return beats < 0 ? `← ${beatsLabel(beats)}` : `${beatsLabel(beats)} →`;
 }
 
-export const PLAY_MODES: readonly { value: SamplerPlayMode; label: string }[] = [
-  { value: "one_shot", label: "One-shot" },
-  { value: "gate", label: "Gate" },
-  { value: "loop", label: "Loop" },
-];
+export const PLAY_MODES: readonly { value: SamplerPlayMode; label: string }[] =
+  [
+    { value: "one_shot", label: "One-shot" },
+    { value: "gate", label: "Gate" },
+    { value: "loop", label: "Loop" },
+  ];
 
 /** Slots a deck's pads reach: deck 1 slots 1-8 and deck 2 slots 9-16 in split layout. */
 export function deckSlots(layout: "split" | "shared", deck: number): number[] {
@@ -93,6 +108,10 @@ export function loopBeats(
 export const MODE_FADE_SECONDS = 0.12;
 
 /** Layouts before the backend reports them (`app-core` `pads.rs`, manual p.60, p.63-65). */
-export const DEFAULT_JUMP_BEATS: readonly number[] = [-1, 1, -2, 2, -4, 4, -8, 8];
-export const DEFAULT_LOOP_BEATS: readonly number[] = [0.25, 0.5, 1, 2, 4, 8, 16, 32];
+export const DEFAULT_JUMP_BEATS: readonly number[] = [
+  -1, 1, -2, 2, -4, 4, -8, 8,
+];
+export const DEFAULT_LOOP_BEATS: readonly number[] = [
+  0.25, 0.5, 1, 2, 4, 8, 16, 32,
+];
 export const DEFAULT_SEMITONES: readonly number[] = [4, 5, 6, 7, 0, 1, 2, 3];

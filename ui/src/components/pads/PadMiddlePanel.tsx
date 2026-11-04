@@ -1,7 +1,13 @@
 import { Panel, ToggleGroup, ToggleGroupItem } from "@opendeck/design-system";
 import { motion, useReducedMotion } from "motion/react";
 import type { PadMode } from "../../ipc/bindings";
-import { MODE_BUTTONS, MODE_FADE_SECONDS, MODE_LABEL, baseMode } from "../../lib/pads";
+import {
+  MODE_BUTTONS,
+  MODE_FADE_SECONDS,
+  MODE_LABEL,
+  MODE_TAB_LABEL,
+  baseMode,
+} from "../../lib/pads";
 import { VISIBLE_DECKS, useAppStore } from "../../state/app";
 import { selectPadMode } from "../../state/pads";
 import { BeatJumpView } from "./BeatJumpView";
@@ -46,7 +52,7 @@ export function PadModeTabs({ deck }: { deck: number }) {
       aria-label={`Deck ${deck + 1} pad mode`}
       value={baseMode(active)}
       onValueChange={() => undefined}
-      className="gap-0.5 rounded-none bg-transparent p-0"
+      className="w-full gap-0.5 rounded-none bg-transparent p-0"
     >
       {MODE_BUTTONS.map(([base, shifted]) => {
         const here = active === base || active === shifted;
@@ -57,10 +63,12 @@ export function PadModeTabs({ deck }: { deck: number }) {
             size="sm"
             aria-label={`${MODE_LABEL[base]}, SHIFT-click for ${MODE_LABEL[shifted]}`}
             data-mode={here ? active : base}
-            className="h-6 flex-1 rounded-sm bg-surface-raised px-1 ds-label leading-none data-[state=on]:bg-surface-raised data-[state=on]:text-accent data-[state=on]:shadow-[inset_0_0_0_1px_var(--accent)]"
-            onClick={(event) => selectPadMode(deck, event.shiftKey ? shifted : base)}
+            className="h-6 min-w-0 flex-1 overflow-hidden whitespace-nowrap rounded-sm bg-surface-raised px-0.5 ds-label leading-none tracking-normal data-[state=on]:bg-surface-raised data-[state=on]:text-accent data-[state=on]:shadow-[inset_0_0_0_1px_var(--accent)]"
+            onClick={(event) =>
+              selectPadMode(deck, event.shiftKey ? shifted : base)
+            }
           >
-            {here ? MODE_LABEL[active] : MODE_LABEL[base]}
+            {here ? MODE_TAB_LABEL[active] : MODE_TAB_LABEL[base]}
           </ToggleGroupItem>
         );
       })}
@@ -69,7 +77,8 @@ export function PadModeTabs({ deck }: { deck: number }) {
 }
 
 /** Label of the view a deck pane shows, for its header. */
-const paneTitle = (deck: number, mode: PadMode): string => `Deck ${deck + 1} ${MODE_LABEL[mode]}`;
+const paneTitle = (deck: number, mode: PadMode): string =>
+  `Deck ${deck + 1} ${MODE_LABEL[mode]}`;
 
 /**
  * One deck's pad-mode pane in the middle row: a thin header with the mode
@@ -113,7 +122,8 @@ export function PadMiddlePanel() {
   const samplerOpen = useAppStore((s) => s.samplerOpen);
   const panes = VISIBLE_DECKS.flatMap((deck) => {
     const mode = modes[deck] ?? "hot_cue";
-    const shown: PadMode | null = mode === "hot_cue" ? (samplerOpen ? "sampler" : null) : mode;
+    const shown: PadMode | null =
+      mode === "hot_cue" ? (samplerOpen ? "sampler" : null) : mode;
     return shown === null ? [] : [{ deck, mode: shown }];
   });
   return (
