@@ -19,5 +19,8 @@ export const BAND_MIN_PX = {
 /** Smallest width of the deck row columns, px. `mixer` follows `--mixer-w`. */
 export const DECK_COLUMN_MIN_PX = { deck: 400, mixer: 240 } as const;
 
-/** `"72px"` style size for a resizable panel. */
-export const px = (value: number): string => `${value}px`;
+/**
+ * Size for a resizable panel from a px value at UI scale 1, as rem (`72` gives
+ * `"4.5rem"`) so it follows the UI scale like the rem design tokens.
+ */
+export const px = (value: number): string => `${value / 16}rem`;

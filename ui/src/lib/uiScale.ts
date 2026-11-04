@@ -23,7 +23,7 @@ export function parseScalePref(value: unknown): UiScalePref {
   return UI_SCALE_CHOICES.includes(value as UiScalePref) ? (value as UiScalePref) : "auto";
 }
 
-/** Sets `--ui-scale` on the root. Base CSS applies it as `zoom`, so tokens and utilities scale together. */
+/** Sets `--ui-scale` on the root. Base CSS turns it into the root font size; rem tokens and utilities scale together. */
 export function applyUiScale(scale: number): void {
   document.documentElement.style.setProperty("--ui-scale", String(scale));
 }

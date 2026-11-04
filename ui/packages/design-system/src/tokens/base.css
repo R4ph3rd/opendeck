@@ -5,9 +5,13 @@
   #root {
     height: 100%;
   }
-  /* UI scale: --ui-scale is set from the window height or Settings, Interface. */
+  /*
+   * UI scale: --ui-scale is set from the window height or Settings, Interface.
+   * Size tokens are rem, so the root font size scales them. Not CSS zoom: under
+   * zoom, Radix menus, selects and tooltips land offset (Chromium and WebKitGTK).
+   */
   html {
-    zoom: var(--ui-scale, 1);
+    font-size: calc(16px * var(--ui-scale, 1));
   }
   body {
     margin: 0;

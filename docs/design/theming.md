@@ -75,6 +75,8 @@ Canvas components read tokens through `ui/src/viz/colors.ts` (`TOKEN_NAMES`). A 
 
 LAYOUT SIZES group in `tokens.css`. Use them in components as `h-[var(--deck-header-h)]`.
 
+Size tokens are rem; the table gives px at UI scale 1 (1rem = 16px). The UI scale (Settings, Interface: auto or manual) sets the root font size to `16px * --ui-scale`, so every rem token and Tailwind utility scales with it. Do not use CSS `zoom` for this: Radix menus, selects and tooltips are positioned wrong under a zoomed root in Chromium and WebKitGTK.
+
 | Token | Default | What it sizes |
 |---|---|---|
 | `--toolbar-h` | 28px | Top menu row. |
@@ -93,7 +95,7 @@ LAYOUT SIZES group in `tokens.css`. Use them in components as `h-[var(--deck-hea
 | `--row-h` | 24px | Browser row height. |
 | `--text-xs` to `--text-2xl`, `--space-*`, `--radius-*` | | Type scale, spacing, corner radii. |
 
-Band heights (waveforms, decks, middle row, browser) are draggable and stored per user. Their defaults are percentages in `ui/src/state/prefs.ts` (`DEFAULT_LAYOUT`) and their minimum heights are pixels in `ui/src/lib/layout.ts` (`BAND_MIN_PX`), because the resizable panels need numbers. "Reset layout" in the View menu restores the defaults.
+Band heights (waveforms, decks, middle row, browser) are draggable and stored per user. Their defaults are percentages in `ui/src/state/prefs.ts` (`DEFAULT_LAYOUT`) and their minimum heights are px at scale 1 in `ui/src/lib/layout.ts` (`BAND_MIN_PX`), passed to the resizable panels as rem so they follow the UI scale. "Reset layout" in the View menu restores the defaults.
 
 ## Rules
 

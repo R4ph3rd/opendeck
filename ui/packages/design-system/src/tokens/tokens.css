@@ -7,7 +7,8 @@
  * Sections, in order: typography, spacing, control sizes, LAYOUT SIZES (deck,
  * jog, waveform, mixer), z-index, radius, motion | per theme: SURFACES, TEXT,
  * ACCENT, STATUS, SHELL, CUES, WAVEFORM, METERS, LEDS | derived: DECK TONES.
- * How to change them: docs/design/theming.md.
+ * Sizes are rem (1rem = 16px at UI scale 1) so --ui-scale, applied as the
+ * root font size, scales the whole UI. How to change them: docs/design/theming.md.
  */
 
 :root {
@@ -15,50 +16,50 @@
   --font-sans: "Inter Variable", "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono:
     "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, "Cascadia Code", monospace;
-  --text-xs: 11px;
-  --text-sm: 12px;
-  --text-base: 13px;
-  --text-lg: 15px;
-  --text-xl: 18px;
-  --text-2xl: 24px;
-  --text-label: 10.5px; /* button and tab labels (HOT CUE, SLIP, menu items) */
+  --text-xs: 0.6875rem;
+  --text-sm: 0.75rem;
+  --text-base: 0.8125rem;
+  --text-lg: 0.9375rem;
+  --text-xl: 1.125rem;
+  --text-2xl: 1.5rem;
+  --text-label: 0.65625rem; /* button and tab labels (HOT CUE, SLIP, menu items) */
   --weight-label: 500;
   --tracking-label: 0.04em;
 
   /* spacing (4px scale) */
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-6: 24px;
-  --space-8: 32px;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
 
   /* control heights */
-  --control-sm: 24px;
-  --control-md: 28px;
-  --control-lg: 32px;
+  --control-sm: 1.5rem;
+  --control-md: 1.75rem;
+  --control-lg: 2rem;
 
   /* dense table row height (OpenDeck) */
-  --row-h: 24px;
+  --row-h: 1.5rem;
 
   /* LAYOUT SIZES: the performance layout reads these (see docs/design/theming.md) */
-  --toolbar-h: 28px; /* top menu row */
-  --deck-header-h: 46px; /* deck number, title, clocks, key, BPM, sync */
-  --deck-overview-h: 28px; /* overview waveform under the deck header */
-  --deck-tabs-h: 24px; /* pad mode tabs above the hot cue grid */
-  --deck-strip-h: 28px; /* beat loop and beat jump strip under the pads */
-  --mixer-w: 312px; /* centre mixer column between the decks */
-  --ui-scale: 1; /* root zoom, set at runtime: auto = clamp(1, height / 1080, 2) in 0.125 steps */
-  --pad-grid-max-h: 300px; /* tallest hot cue pad grid; extra height goes to the jog */
-  --jog-max: 520px; /* largest jog wheel diameter; it shrinks to fit the deck */
-  --transport-w: 52px; /* CUE and PLAY column */
-  --modes-w: 40px; /* SLIP, Q, MT column */
-  --tempo-w: 36px; /* tempo fader column at the outer deck edge */
-  --pad-min-w: 56px; /* narrowest hot cue pad */
-  --fx-unit-w: 280px; /* beat FX panel width in the middle row */
-  --browser-tree-w: 200px; /* default width hint of the browser tree */
-  --preview-col-w: 96px; /* browser Preview column */
-  --artwork-col-w: 28px; /* browser Artwork column */
+  --toolbar-h: 1.75rem; /* top menu row */
+  --deck-header-h: 2.875rem; /* deck number, title, clocks, key, BPM, sync */
+  --deck-overview-h: 1.75rem; /* overview waveform under the deck header */
+  --deck-tabs-h: 1.5rem; /* pad mode tabs above the hot cue grid */
+  --deck-strip-h: 1.75rem; /* beat loop and beat jump strip under the pads */
+  --mixer-w: 19.5rem; /* centre mixer column between the decks */
+  --ui-scale: 1; /* root font size factor, set at runtime: auto = clamp(1, height / 1080, 2) in 0.125 steps */
+  --pad-grid-max-h: 18.75rem; /* tallest hot cue pad grid; extra height goes to the jog */
+  --jog-max: 32.5rem; /* largest jog wheel diameter; it shrinks to fit the deck */
+  --transport-w: 3.25rem; /* CUE and PLAY column */
+  --modes-w: 2.5rem; /* SLIP, Q, MT column */
+  --tempo-w: 2.25rem; /* tempo fader column at the outer deck edge */
+  --pad-min-w: 3.5rem; /* narrowest hot cue pad */
+  --fx-unit-w: 17.5rem; /* beat FX panel width in the middle row */
+  --browser-tree-w: 12.5rem; /* default width hint of the browser tree */
+  --preview-col-w: 6rem; /* browser Preview column */
+  --artwork-col-w: 1.75rem; /* browser Artwork column */
 
   /* z-index scale */
   --z-base: 0;
@@ -71,9 +72,9 @@
   --z-tooltip: 140;
 
   /* radius */
-  --radius-sm: 2px;
-  --radius-md: 3px;
-  --radius-lg: 4px;
+  --radius-sm: 0.125rem;
+  --radius-md: 0.1875rem;
+  --radius-lg: 0.25rem;
 
   /* motion */
   --duration-fast: 120ms;
@@ -84,8 +85,8 @@
 
   /* slider */
   --slider-track-length: 10rem;
-  --slider-thumb-along: 5px; /* cap size in the travel direction */
-  --slider-thumb-across: 12px; /* cap size across the track */
+  --slider-thumb-along: 0.3125rem; /* cap size in the travel direction */
+  --slider-thumb-across: 0.75rem; /* cap size across the track */
 
   /* waveform dimming for the played part of a track */
   --wave-played-opacity: 0.45;

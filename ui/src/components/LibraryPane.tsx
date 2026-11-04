@@ -67,11 +67,11 @@ export function LibraryPane() {
         defaultLayout={readStored<ResizableLayout>(LIBRARY_LAYOUT_KEY, DEFAULT_LIBRARY_LAYOUT)}
         onLayoutChanged={(layout) => writeStored(LIBRARY_LAYOUT_KEY, layout)}
       >
-        <ResizablePanel id="sidebar" minSize="160px" maxSize="50%">
+        <ResizablePanel id="sidebar" minSize="10rem" maxSize="50%">
           <Sidebar />
         </ResizablePanel>
         <ResizableHandle />
-        <ResizablePanel id="collection" minSize="320px">
+        <ResizablePanel id="collection" minSize="20rem">
           <div
             className="flex size-full min-h-0 min-w-0 flex-col"
             onDragOver={onDragOver}
