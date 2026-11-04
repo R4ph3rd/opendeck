@@ -146,7 +146,7 @@ Source for the FLX4 audio facts: manual p.161-162 (44.1 and 48 kHz, MASTER RCA o
 
 ## M9a Plugins (wave 1: CLAP effects)
 
-No real CLAP plugin was available to the developers; everything below is untested with third-party code. Windows first, then macOS. Get a free CLAP effect, for example the Surge XT effects or Airwindows Consolidated CLAP builds. Put the `.clap` file in `%COMMONPROGRAMFILES%\CLAP` (or `%LOCALAPPDATA%\Programs\Common\CLAP`), or add its folder in the plugin folder settings. The scanner `opendeck-plugin-scan(.exe)` must sit next to the app executable (it is not bundled yet; build it with `cargo build --release -p opendeck-plugin-host`).
+No real CLAP plugin was available to the developers; everything below is untested with third-party code. Windows first, then macOS. Get a free CLAP effect, for example the Surge XT effects or Airwindows Consolidated CLAP builds. Put the `.clap` file in `%COMMONPROGRAMFILES%\CLAP` (or `%LOCALAPPDATA%\Programs\Common\CLAP`), or add its folder in the plugin folder settings. The installers ship the scanner `opendeck-plugin-scan(.exe)` next to the app executable; for a dev build, run `cargo build -p opendeck-plugin-host --bin opendeck-plugin-scan` first.
 
 - [ ] Scan: start the app. The plugin list shows the effect with the right name, vendor and version. A second launch does not rescan unchanged files (check the log for `reused`).
 - [ ] Load it in a Beat FX or send slot: the effect keys read `clap:<plugin id>`. Switching the slot to a built-in and back works.

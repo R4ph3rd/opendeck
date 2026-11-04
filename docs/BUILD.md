@@ -21,7 +21,9 @@ Primary target is Windows x64. macOS and Linux build from the same sources.
 6. Output:
    - `target\release\bundle\nsis\*.exe` (installer)
    - `target\release\bundle\msi\*.msi`
-   - `target\release\opendeck.exe` (portable binary, no installer)
+   - `target\release\opendeck.exe` (portable binary, no installer; keep `opendeck-plugin-scan.exe` from the same folder next to it)
+
+The build also compiles the plugin scanner `opendeck-plugin-scan` (`scripts/build-sidecars.mjs`) and the bundles install it next to the app executable. Run builds through `pnpm -C ui tauri`: the wrapper adds the sidecar config.
 
 For a quick compile check without bundling: `pnpm -C ui tauri build --no-bundle`. For development: `pnpm -C ui tauri dev`.
 
