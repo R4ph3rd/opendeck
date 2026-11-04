@@ -121,10 +121,10 @@ fn copy_cstring(src: &str, dst: &mut [c_char]) {
     for (s, d) in bytes.iter().zip(dst.iter_mut()) {
         *d = *s as c_char;
     }
-    if bytes.len() > dst.len() {
-        if let Some(last) = dst.last_mut() {
-            *last = 0;
-        }
+    if bytes.len() > dst.len()
+        && let Some(last) = dst.last_mut()
+    {
+        *last = 0;
     }
 }
 
@@ -282,7 +282,7 @@ impl Core {
                 h.beginEdit(id);
                 h.performEdit(id, value);
                 h.endEdit(id);
-                h.restartComponent(RestartFlags_::kLatencyChanged as i32);
+                h.restartComponent(RestartFlags_::kLatencyChanged);
             }
         }
     }
