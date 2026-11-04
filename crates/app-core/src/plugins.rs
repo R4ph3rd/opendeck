@@ -175,7 +175,7 @@ impl PluginService {
     }
 
     /// Effect factories to register in the `EffectRegistry`: one per compiled
-    /// format, provider `clap` (keys `clap:<plugin id>`). Empty when disabled.
+    /// format, providers `clap` and `vst3` (keys `clap:<plugin id>`, `vst3:<class id>`). Empty when disabled.
     pub fn effect_factories(&self) -> Vec<Box<dyn EffectFactory>> {
         self.inner
             .as_ref()
@@ -376,6 +376,7 @@ mod tests {
         assert!(!state.scanner_available);
         assert!(!state.scanning);
         assert!(service.rescan(RescanRequest::default()).is_err());
-        assert_eq!(service.effect_factories().len(), 1);
+        // One factory per compiled format (CLAP and VST3 by default).
+        assert_eq!(service.effect_factories().len(), compiled_backends().len());
     }
 }

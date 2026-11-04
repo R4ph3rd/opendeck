@@ -16,7 +16,7 @@
 //! If instantiation times out, the job still runs later on the main thread;
 //! a cleanup job queued behind it destroys the instance it made.
 
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
@@ -28,7 +28,9 @@ use opendeck_contracts::plugin::{PluginInfo, PluginKind};
 
 use crate::PluginError;
 use crate::adapter::{AudioHalf, PluginEffect, PluginInstrument};
-use crate::backend::{HostWake, InstanceRequests, PARAM_RING, ParamChange, PluginBackend};
+use crate::backend::{
+    HostWake, InstanceRequests, PARAM_RING, ParamChange, PluginBackend, WAKE_POLL, WakeFlag,
+};
 use crate::instances::{self, Entry, InstanceId};
 use crate::main_thread::{DEFAULT_TIMEOUT, MainThread, run_blocking};
 use crate::scan::ScannedParams;
@@ -45,12 +47,34 @@ pub enum InstanceStatus {
     Failed(String),
 }
 
+/// Starts the thread that turns wake flags into main-thread service jobs.
+/// It holds the host weakly and ends when the last clone is dropped.
+fn poll_wake(shared: &Arc<Shared>) {
+    let weak = Arc::downgrade(shared);
+    let flag = shared.wake.clone();
+    // If the thread cannot start, plugin requests are only serviced when
+    // something else services the instances; nothing else breaks.
+    let _ = std::thread::Builder::new()
+        .name("plugin-wake".into())
+        .spawn(move || {
+            loop {
+                std::thread::sleep(WAKE_POLL);
+                let Some(shared) = weak.upgrade() else { return };
+                if flag.take() {
+                    let _ = shared.main.spawn(Box::new(instances::service_all));
+                }
+            }
+        });
+}
+
 struct Shared {
     main: Arc<dyn MainThread>,
     backends: Vec<Arc<dyn PluginBackend>>,
     catalog: RwLock<Vec<PluginInfo>>,
     params: RwLock<Vec<ScannedParams>>,
     timeout: Duration,
+    /// Set by plugins asking for the main thread; polled by `poll_wake`.
+    wake: HostWake,
 }
 
 /// The plugin host. Cheap to clone; clones share the catalog.
@@ -80,15 +104,16 @@ impl PluginHost {
         backends: Vec<Arc<dyn PluginBackend>>,
         timeout: Duration,
     ) -> Self {
-        Self {
-            shared: Arc::new(Shared {
-                main,
-                backends,
-                catalog: RwLock::new(Vec::new()),
-                params: RwLock::new(Vec::new()),
-                timeout,
-            }),
-        }
+        let shared = Arc::new(Shared {
+            main,
+            backends,
+            catalog: RwLock::new(Vec::new()),
+            params: RwLock::new(Vec::new()),
+            timeout,
+            wake: Arc::new(WakeFlag::default()),
+        });
+        poll_wake(&shared);
+        Self { shared }
     }
 
     /// Replaces the catalog. Plugins whose provider has no backend are kept
@@ -179,26 +204,6 @@ impl PluginHost {
         Ok((Box::new(PluginInstrument { info, half: half.0 }), handle))
     }
 
-    /// The wake function handed to instances: queues one main-thread job
-    /// that services every instance, however often it is called before that
-    /// job runs.
-    fn wake(&self) -> HostWake {
-        let main = self.shared.main.clone();
-        let queued = Arc::new(AtomicBool::new(false));
-        Arc::new(move || {
-            if !queued.swap(true, Ordering::AcqRel) {
-                let in_job = queued.clone();
-                let job = Box::new(move || {
-                    in_job.store(false, Ordering::Release);
-                    instances::service_all();
-                });
-                if main.spawn(job).is_err() {
-                    queued.store(false, Ordering::Release);
-                }
-            }
-        })
-    }
-
     fn find(&self, key: &EffectKey, kind: PluginKind) -> Result<PluginInfo, PluginError> {
         self.catalog()
             .into_iter()
@@ -233,7 +238,7 @@ impl PluginHost {
         let (to_audio, from_main) = rtrb::RingBuffer::<ParamChange>::new(PARAM_RING);
         let (to_main, from_audio) = rtrb::RingBuffer::<ParamChange>::new(PARAM_RING);
         let job_info = info.clone();
-        let wake = self.wake();
+        let wake = self.shared.wake.clone();
         // Set by the job once the instance is in the table (0 = none).
         let made = Arc::new(AtomicU64::new(0));
         let job_made = made.clone();

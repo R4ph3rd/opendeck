@@ -1,6 +1,11 @@
 [workspace]
 resolver = "3"
-members = ["crates/*", "crates/plugin-host/tests/fixtures/clap-test-plugin", "src-tauri"]
+members = [
+  "crates/*",
+  "crates/plugin-host/tests/fixtures/clap-test-plugin",
+  "crates/plugin-host/tests/fixtures/vst3-test-plugin",
+  "src-tauri",
+]
 
 [workspace.package]
 version = "0.8.2"
@@ -63,6 +68,8 @@ clack-host = "0.2"
 clack-extensions = { version = "0.2", default-features = false }
 clap-sys = "0.5"
 vst3 = "0.3"
+# Loads .vst3 libraries (ISC; already in the tree through clack-host).
+libloading = "0.8"
 
 # Common
 serde = { version = "1", features = ["derive"] }

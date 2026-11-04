@@ -161,3 +161,19 @@ No real CLAP plugin was available to the developers; everything below is unteste
 - [ ] Plugin that shows an error dialog or opens a window at load: note it. Editors are not supported yet (wave 9a-3).
 - [ ] Mono-only plugin: not listed (stereo main ports are required).
 - [ ] Unclean exit while a plugin runs (end the process): next launch starts normally. The session marker that lists active plugins is not implemented yet.
+
+## M9a Plugins (wave 2: VST3 effects)
+
+No real VST3 plugin was available to the developers; everything below is untested with third-party code. Windows first, then macOS. Get a free VST3 effect, for example an Airwindows, TAL or Surge XT effect build. Install it in `%COMMONPROGRAMFILES%\VST3` (or `%LOCALAPPDATA%\Programs\Common\VST3`), or add its folder in the plugin folder settings. Try one plugin with a separate controller and, if you can, one without (JUCE plugins are single-component).
+
+- [ ] Scan: the plugin list shows the effect with the right name, vendor, version and sub-categories (Fx, Reverb, ...). Keys read `vst3:<32 hex digits>`. Instruments in the same bundle are listed as instruments.
+- [ ] Load it in a Beat FX or send slot. Audio passes, the effect is audible, bypass and wet/dry behave like a built-in, no clicks when loading or unloading while a deck plays.
+- [ ] Parameters: every visible parameter moves the sound in the right direction. Stepped parameters (switches, modes) have the right number of positions. Hidden, read-only and program-change parameters are not listed. Move a parameter while a loud loop plays: no zipper noise beyond what the plugin does.
+- [ ] Latency: for a plugin that reports latency (look-ahead limiter, linear-phase EQ), wet at 50 % on a kick loop does not flam or cancel. Record the reported latency.
+- [ ] Tail: a reverb or delay rings out after bypass instead of cutting off. (VST3 plugins often report a zero tail; OpenDeck treats it as unknown and keeps processing until silence.)
+- [ ] State in presets: save a preset or chain with the plugin, restart, recall it. Parameter values return. Internal settings that are not listed parameters come back through the plugin state; note what is lost.
+- [ ] Sample rate and buffer changes with the plugin loaded: it keeps working after the engine restarts.
+- [ ] Mono-only plugin: not usable (a stereo main bus is required); the scan shows why.
+- [ ] Crash and hang: a plugin that crashes or hangs while loading is blacklisted by the scanner and the app stays responsive. A bundle without a library for this OS and CPU (an x86_64-only plugin on an arm64 Mac) is a failed scan, not a blacklist entry.
+- [ ] Plugins that ask for the main thread or a restart while audio runs (many JUCE plugins do): no xruns, no crash.
+- [ ] macOS: the module entry (`bundleEntry`) path was written from the SDK documentation and never run. Confirm a plugin bundle loads.
