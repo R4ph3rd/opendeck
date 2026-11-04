@@ -1,6 +1,6 @@
 # Status
 
-MVP reached (v0.8.0). v0.8.1 revamps the UI after owner feedback (stacked full-window layout, reference-style decks, slim mixer, 2x4 pad grids). Milestone 9 (VST3/CLAP hosting) next, owner-approved.
+MVP reached (v0.8.0). v0.8.1 revamps the UI after owner feedback (stacked full-window layout, reference-style decks, slim mixer, 2x4 pad grids). A second UI rework on `workbench` follows the reference performance layout (menu row, deck panels, middle row) with flat FL-style visuals and a red palette; tokens are grouped and documented in `docs/design/theming.md`. UI polish done: precise per-pixel waveform (raw peak columns, no smoothing), darker surfaces, neutral pads, thin faders and light labels, UI scale auto (window height) or manual, applied as the root font size with rem tokens (CSS zoom offset Radix menus and tooltips). Milestone 9 (VST3/CLAP hosting) in progress: ADR 0008 accepted, wave 9a-1 (scanner and CLAP effects) merged.
 
 ## Milestones
 
@@ -15,7 +15,7 @@ MVP reached (v0.8.0). v0.8.1 revamps the UI after owner feedback (stacked full-w
 | 6 | MIDI layer, DDJ-FLX4 mapping, LED feedback, MIDI monitor, replay harness | done (v0.6.0) |
 | 7 | Pad modes with the dynamic middle panel, sampler | done (v0.7.0) |
 | 8 | Hardening: latency, error handling, settings, installer, first-run (MVP) | done (v0.8.0) |
-| 9 | VST3/CLAP plugin hosting (owner-approved); later 4 decks, recording, more controllers | next |
+| 9 | VST3/CLAP plugin hosting (ADR 0008 accepted); later 4 decks, recording, more controllers | in progress (9a-1 done) |
 
 ## Milestone 0
 
@@ -49,6 +49,19 @@ Done: the pad mode drives the middle panel of each deck, with a view for each of
 
 Done (MVP): output routing of master, headphones and booth to any channel pair of one device (up to 32 channels), mono per output, booth level, stereo fallback. Mic and aux inputs on a second stream with an input ring, mic level, two-shelf EQ and on/off, aux level and fader, talk-over ducking. Device loss reopens with backoff and restores loaded tracks, playheads, play state and cue points; a lost input reattaches without touching the decks; returned buffers are freed on the loader thread. Measured or estimated latency, xrun counter and capability flags per host. Test tone through the engine on each output, so it works while the engine holds the device. Analyzer BPM range from Settings, Library. Log files with rotation, panic hook, database check with backup and recovery, typed error messages, error boundary, diagnostics copy. Settings pages: Audio (device, routing, inputs, talk-over, test tones), MIDI, Library, Interface (theme, waveform zoom, layout presets), Keyboard (shortcut editor) and Advanced (logs, diagnostics, reset). First-run guide (audio with FLX4 preselect, controller check, library, tour). Installer config: product metadata, deb desktop entry, NSIS per-user install, fixed WiX upgrade code (`docs/RELEASING.md`).
 
+## Milestone 9
+
+ADR 0008 accepted. Merged: `opendeck-plugin-host` skeleton (fake backend, CLAP and VST3 behind default-off features, `opendeck-plugin-scan` scanner binary) and the additive contracts `instrument` and `plugin` modules. Owner decisions, approved 2026-10-31:
+
+1. Plugins process in process, in engine slots. Scanning runs out of process; a scan crash or timeout blacklists the file.
+2. Instrument MVP: 2 live instrument slots on the sampler bus, plus "render to sampler slot".
+3. No VST logo, text "VST3" only. Builds with the `vst3` feature ship Steinberg's MIT notice (`THIRD_PARTY_NOTICES.md`; app resource and about screen when the feature is wired in).
+4. Windows first, then macOS. Linux best effort, X11-only editors.
+
+Wave 9a-1 done: CLAP effects in FX slots through clack-host (params, latency, state, audio ports, transport), out-of-process scan with a cache, blacklist, retry and rescan of changed files, plugin effects in the FX registry, plugin scan commands and `plugins-changed` event, main-thread work on the UI thread. `opendeck-plugin-scan` ships next to the app in every bundle (Tauri `externalBin`, `scripts/build-sidecars.mjs`; checked in the Linux .deb). Tests use a CLAP fixture plugin; no third-party CLAP plugin was run (`docs/hardware-test-checklist.md`).
+
+Carried to later 9a waves: session marker for unclean exits; acting on plugin restart and latency-change requests (`take_requests`); CPU figure for 6 slots with real plugins; note-port fixture for instruments (CLAP notes mapped, untested); `HostWake` allocates and posts to the UI thread when a plugin calls `request_callback` or `request_restart` from its audio thread (ADR 0008 notes it; a polled flag would remove it).
+
 ## Post-MVP
 
 | Area | Item |
@@ -61,7 +74,6 @@ Done (MVP): output routing of master, headphones and booth to any channel pair o
 | ui | Mic and aux controls live in Settings, Audio; no mic or aux strip on the mixer |
 | tauri | File associations (open audio files and playlists from the OS) |
 | all | 4 decks in the UI (engine and contracts are ready for `MAX_DECKS`) |
-| M9 | VST3 and CLAP plugin hosting (ADR 0006), owner-approved |
 
 ## Branch model
 
@@ -105,6 +117,13 @@ Done (MVP): output routing of master, headphones and booth to any channel pair o
 | M5 dsp-fx | Effect parameter names, ranges and defaults and the beat division list are `TODO(verify)` pending the rekordbox manual (`docs/fx-catalog.md`) |
 | M5 app-core | Smart CFX mapping (knob to parameter and wet), the default pad FX set and the Release FX set are project choices, not taken from a source |
 | M7 ui | Pad FX view has the assignment grid but no live parameter knobs (the pad model carries effect, division and release only) |
+| UI rework | REC is disabled: there is no recording backend |
+| UI rework | No CPU readout in the menu row: telemetry does not report CPU load |
+| UI rework | Browser Preview column is disabled: there is no preview engine command |
+| UI rework | The browser tree has no Sampler entry |
+| UI rework | The mixer does not collapse below `--mixer-w` |
+| UI polish | Waveform peaks are amplitude only, so the waveform is drawn symmetric; a min/max peak format needs an analysis and contracts change |
+| UI polish | Waveform cue and loop marker labels are drawn at a fixed 9 px and do not grow with the UI scale |
 
 ## Open questions
 

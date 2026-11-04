@@ -16,11 +16,11 @@ use opendeck_app_core::{
     ImportOptionsDto, InputState, JobInfo, LaunchOptions, LibraryChange, LibraryEvent,
     LibraryService, MidiBindingDto, MidiEvent, MidiLearnResultDto, MidiMappingRowDto,
     MidiMonitorEntryDto, MidiPortDto, MidiService, MidiStatusDto, PadEvent, PadModeChanged,
-    PadStateDto, PlaylistEntryDto, PlaylistNodeDto, SamplerLayout, SamplerSlotPatch,
-    SamplerStateDto, SavedSetDetailDto, SavedSetDto, SettingsStore, TestToneOutput,
-    TrackAnalysisDto, TrackDetailDto, TrackInfo, TrackLoadFailed, TrackLoaded, TrackMetaDto,
-    TrackPageDto, TrackQueryDto, build_diagnostics, check_and_recover, get_pref, recent_errors,
-    reset_prefs, set_pref, unix_stamp,
+    PadStateDto, PlaylistEntryDto, PlaylistNodeDto, PluginService, PluginsStateDto, SamplerLayout,
+    SamplerSlotPatch, SamplerStateDto, SavedSetDetailDto, SavedSetDto, SettingsStore,
+    TestToneOutput, TrackAnalysisDto, TrackDetailDto, TrackInfo, TrackLoadFailed, TrackLoaded,
+    TrackMetaDto, TrackPageDto, TrackQueryDto, build_diagnostics, check_and_recover, get_pref,
+    recent_errors, reset_prefs, set_pref, unix_stamp,
 };
 use opendeck_contracts::analysis::AnalysisFeatures;
 use opendeck_contracts::beatgrid::BeatGrid;
@@ -36,6 +36,10 @@ use opendeck_contracts::tempo::{SyncMode, TempoRange};
 use opendeck_contracts::{
     Beats, DeckId, EngineEvent, EngineTelemetry, Gain, MAX_DECKS, MVP_DECKS, Seconds,
 };
+use opendeck_plugin_host::PluginError;
+use opendeck_plugin_host::main_thread::{MainJob, MainThread};
+use opendeck_plugin_host::scan::Scanner;
+use opendeck_plugin_host::scan_cache::RescanRequest;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use specta_typescript::Typescript;
@@ -1907,6 +1911,77 @@ pub struct MixerStateChangedEvent(pub MixerState);
 #[tauri_specta(event_name = "deck-state-changed")]
 pub struct DeckStateChangedEvent(pub DeckState);
 
+/// Plugin scan state: found plugins, blacklist, folders, progress.
+#[tauri::command]
+#[specta::specta]
+fn plugins_get_state(state: tauri::State<'_, AppState>) -> Result<PluginsStateDto, CommandError> {
+    Ok(state.snapshot()?.plugins().state())
+}
+
+/// Starts a plugin scan. Only new and changed files are scanned unless `all`
+/// is set; blacklisted files stay blacklisted. Progress arrives as
+/// `plugins-changed` events.
+#[tauri::command]
+#[specta::specta]
+async fn plugins_rescan(state: tauri::State<'_, AppState>, all: bool) -> Result<(), CommandError> {
+    let plugins = state.snapshot()?.plugins();
+    blocking(move || {
+        plugins.rescan(RescanRequest {
+            all,
+            retry: Vec::new(),
+        })
+    })
+    .await
+}
+
+/// Scans one file again, also if it is blacklisted and unchanged.
+#[tauri::command]
+#[specta::specta]
+async fn plugins_retry(
+    state: tauri::State<'_, AppState>,
+    path: String,
+) -> Result<(), CommandError> {
+    let plugins = state.snapshot()?.plugins();
+    blocking(move || plugins.retry(path.into())).await
+}
+
+/// Replaces the user's plugin folders and rescans.
+#[tauri::command]
+#[specta::specta]
+async fn plugins_set_folders(
+    state: tauri::State<'_, AppState>,
+    folders: Vec<String>,
+) -> Result<(), CommandError> {
+    let plugins = state.snapshot()?.plugins();
+    blocking(move || plugins.set_folders(folders.into_iter().map(Into::into).collect())).await
+}
+
+/// The plugin scan started, advanced or finished.
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+#[tauri_specta(event_name = "plugins-changed")]
+pub struct PluginsChangedEvent(pub PluginsStateDto);
+
+/// Runs plugin main-thread work on Tauri's main (UI) thread (ADR 0008).
+/// Clap and VST3 plugins must be created, activated and destroyed there,
+/// and editors need it.
+#[derive(Debug)]
+struct TauriMainThread {
+    app: tauri::AppHandle,
+    main: std::thread::ThreadId,
+}
+
+impl MainThread for TauriMainThread {
+    fn spawn(&self, job: MainJob) -> Result<(), PluginError> {
+        self.app
+            .run_on_main_thread(job)
+            .map_err(|_| PluginError::MainThreadGone)
+    }
+
+    fn is_main_thread(&self) -> bool {
+        std::thread::current().id() == self.main
+    }
+}
+
 /// The tauri-specta builder holding every command and event. Used by the app
 /// and by the bindings exporter, so both always agree.
 pub fn specta_builder() -> Builder<tauri::Wry> {
@@ -2059,6 +2134,10 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             sampler_set_pfl,
             sampler_trigger,
             sampler_stop,
+            plugins_get_state,
+            plugins_rescan,
+            plugins_retry,
+            plugins_set_folders,
         ])
         .events(collect_events![
             EngineTelemetryEvent,
@@ -2080,7 +2159,8 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             MixerStateChangedEvent,
             DeckStateChangedEvent,
             PadStateChangedEvent,
-            SamplerStateChangedEvent
+            SamplerStateChangedEvent,
+            PluginsChangedEvent
         ])
         // IDs (SQLite rowids) and frame counts are u64/i64 but stay far below
         // 2^53, so they are exported as `number` (ADR 0004).
@@ -2245,10 +2325,28 @@ pub fn run() {
                 Backend::Device
             };
             let library_events = library.subscribe();
+            // `setup` runs on the main thread: plugins live there.
+            let main = std::sync::Arc::new(TauriMainThread {
+                app: app.handle().clone(),
+                main: std::thread::current().id(),
+            });
+            // The bundles ship `opendeck-plugin-scan` next to the app
+            // (`bundle.externalBin`, scripts/build-sidecars.mjs).
+            let scanner = Scanner::next_to_current_exe();
+            match &scanner {
+                Some(s) => tracing::info!(path = %s.exe.display(), "plugin scanner found"),
+                None => tracing::warn!("plugin scanner not found next to the app, scanning is off"),
+            }
+            let plugins = PluginService::new(main, Some(library.library()), scanner);
+            let handle = app.handle().clone();
+            plugins.set_sink(move |state| {
+                let _ = PluginsChangedEvent(state).emit(&handle);
+            });
             let core = AppCore::launch_with_library(
                 LaunchOptions {
                     backend,
                     store,
+                    plugins: plugins.clone(),
                     ..LaunchOptions::default()
                 },
                 library,
@@ -2283,6 +2381,10 @@ pub fn run() {
                 Err(err) => tracing::warn!(%err, "MIDI is unavailable"),
             }
             app.manage(state);
+            // New and changed plugin files only; cached results are reused.
+            if let Err(err) = plugins.rescan(RescanRequest::default()) {
+                tracing::warn!(%err, "plugin scan did not start");
+            }
             Ok(())
         })
         .run(tauri::generate_context!())

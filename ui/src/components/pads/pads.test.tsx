@@ -16,7 +16,7 @@ const { usePadStore } = await import("../../state/pads");
 const { useFxStore } = await import("../../state/fx");
 const { telemetryStore } = await import("../../state/telemetry");
 const { DRAG_MIME } = await import("../../lib/dnd");
-const { PadMiddlePanel, PadModeView } = await import("./PadMiddlePanel");
+const { PadMiddlePanel, PadModeTabs, PadModeView } = await import("./PadMiddlePanel");
 const { fxEffects } = await import("../../test/bindingsMock");
 const { commands } = bindings;
 
@@ -306,7 +306,7 @@ describe("sampler view", () => {
     slots[0] = { loaded: true, playing: true, progress: 0.5 };
     snapshot.sampler = slots;
     act(() => telemetryStore.getState().push(snapshot));
-    expect(pad("Sample slot 1, Kick").className).toContain("ring-2");
+    expect(pad("Sample slot 1, Kick").className).toContain("bg-surface-hover");
   });
 
   it("follows the shared layout", () => {
@@ -354,8 +354,8 @@ describe("sampler view", () => {
   });
 
   it("changes layout, level and PFL from the mode strip", () => {
+    act(() => useAppStore.getState().setPadMode(1, "beat_jump"));
     render(<PadMiddlePanel />);
-    act(() => useAppStore.getState().setPadMode(0, "sampler"));
     fireEvent.click(screen.getByRole("radio", { name: "Shared" }));
     expect(commands.samplerSetLayout).toHaveBeenCalledWith("shared");
     fireEvent.click(screen.getByRole("button", { name: "Deck 1 sampler PFL" }));
@@ -453,35 +453,44 @@ describe("key shift view", () => {
 });
 
 describe("middle panel", () => {
-  it("shows one view per deck and follows the pad mode", () => {
+  it("shows the sampler for decks in hot cue mode and the mode view for the others", () => {
     render(<PadMiddlePanel />);
-    expect(screen.getByTestId("pad-view-0").dataset.mode).toBe("hot_cue");
-    expect(screen.getByTestId("pad-view-1").dataset.mode).toBe("hot_cue");
-    act(() => useAppStore.getState().setPadMode(1, "sampler"));
+    expect(screen.getByTestId("pad-view-0").dataset.mode).toBe("sampler");
     expect(screen.getByTestId("pad-view-1").dataset.mode).toBe("sampler");
-    expect(screen.getByTestId("pad-view-0").dataset.mode).toBe("hot_cue");
-    expect(screen.getByLabelText("Sample slot 9 (empty)")).toBeTruthy();
+    act(() => useAppStore.getState().setPadMode(1, "beat_jump"));
+    expect(screen.getByTestId("pad-view-1").dataset.mode).toBe("beat_jump");
+    expect(screen.getByTestId("pad-view-0").dataset.mode).toBe("sampler");
+    expect(screen.getByLabelText("Sample slot 1 (empty)")).toBeTruthy();
+    act(() => useAppStore.getState().setSamplerOpen(false));
+    expect(screen.queryByTestId("pad-view-0")).toBeNull();
+    expect(screen.getByTestId("pad-view-1").dataset.mode).toBe("beat_jump");
   });
 
   it("switches by click and by SHIFT-click, through the backend", () => {
-    render(<PadMiddlePanel />);
+    render(
+      <>
+        <PadModeTabs deck={0} />
+        <PadMiddlePanel />
+      </>,
+    );
     const tabs = within(screen.getByLabelText("Deck 1 pad mode"));
     fireEvent.click(tabs.getByRole("radio", { name: /^Beat jump/ }));
     expect(commands.setPadMode).toHaveBeenCalledWith(0, "beat_jump");
     expect(useAppStore.getState().padModes[0]).toBe("beat_jump");
+    expect(screen.getByTestId("pad-view-0").dataset.mode).toBe("beat_jump");
 
     fireEvent.click(tabs.getByRole("radio", { name: /^Beat jump/ }), {
       shiftKey: true,
     });
     expect(commands.setPadMode).toHaveBeenCalledWith(0, "beat_loop");
     expect(screen.getByTestId("pad-view-0").dataset.mode).toBe("beat_loop");
-    expect(tabs.getByRole("radio", { name: /^Beat jump/ }).textContent).toBe("Beat loop");
+    expect(tabs.getByRole("radio", { name: /^Beat jump/ }).textContent).toBe("Loop");
 
     fireEvent.click(tabs.getByRole("radio", { name: /^Sampler/ }), {
       shiftKey: true,
     });
     expect(commands.setPadMode).toHaveBeenCalledWith(0, "key_shift");
-    expect(screen.getByTestId("pad-view-1").dataset.mode).toBe("hot_cue");
+    expect(screen.getByTestId("pad-view-1").dataset.mode).toBe("sampler");
   });
 
   it("renders every mode without error", () => {

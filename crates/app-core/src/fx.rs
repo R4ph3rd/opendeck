@@ -27,7 +27,7 @@
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
-use opendeck_contracts::fx::EffectRegistry;
+use opendeck_contracts::fx::{EffectFactory, EffectRegistry};
 use opendeck_contracts::fx::{EffectKey, FxPreset, ParamId};
 use opendeck_contracts::ids::{FX_SEND_BUSES, FX_SLOTS_PER_UNIT, FxSlotId, FxUnit};
 use opendeck_contracts::units::{Beats, Bpm, Frames, Gain};
@@ -399,10 +399,25 @@ fn invalid(msg: impl Into<String>) -> CoreError {
 
 impl FxController {
     /// Registers the built-in factory and loads stored state.
+    #[cfg(test)]
     pub(crate) fn new(library: Option<&Library>) -> Self {
+        Self::with_factories(library, Vec::new())
+    }
+
+    /// Registers the built-in factory and `extra` factories (plugin hosts),
+    /// then loads stored state.
+    pub(crate) fn with_factories(
+        library: Option<&Library>,
+        extra: Vec<Box<dyn EffectFactory>>,
+    ) -> Self {
         let mut registry = EffectRegistry::new();
         if let Err(err) = registry.register(Box::new(BuiltinFactory::new())) {
             tracing::error!(%err, "could not register the built-in effects");
+        }
+        for factory in extra {
+            if let Err(err) = registry.register(factory) {
+                tracing::error!(%err, "could not register an effect provider");
+            }
         }
         let effects = effect_dtos(&registry);
         let mut controller = Self {
@@ -641,6 +656,29 @@ impl FxController {
         }
     }
 
+    /// Re-reads the effects the registry offers (after a plugin scan).
+    pub(crate) fn refresh_effects(&mut self) {
+        self.effects = effect_dtos(&self.registry);
+    }
+
+    /// Engine parameter id of the `index`-th parameter of an effect. Built-in
+    /// effects number their parameters from 0 in order; a plugin has its own
+    /// ids (CLAP `clap_id`), so slots keep values by position and translate here.
+    fn param_id(&self, key: &EffectKey, index: usize) -> ParamId {
+        self.effects
+            .get(key)
+            .and_then(|e| e.params.get(index))
+            .map_or(ParamId(index as u32), |p| p.id)
+    }
+
+    /// Position of the parameter with engine id `id` in the effect's list.
+    fn param_index(&self, key: &EffectKey, id: ParamId) -> Option<usize> {
+        match self.effects.get(key) {
+            Some(e) => e.params.iter().position(|p| p.id == id),
+            None => Some(id.0 as usize),
+        }
+    }
+
     // ----- queries -----
 
     /// Current state.
@@ -787,7 +825,7 @@ impl FxController {
                 env,
                 EngineCommand::SetFxParam {
                     slot,
-                    param: ParamId(i as u32),
+                    param: self.param_id(&d.key, i),
                     value: *v,
                 },
             );
@@ -918,7 +956,7 @@ impl FxController {
                 }
             };
             for (n, v) in d.params.iter().enumerate() {
-                fx.set_parameter(ParamId(n as u32), *v);
+                fx.set_parameter(self.param_id(&d.key, n), *v);
             }
             let handle = env.handle.as_deref_mut().expect("checked above");
             match handle.install_effect(slot, fx) {
@@ -1198,8 +1236,11 @@ impl FxController {
             FxOp::SetParam { slot, param, value } => {
                 finite(value)?;
                 let value = value.clamp(0.0, 1.0);
+                let key = self.slot_mut(slot)?.effect.clone();
+                let i = key
+                    .and_then(|k| self.param_index(&k, param))
+                    .ok_or_else(|| invalid("parameter out of range"))?;
                 let s = self.slot_mut(slot)?;
-                let i = param.0 as usize;
                 if i >= s.params.len() {
                     return Err(invalid("parameter out of range"));
                 }
@@ -1398,9 +1439,13 @@ impl FxController {
     }
 
     fn push_slot_param(&mut self, env: &mut FxEnv, slot: FxSlotRef, index: usize, value: f32) {
+        let param = match self.slot_mut(slot).ok().and_then(|s| s.effect.clone()) {
+            Some(key) => self.param_id(&key, index),
+            None => ParamId(index as u32),
+        };
         self.push_slot_with(env, slot, |_, id| EngineCommand::SetFxParam {
             slot: id,
-            param: ParamId(index as u32),
+            param,
             value,
         });
     }
@@ -1449,7 +1494,8 @@ impl FxController {
         let send = slot.unit.target == FxTarget::Send;
         let mut new = self.default_slot(&preset.effect, send);
         for (id, v) in &preset.params {
-            if let Some(p) = new.params.get_mut(id.0 as usize)
+            let index = self.param_index(&preset.effect, *id);
+            if let Some(p) = index.and_then(|i| new.params.get_mut(i))
                 && v.is_finite()
             {
                 *p = v.clamp(0.0, 1.0);
@@ -1715,15 +1761,16 @@ impl FxController {
         self.check_unit(slot.unit)?;
         let s = self.slot_mut(slot)?.clone();
         let effect = s.effect.ok_or_else(|| invalid("the slot is empty"))?;
+        let params = s
+            .params
+            .iter()
+            .enumerate()
+            .map(|(i, v)| (self.param_id(&effect, i), *v))
+            .collect();
         Ok(FxPreset {
             effect,
             name: name.trim().to_owned(),
-            params: s
-                .params
-                .iter()
-                .enumerate()
-                .map(|(i, v)| (ParamId(i as u32), *v))
-                .collect(),
+            params,
             wet: s.wet,
             beat_division: Beats(s.division),
         })
@@ -1783,14 +1830,15 @@ impl FxController {
             let r = FxSlotRef { unit, slot: s };
             let slot = self.slot_mut(r)?.clone();
             if let Some(effect) = slot.effect {
+                let params = slot
+                    .params
+                    .iter()
+                    .enumerate()
+                    .map(|(i, v)| (self.param_id(&effect, i), *v))
+                    .collect();
                 slots.push(FxChainSlotDto {
                     effect,
-                    params: slot
-                        .params
-                        .iter()
-                        .enumerate()
-                        .map(|(i, v)| (ParamId(i as u32), *v))
-                        .collect(),
+                    params,
                     wet: slot.wet,
                     division: slot.division,
                     enabled: slot.enabled,
@@ -2018,6 +2066,135 @@ mod tests {
         assert!(c.desired(Addr::Deck(a, PAD_SLOT)).is_none());
         assert!(c.desired(Addr::Deck(a, RELEASE_SLOT)).is_none());
         assert!(c.desired(Addr::Deck(a, CFX_SLOT)).is_some());
+    }
+
+    /// A provider whose parameter ids are not 0, 1, 2 (like a CLAP plugin).
+    struct IdsFactory;
+
+    struct IdsEffect(opendeck_contracts::fx::EffectInfo);
+
+    impl opendeck_contracts::fx::Effect for IdsEffect {
+        fn info(&self) -> &opendeck_contracts::fx::EffectInfo {
+            &self.0
+        }
+        fn prepare(&mut self, _: opendeck_contracts::SampleRate, _: usize) {}
+        fn reset(&mut self) {}
+        fn set_parameter(&mut self, _: ParamId, _: f32) {}
+        fn process(
+            &mut self,
+            _: opendeck_contracts::fx::StereoBufferMut<'_>,
+            _: &opendeck_contracts::fx::ProcessContext,
+        ) {
+        }
+    }
+
+    fn ids_info() -> opendeck_contracts::fx::EffectInfo {
+        use opendeck_contracts::fx::{FxRouting, ParamCurve, ParamDescriptor, ParamUnit};
+        let param = |id: u32, name: &str| ParamDescriptor {
+            id: ParamId(id),
+            name: name.into(),
+            unit: ParamUnit::None,
+            min: 0.0,
+            max: 1.0,
+            default: 0.25,
+            curve: ParamCurve::Linear,
+        };
+        opendeck_contracts::fx::EffectInfo {
+            key: EffectKey {
+                provider: "plug".into(),
+                id: "ids".into(),
+            },
+            name: "Ids".into(),
+            routing: FxRouting::Insert,
+            beat_synced: false,
+            has_tail: false,
+            params: vec![param(42, "A"), param(7, "B")],
+        }
+    }
+
+    impl EffectFactory for IdsFactory {
+        fn provider(&self) -> &str {
+            "plug"
+        }
+        fn effects(&self) -> Vec<opendeck_contracts::fx::EffectInfo> {
+            vec![ids_info()]
+        }
+        fn create(
+            &self,
+            _: &str,
+        ) -> Result<Box<dyn opendeck_contracts::fx::Effect>, opendeck_contracts::fx::EffectError>
+        {
+            Ok(Box::new(IdsEffect(ids_info())))
+        }
+    }
+
+    #[test]
+    fn plugin_parameters_are_addressed_by_their_own_ids() {
+        let mut c = FxController::with_factories(None, vec![Box::new(IdsFactory)]);
+        let mut env = offline_env();
+        let key = EffectKey {
+            provider: "plug".into(),
+            id: "ids".into(),
+        };
+        assert!(c.effects.contains_key(&key));
+        assert_eq!(c.param_id(&key, 0), ParamId(42));
+        assert_eq!(c.param_id(&key, 1), ParamId(7));
+        assert_eq!(c.param_index(&key, ParamId(7)), Some(1));
+        assert_eq!(c.param_index(&key, ParamId(1)), None);
+        // Built-ins keep id == position.
+        assert_eq!(c.param_id(&builtin("echo"), 2), ParamId(2));
+        assert_eq!(c.param_index(&builtin("echo"), ParamId(2)), Some(2));
+
+        let slot = FxSlotRef {
+            unit: unit_ref(FxTarget::Beat, 0),
+            slot: 1,
+        };
+        c.apply(
+            &mut env,
+            FxOp::SetEffect {
+                slot,
+                effect: Some(key.clone()),
+            },
+        )
+        .unwrap();
+        c.apply(
+            &mut env,
+            FxOp::SetParam {
+                slot,
+                param: ParamId(7),
+                value: 0.9,
+            },
+        )
+        .unwrap();
+        // Position 1 holds the parameter with id 7; id 1 does not exist.
+        let params = c.state().units[0].slots[1].params.clone();
+        assert_eq!(params, vec![0.25, 0.9]);
+        assert!(
+            c.apply(
+                &mut env,
+                FxOp::SetParam {
+                    slot,
+                    param: ParamId(1),
+                    value: 0.5,
+                },
+            )
+            .is_err()
+        );
+
+        // Presets store engine ids and restore by id.
+        let preset = c.slot_preset(slot, "p").unwrap();
+        assert_eq!(preset.params, vec![(ParamId(42), 0.25), (ParamId(7), 0.9)]);
+        c.apply(
+            &mut env,
+            FxOp::SetParam {
+                slot,
+                param: ParamId(42),
+                value: 0.0,
+            },
+        )
+        .unwrap();
+        c.apply_preset(&mut env, slot, &preset).unwrap();
+        assert_eq!(c.state().units[0].slots[1].params, vec![0.25, 0.9]);
     }
 
     #[test]

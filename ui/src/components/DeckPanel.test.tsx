@@ -53,6 +53,16 @@ describe("DeckPanel", () => {
     expect(screen.getByRole("button", { name: "PLAY" })).toHaveProperty("disabled", true);
   });
 
+  it("puts the hot cue grid, loop and jump strip and the pad mode tabs inside the deck", () => {
+    render(<DeckPanel deck={0} />);
+    const deck = within(screen.getByRole("region", { name: "Deck 1" }));
+    expect(deck.getByRole("group", { name: "Deck 1 hot cues" })).toBeTruthy();
+    expect(deck.getAllByRole("button", { name: /^Hot cue \d/ })).toHaveLength(8);
+    expect(deck.getByRole("group", { name: "Loop" })).toBeTruthy();
+    expect(deck.getByRole("group", { name: "Beat jump" })).toBeTruthy();
+    expect(deck.getByLabelText("Deck 1 pad mode")).toBeTruthy();
+  });
+
   it("opens the picker and loads the chosen file", async () => {
     vi.mocked(open).mockResolvedValue("/music/tone.wav");
     commands.loadTrackPath.mockResolvedValue({

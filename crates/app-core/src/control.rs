@@ -30,6 +30,7 @@ use opendeck_library::{Library, SavedSetEntry, now_ms};
 use crate::fx::{FxController, FxEnv};
 use crate::fx_types::{FxEffectDto, FxOp, FxPresetsDto, FxSlotRef, FxStateDto, FxUnitRef};
 use crate::loader::{DecodeResult, LoadRequest, LoaderJob};
+use crate::plugins::PluginService;
 use crate::settings_store::{SettingsStore, StoredSettings};
 use crate::types::{
     AudioStatus, CoreError, CoreEvent, HotCues, InputState, OfflineAudio, TestToneOutput,
@@ -76,6 +77,9 @@ pub struct LaunchOptions {
     /// Library that stores cues and the played-track history; `None` keeps
     /// cues in memory only (tests, tools).
     pub library: Option<Library>,
+    /// Plugin scan service; its effect factories join the FX registry.
+    /// Disabled by default.
+    pub plugins: PluginService,
 }
 
 impl Default for LaunchOptions {
@@ -85,6 +89,7 @@ impl Default for LaunchOptions {
             store: SettingsStore::memory(),
             max_track_secs: 30.0 * 60.0,
             library: None,
+            plugins: PluginService::default(),
         }
     }
 }
@@ -393,12 +398,15 @@ struct Control {
     resume: [Option<Resume>; MAX_DECKS],
     /// Ticks since launch, for slow periodic work.
     ticks: u32,
+    /// Plugin catalog version the FX effect list was built from.
+    plugin_version: u64,
 }
 
 /// Runs the control loop until [`Msg::Shutdown`] or every sender is gone.
 pub(crate) fn run(opts: LaunchOptions, inbox: Receiver<Msg>, loader: Sender<LoaderJob>) {
     let settings = opts.store.load();
-    let fx = FxController::new(opts.library.as_ref());
+    let fx = FxController::with_factories(opts.library.as_ref(), opts.plugins.effect_factories());
+    let plugin_version = opts.plugins.catalog_version();
     let mut control = Control {
         opts,
         inbox,
@@ -424,6 +432,7 @@ pub(crate) fn run(opts: LaunchOptions, inbox: Receiver<Msg>, loader: Sender<Load
         latest: None,
         last_sequence: None,
         fx,
+        plugin_version,
         sampler: std::array::from_fn(|_| None),
         sampler_unsent: [false; SAMPLER_SLOTS],
         sampler_controls: SamplerControls::default(),
@@ -1456,6 +1465,12 @@ impl Control {
                 self.last_sequence = Some(snapshot.sequence);
                 self.publish(CoreEvent::Telemetry(Box::new(snapshot)));
             }
+        }
+        let plugin_version = self.opts.plugins.catalog_version();
+        if plugin_version != self.plugin_version {
+            // A plugin scan finished: offer the new effects.
+            self.plugin_version = plugin_version;
+            self.fx.refresh_effects();
         }
         self.with_fx(|fx, env| fx.tick(env));
         for event in events {

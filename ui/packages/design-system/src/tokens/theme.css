@@ -44,6 +44,7 @@
   --color-cue-7: var(--cue-7);
   --color-cue-8: var(--cue-8);
   --color-cue-fg: var(--cue-fg);
+  --color-wave-bg: var(--wave-bg);
   --color-wave-low: var(--wave-low);
   --color-wave-mid: var(--wave-mid);
   --color-wave-high: var(--wave-high);
@@ -84,4 +85,12 @@
   --text-2xl: var(--text-2xl);
 
   --ease-standard: var(--ease-standard);
+}
+
+/* Small control label: light weight, small size, subtle tracking. Tokens in tokens.css. */
+@utility ds-label {
+  font-size: var(--text-label);
+  font-weight: var(--weight-label);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
 }

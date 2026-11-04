@@ -104,15 +104,15 @@ describe.each(themes)("contrast (%s)", (theme) => {
       expect(ratio(theme, "border-strong", "surface")).toBeGreaterThanOrEqual(1.4);
     });
     for (const w of ["low", "mid", "high"]) {
-      it(`wave-${w} on bg >= 3`, () => {
-        expect(ratio(theme, `wave-${w}`, "bg")).toBeGreaterThanOrEqual(3);
+      it(`wave-${w} on wave-bg >= 2.5 (deep red outer band, decorative)`, () => {
+        expect(ratio(theme, `wave-${w}`, "wave-bg")).toBeGreaterThanOrEqual(2.5);
       });
     }
-    it("playhead on bg >= 3", () => {
-      expect(ratio(theme, "playhead", "bg")).toBeGreaterThanOrEqual(3);
+    it("playhead on wave-bg >= 3", () => {
+      expect(ratio(theme, "playhead", "wave-bg")).toBeGreaterThanOrEqual(3);
     });
-    it("beat-grid-downbeat on bg >= 1.5 (decorative guide)", () => {
-      expect(ratio(theme, "beat-grid-downbeat", "bg")).toBeGreaterThanOrEqual(1.5);
+    it("beat-grid-downbeat on wave-bg >= 1.5 (decorative guide)", () => {
+      expect(ratio(theme, "beat-grid-downbeat", "wave-bg")).toBeGreaterThanOrEqual(1.5);
     });
   });
 

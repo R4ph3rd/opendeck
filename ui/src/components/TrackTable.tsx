@@ -64,25 +64,35 @@ import {
 } from "../state/libraryActions";
 import { playlistsOnly, useLibraryStore } from "../state/library";
 import { VISIBLE_DECKS } from "../state/app";
-import { NUMERIC_COLUMNS, buildColumns, type TableRowData } from "./trackColumns";
+import {
+  NUMERIC_COLUMNS,
+  buildColumns,
+  type TableRowData,
+} from "./trackColumns";
 
 /** Rows rendered beyond the viewport on each side. */
 const OVERSCAN_ROWS = 16;
 
-/** Row height used when the `--row-h` token cannot be read (mirrors tokens.css). */
+/** Row height in px at UI scale 1, used when `--row-h` cannot be read (mirrors tokens.css). */
 const FALLBACK_ROW_HEIGHT = 24;
 
 /** Rows a PageUp or PageDown moves when the viewport size is unknown. */
 const FALLBACK_PAGE_ROWS = 10;
 
+/** `--row-h` in px. The token is rem, so it follows the root font size (UI scale). */
 function readRowHeight(): number {
   if (typeof document === "undefined") {
     return FALLBACK_ROW_HEIGHT;
   }
-  const value = Number.parseFloat(
-    getComputedStyle(document.documentElement).getPropertyValue("--row-h"),
-  );
-  return Number.isFinite(value) && value > 0 ? value : FALLBACK_ROW_HEIGHT;
+  const style = getComputedStyle(document.documentElement);
+  const rootPx = Number.parseFloat(style.fontSize);
+  const rem = Number.isFinite(rootPx) && rootPx > 0 ? rootPx : 16;
+  const raw = style.getPropertyValue("--row-h").trim();
+  const value = Number.parseFloat(raw);
+  if (!Number.isFinite(value) || value <= 0) {
+    return (FALLBACK_ROW_HEIGHT * rem) / 16;
+  }
+  return raw.endsWith("rem") ? value * rem : value;
 }
 
 const DECK_NAME = ["A", "B", "C", "D"];
@@ -102,9 +112,24 @@ interface TrackTableProps {
  * Virtual for the rows. Only the rows in view (plus a margin) are rendered and
  * requested from the source, so 50k rows scroll as smoothly as 50.
  */
-export function TrackTable({ source, playlist = null, sort, onSort, label }: TrackTableProps) {
+export function TrackTable({
+  source,
+  playlist = null,
+  sort,
+  onSort,
+  label,
+}: TrackTableProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [rowHeight] = useState(readRowHeight);
+  const [rowHeight, setRowHeight] = useState(readRowHeight);
+  // The UI scale is written to the root style; re-read the row height when it changes.
+  useEffect(() => {
+    const observer = new MutationObserver(() => setRowHeight(readRowHeight()));
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["style"],
+    });
+    return () => observer.disconnect();
+  }, []);
   const version = useSyncExternalStore(source.subscribe, source.getVersion);
 
   const selection = useLibraryStore((s) => s.selection);
@@ -126,6 +151,9 @@ export function TrackTable({ source, playlist = null, sort, onSort, label }: Tra
     overscan: OVERSCAN_ROWS,
     scrollPaddingStart: rowHeight,
   });
+  useEffect(() => {
+    virtualizer.measure();
+  }, [rowHeight, virtualizer]);
   const items = virtualizer.getVirtualItems();
   const first = items[0]?.index ?? 0;
   const last = items.at(-1)?.index ?? -1;
@@ -137,7 +165,9 @@ export function TrackTable({ source, playlist = null, sort, onSort, label }: Tra
     }
   }, [source, first, last, version]);
 
-  const windowRows = items.map((item): TableRowData => source.getRow(item.index));
+  const windowRows = items.map(
+    (item): TableRowData => source.getRow(item.index),
+  );
   const columns = useMemo(
     () =>
       buildColumns({
@@ -153,20 +183,28 @@ export function TrackTable({ source, playlist = null, sort, onSort, label }: Tra
     data: windowRows,
     columns,
     getCoreRowModel: getCoreRowModel(),
-    getRowId: (row, index) => (row ? String(row.id) : `loading-${first + index}`),
+    getRowId: (row, index) =>
+      row ? String(row.id) : `loading-${first + index}`,
     columnResizeMode: "onChange",
     state: { columnVisibility, columnSizing },
     onColumnVisibilityChange: (updater) =>
       setColumnVisibility(
-        typeof updater === "function" ? updater(columnVisibility as VisibilityState) : updater,
+        typeof updater === "function"
+          ? updater(columnVisibility as VisibilityState)
+          : updater,
       ),
     onColumnSizingChange: (updater) =>
       setColumnSizing(
-        typeof updater === "function" ? updater(columnSizing as ColumnSizingState) : updater,
+        typeof updater === "function"
+          ? updater(columnSizing as ColumnSizingState)
+          : updater,
       ),
   });
 
-  const idAt = useCallback((index: number) => source.getRow(index)?.id ?? null, [source]);
+  const idAt = useCallback(
+    (index: number) => source.getRow(index)?.id ?? null,
+    [source],
+  );
 
   // The controller's browse encoder moves the selection; the table follows once per move.
   const browseCursor = useLibraryStore((s) => s.browseCursor);
@@ -186,7 +224,10 @@ export function TrackTable({ source, playlist = null, sort, onSort, label }: Tra
 
   // The encoder continues from the row the user selected.
   useEffect(() => {
-    if (selection.focus !== null && selection.focus !== useLibraryStore.getState().browseCursor?.index) {
+    if (
+      selection.focus !== null &&
+      selection.focus !== useLibraryStore.getState().browseCursor?.index
+    ) {
       void commands.browseSelect(selection.focus);
     }
   }, [selection.focus]);
@@ -194,13 +235,18 @@ export function TrackTable({ source, playlist = null, sort, onSort, label }: Tra
   // ----- selection -----
 
   const select = (event: MouseEvent, index: number) => {
-    const mods = { shift: event.shiftKey, ctrl: event.ctrlKey || event.metaKey };
+    const mods = {
+      shift: event.shiftKey,
+      ctrl: event.ctrlKey || event.metaKey,
+    };
     if (mods.shift && selection.anchor !== null) {
       const from = Math.min(selection.anchor, index);
       const to = Math.max(selection.anchor, index);
       // Rows of the range that are not loaded yet are fetched first.
       void source.fetchRange(from, to + 1).then(() => {
-        setSelection(clickSelect(useLibraryStore.getState().selection, index, mods, idAt));
+        setSelection(
+          clickSelect(useLibraryStore.getState().selection, index, mods, idAt),
+        );
       });
       return;
     }
@@ -237,7 +283,8 @@ export function TrackTable({ source, playlist = null, sort, onSort, label }: Tra
     }
     const pageRows = Math.max(
       1,
-      Math.floor((scrollRef.current?.clientHeight ?? 0) / rowHeight) - 1 || FALLBACK_PAGE_ROWS,
+      Math.floor((scrollRef.current?.clientHeight ?? 0) / rowHeight) - 1 ||
+        FALLBACK_PAGE_ROWS,
     );
     const mod = event.ctrlKey || event.metaKey;
     switch (event.key) {
@@ -268,7 +315,10 @@ export function TrackTable({ source, playlist = null, sort, onSort, label }: Tra
         break;
       case "Enter":
         if (selection.focus !== null) {
-          loadIndexToDeck(selection.focus, event.shiftKey ? 1 : firstFreeDeck());
+          loadIndexToDeck(
+            selection.focus,
+            event.shiftKey ? 1 : firstFreeDeck(),
+          );
         }
         break;
       case "Delete":
@@ -292,7 +342,12 @@ export function TrackTable({ source, playlist = null, sort, onSort, label }: Tra
   const onRowContextMenu = (index: number, row: NonNullable<TableRowData>) => {
     let next = selection;
     if (!selection.ids.has(row.id)) {
-      next = clickSelect(EMPTY_SELECTION, index, { shift: false, ctrl: false }, idAt);
+      next = clickSelect(
+        EMPTY_SELECTION,
+        index,
+        { shift: false, ctrl: false },
+        idAt,
+      );
       setSelection(next);
     }
     const targets = contextTargets(next, row.id);
@@ -301,10 +356,21 @@ export function TrackTable({ source, playlist = null, sort, onSort, label }: Tra
     setMenuEntries(entriesFor(targets));
   };
 
-  const onDragStart = (event: DragEvent, index: number, row: NonNullable<TableRowData>) => {
+  const onDragStart = (
+    event: DragEvent,
+    index: number,
+    row: NonNullable<TableRowData>,
+  ) => {
     const ids = selection.ids.has(row.id) ? [...selection.ids] : [row.id];
     if (!selection.ids.has(row.id)) {
-      setSelection(clickSelect(EMPTY_SELECTION, index, { shift: false, ctrl: false }, idAt));
+      setSelection(
+        clickSelect(
+          EMPTY_SELECTION,
+          index,
+          { shift: false, ctrl: false },
+          idAt,
+        ),
+      );
     }
     const entries = playlist === null ? [] : entriesFor(ids);
     writeDrag(
@@ -336,7 +402,10 @@ export function TrackTable({ source, playlist = null, sort, onSort, label }: Tra
   }
 
   const paddingTop = items[0]?.start ?? 0;
-  const paddingBottom = items.length > 0 ? virtualizer.getTotalSize() - (items.at(-1)?.end ?? 0) : 0;
+  const paddingBottom =
+    items.length > 0
+      ? virtualizer.getTotalSize() - (items.at(-1)?.end ?? 0)
+      : 0;
   const visibleColumns = table.getVisibleLeafColumns().length;
   const deckIds = VISIBLE_DECKS;
 
@@ -361,17 +430,26 @@ export function TrackTable({ source, playlist = null, sort, onSort, label }: Tra
             >
               <TableHeader>
                 {table.getHeaderGroups().map((group) => (
-                  <TableRow key={group.id} role="row" className="hover:bg-transparent">
+                  <TableRow
+                    key={group.id}
+                    role="row"
+                    className="hover:bg-transparent"
+                  >
                     {group.headers.map((header) => {
                       const id = header.column.id as ColumnId;
                       const sortColumn = SORT_COLUMN[id];
-                      const active = sort !== null && sortColumn === sort.column;
+                      const active =
+                        sort !== null && sortColumn === sort.column;
                       return (
                         <TableHead
                           key={header.id}
                           role="columnheader"
                           aria-sort={
-                            active ? (sort.descending ? "descending" : "ascending") : undefined
+                            active
+                              ? sort.descending
+                                ? "descending"
+                                : "ascending"
+                              : undefined
                           }
                           style={{ width: header.getSize() }}
                           className={cn(
@@ -382,7 +460,10 @@ export function TrackTable({ source, playlist = null, sort, onSort, label }: Tra
                           onClick={sortColumn ? () => onSort(id) : undefined}
                         >
                           <span className="inline-flex items-center gap-1">
-                            {flexRender(header.column.columnDef.header, header.getContext())}
+                            {flexRender(
+                              header.column.columnDef.header,
+                              header.getContext(),
+                            )}
                             {active ? (
                               sort.descending ? (
                                 <ArrowDown className="size-3" aria-hidden />
@@ -434,17 +515,27 @@ export function TrackTable({ source, playlist = null, sort, onSort, label }: Tra
                           "outline-2 -outline-offset-2 outline-focus-ring/40",
                       )}
                       onClick={(event) => select(event, index)}
-                      onDoubleClick={() => loadIndexToDeck(index, firstFreeDeck())}
+                      onDoubleClick={() =>
+                        loadIndexToDeck(index, firstFreeDeck())
+                      }
                       onContextMenu={() => row && onRowContextMenu(index, row)}
-                      onDragStart={(event) => row && onDragStart(event, index, row)}
+                      onDragStart={(event) =>
+                        row && onDragStart(event, index, row)
+                      }
                     >
                       {tableRow.getVisibleCells().map((cell) => (
                         <TableCell
                           key={cell.id}
                           role="gridcell"
-                          className={cn(NUMERIC_COLUMNS.has(cell.column.id as ColumnId) && "text-right")}
+                          className={cn(
+                            NUMERIC_COLUMNS.has(cell.column.id as ColumnId) &&
+                              "text-right",
+                          )}
                         >
-                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext(),
+                          )}
                         </TableCell>
                       ))}
                     </TableRow>
@@ -464,7 +555,10 @@ export function TrackTable({ source, playlist = null, sort, onSort, label }: Tra
             <ContextMenuItem
               key={deck}
               disabled={menuTargets.length === 0}
-              onSelect={() => menuTargets[0] !== undefined && void loadTrackById(deck, menuTargets[0])}
+              onSelect={() =>
+                menuTargets[0] !== undefined &&
+                void loadTrackById(deck, menuTargets[0])
+              }
             >
               Load to deck {DECK_NAME[deck]}
             </ContextMenuItem>
@@ -475,7 +569,10 @@ export function TrackTable({ source, playlist = null, sort, onSort, label }: Tra
             <ContextMenuItem disabled>No playlists yet</ContextMenuItem>
           ) : (
             playlistsOnly(playlists).map((p) => (
-              <ContextMenuItem key={p.id} onSelect={() => void addToPlaylist(p.id, menuTargets)}>
+              <ContextMenuItem
+                key={p.id}
+                onSelect={() => void addToPlaylist(p.id, menuTargets)}
+              >
                 {p.name}
               </ContextMenuItem>
             ))
@@ -492,7 +589,9 @@ export function TrackTable({ source, playlist = null, sort, onSort, label }: Tra
           </ContextMenuItem>
           <ContextMenuSeparator />
           {playlist !== null ? (
-            <ContextMenuItem onSelect={() => void removeFromPlaylist(playlist, menuEntries)}>
+            <ContextMenuItem
+              onSelect={() => void removeFromPlaylist(playlist, menuEntries)}
+            >
               Remove from playlist
             </ContextMenuItem>
           ) : null}
@@ -501,7 +600,10 @@ export function TrackTable({ source, playlist = null, sort, onSort, label }: Tra
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
-      <Dialog open={pendingDelete !== null} onOpenChange={(open) => !open && setPendingDelete(null)}>
+      <Dialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => !open && setPendingDelete(null)}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete from collection</DialogTitle>

@@ -1,4 +1,7 @@
 import { Badge } from "@opendeck/design-system";
+import { Music, Play } from "lucide-react";
+import type { ReactNode } from "react";
+import { useArtworkUrl } from "../hooks/useArtwork";
 import { createColumnHelper, type ColumnDef } from "@tanstack/react-table";
 import type { TrackRowDto } from "../ipc/bindings";
 import { formatTime } from "../lib/format";
@@ -20,6 +23,8 @@ export type TableRowData = TrackRowDto | null;
 
 /** Starting width in pixels of each column. */
 export const COLUMN_SIZE: Record<ColumnId, number> = {
+  preview: 96,
+  artwork: 64,
   title: 260,
   artist: 180,
   album: 160,
@@ -49,6 +54,35 @@ export const NUMERIC_COLUMNS: ReadonlySet<ColumnId> = new Set([
 /** Columns that cannot be hidden. */
 export const REQUIRED_COLUMNS: ReadonlySet<ColumnId> = new Set(["title"]);
 
+/** Thumbnail of a track's artwork, or a placeholder when it has none. */
+function ArtworkCell({ track }: { track: TrackRowDto }) {
+  const url = useArtworkUrl(track.id);
+  return (
+    <span className="grid size-5 place-items-center overflow-hidden rounded-sm bg-surface-raised text-fg-subtle">
+      {url ? (
+        <img src={url} alt="" className="size-full object-cover" />
+      ) : (
+        <Music className="size-3" aria-hidden />
+      )}
+    </span>
+  );
+}
+
+/** Preview slot. Auditioning a track from the browser needs an engine command that does not exist yet. */
+function PreviewCell({ track }: { track: TrackRowDto }) {
+  return (
+    <button
+      type="button"
+      disabled
+      title="Preview is not available yet"
+      aria-label={`Preview ${displayTitle(track)}`}
+      className="grid h-4 w-full place-items-center rounded-sm bg-surface-raised text-fg-subtle disabled:cursor-default"
+    >
+      <Play className="size-3" aria-hidden />
+    </button>
+  );
+}
+
 const helper = createColumnHelper<TableRowData>();
 
 interface ColumnOptions {
@@ -68,17 +102,23 @@ export function buildColumns({ notation, onRate }: ColumnOptions): ColumnDef<Tab
       minSize: MIN_COLUMN_SIZE,
       cell: ({ row }) => (row.original ? (pick(row.original) ?? "") : id === "title" ? dim : null),
     });
+  const slot = (id: "preview" | "artwork", cell: (track: TrackRowDto) => ReactNode) =>
+    helper.display({
+      id,
+      header: COLUMN_LABEL[id],
+      size: COLUMN_SIZE[id],
+      minSize: MIN_COLUMN_SIZE,
+      enableSorting: false,
+      cell: ({ row }) => (row.original ? cell(row.original) : null),
+    });
   return [
+    slot("preview", (r) => <PreviewCell track={r} />),
+    slot("artwork", (r) => <ArtworkCell track={r} />),
     text("title", (r) => displayTitle(r)),
     text("artist", (r) => r.artist),
     text("album", (r) => r.album),
-    text("bpm", (r) => formatBpm(r.bpm)),
-    text("key", (r) => keyText(r, notation)),
-    text("duration", (r) => (r.duration_secs === null ? "" : formatTime(r.duration_secs))),
-    text("bitrate", (r) => formatBitrate(r.bitrate_kbps)),
-    text("year", (r) => (r.year === null ? "" : String(r.year))),
-    text("date_added", (r) => formatDate(r.date_added)),
     text("genre", (r) => r.genre),
+    text("bpm", (r) => formatBpm(r.bpm)),
     helper.display({
       id: "rating",
       header: COLUMN_LABEL.rating,
@@ -93,6 +133,11 @@ export function buildColumns({ notation, onRate }: ColumnOptions): ColumnDef<Tab
           />
         ) : null,
     }),
+    text("duration", (r) => (r.duration_secs === null ? "" : formatTime(r.duration_secs))),
+    text("key", (r) => keyText(r, notation)),
+    text("bitrate", (r) => formatBitrate(r.bitrate_kbps)),
+    text("year", (r) => (r.year === null ? "" : String(r.year))),
+    text("date_added", (r) => formatDate(r.date_added)),
     text("comment", (r) => r.comment),
     helper.display({
       id: "analysis",

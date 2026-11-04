@@ -4,6 +4,21 @@ All notable changes are recorded here. Format follows [Keep a Changelog](https:/
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-11-04
+
+Second UI rework and the first plugin effects. Pre-release, unsigned.
+
+### Added
+
+- CLAP plugin effects (ADR 0008, wave 9a-1), with the `opendeck-plugin-scan` scanner bundled next to the app.
+- UI scale: auto from the window height (1x to 2x) or manual in Settings, Interface.
+
+### Changed
+
+- Reference performance layout: menu row, deck panels, middle row with Beat FX and pad panes.
+- Flat FL-style visuals with a red palette; darker surfaces; neutral pads with a muted cue edge; thin fader caps and light labels.
+- Precise waveform: one raw peak column per device pixel, no interpolation or smoothing.
+
 ## [0.8.1] - 2026-10-31
 
 UI revamp after owner feedback. No engine, contract or IPC changes.

@@ -95,8 +95,9 @@ export function PerformancePads({
         const off = disabled || pad.disabled;
         const color = token(pad.color ?? "accent");
         const isPressed = pressed.has(index);
+        // Neutral grey pad; a set slot shows a thin muted edge in its colour token.
         const style: CSSProperties = pad.lit
-          ? { backgroundColor: color, color: token("cue-fg") }
+          ? { boxShadow: `inset 3px 0 0 ${color}` }
           : {};
         const button = (
           <button
@@ -112,9 +113,9 @@ export function PerformancePads({
               "transition-[filter,transform] duration-[var(--duration-fast)] ease-standard",
               "-outline-offset-2 focus-visible:outline-2 focus-visible:outline-focus-ring",
               "disabled:pointer-events-none disabled:opacity-50",
-              "hover:brightness-110 data-[pressed]:translate-y-px data-[pressed]:brightness-125",
-              !pad.lit && "bg-surface-raised text-fg",
-              pad.active && "ring-2 ring-inset ring-fg",
+              "hover:bg-surface-hover data-[pressed]:translate-y-px data-[pressed]:bg-surface-hover",
+              "bg-surface-raised text-fg",
+              pad.active && "bg-surface-hover shadow-[inset_0_0_0_1px_var(--accent)]",
             )}
             onPointerDown={(event: PointerEvent<HTMLButtonElement>) => {
               if (event.button !== 0) return;
@@ -140,12 +141,12 @@ export function PerformancePads({
               aria-hidden
               className={cn(
                 "absolute left-1.5 top-1 font-mono text-xs tabular-nums",
-                pad.lit ? "text-cue-fg opacity-70" : "text-fg-subtle",
+                "text-fg-subtle",
               )}
             >
               {index + 1}
             </span>
-            <span className="w-full truncate text-center text-sm font-semibold leading-tight">
+            <span className="w-full truncate text-center text-sm font-medium leading-tight">
               {pad.label}
             </span>
             {pad.sublabel ? (

@@ -4,7 +4,7 @@
   "identifier": "app.opendeck.desktop",
   "build": {
     "beforeDevCommand": "pnpm dev",
-    "beforeBuildCommand": "pnpm build",
+    "beforeBuildCommand": "node ../scripts/build-sidecars.mjs && pnpm build",
     "devUrl": "http://localhost:1420",
     "frontendDist": "../ui/dist"
   },

@@ -2,7 +2,6 @@ import { Panel, cn } from "@opendeck/design-system";
 import { useState, type DragEvent } from "react";
 import { useStore } from "zustand";
 import { dragKind, readDrag } from "../lib/dnd";
-import { DECK_BORDER } from "../lib/deck";
 import { loadDroppedFile, loadTrackById } from "../state/libraryActions";
 import { selectDeckUi, useAppStore } from "../state/app";
 import { telemetryStore } from "../state/telemetry";
@@ -16,7 +15,7 @@ interface DeckPanelProps {
 
 /**
  * One deck as an edge-to-edge band: header (title, clocks, key and sync),
- * overview waveform, then loop, transport, wheel, modes and tempo.
+ * full-width overview waveform, then pads, transport, jog and tempo.
  */
 export function DeckPanel({ deck }: DeckPanelProps) {
   const ui = useAppStore(selectDeckUi(deck));
@@ -55,8 +54,7 @@ export function DeckPanel({ deck }: DeckPanelProps) {
       flush
       aria-label={name}
       className={cn(
-        "size-full min-w-0 border-t-2",
-        DECK_BORDER[deck] ?? "",
+        "size-full min-w-0",
         dropActive && "outline-2 -outline-offset-2 outline-accent",
       )}
       onDragOver={onDragOver}
@@ -64,7 +62,7 @@ export function DeckPanel({ deck }: DeckPanelProps) {
       onDrop={onDrop}
     >
       <DeckHeader deck={deck} ready={ready} />
-      <DeckOverview deck={deck} label={`${name} position`} className="h-8 shrink-0" />
+      <DeckOverview deck={deck} label={`${name} position`} className="h-[var(--deck-overview-h)] shrink-0" />
       <DeckMain deck={deck} ready={ready} />
     </Panel>
   );

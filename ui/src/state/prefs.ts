@@ -2,6 +2,7 @@ import type { ResizableLayout } from "@opendeck/design-system";
 import { create } from "zustand";
 import { commands } from "../ipc/bindings";
 import { readStored, writeStored } from "../lib/persist";
+import { parseScalePref, type UiScalePref } from "../lib/uiScale";
 import { clampZoom, DEFAULT_ZOOM_INDEX } from "../viz/waveformMath";
 
 /** Names of the preferences stored in the library settings (`ui.<name>`). */
@@ -12,32 +13,25 @@ export const PREF = {
   layouts: "layoutPresets",
   shortcuts: "shortcuts",
   library: "libraryOptions",
+  uiScale: "uiScale",
 } as const;
 
 /** localStorage key of the vertical split between the stacked bands. */
-export const LAYOUT_KEY = "opendeck.layout.main.v2";
-
-/** Same split with the effects band open. */
-export const FX_LAYOUT_KEY = `${LAYOUT_KEY}.fx`;
+export const LAYOUT_KEY = "opendeck.layout.main.v3";
 
 /** Other split layouts that reset together with the main one. */
-export const EXTRA_LAYOUT_KEYS = ["opendeck.layout.pads", "opendeck.layout.library"] as const;
+export const EXTRA_LAYOUT_KEYS = [
+  "opendeck.layout.decks",
+  "opendeck.layout.middle",
+  "opendeck.layout.library",
+] as const;
 
-/** Bands top to bottom: zoomed waveforms, decks and mixer, pads, library (percent). */
+/** Bands top to bottom: zoomed waveforms, decks and mixer, FX and pad modes, browser (percent). */
 export const DEFAULT_LAYOUT: ResizableLayout = {
-  waves: 12,
-  decks: 44,
-  pads: 15,
-  library: 29,
-};
-
-/** Bands with the effects strip open between the decks and the pads. */
-export const DEFAULT_FX_LAYOUT: ResizableLayout = {
-  waves: 10.8,
-  decks: 44,
-  fx: 13.2,
-  pads: 14.2,
-  library: 17.8,
+  waves: 15,
+  decks: 33,
+  middle: 16,
+  library: 36,
 };
 
 export type Theme = "dark" | "light";
@@ -138,6 +132,8 @@ export interface PrefsState {
   firstRunDone: boolean;
   firstRunOpen: boolean;
   theme: Theme;
+  /** Interface scale: `auto` follows the window height. */
+  uiScale: UiScalePref;
   /** Default zoom index of the deck waveforms. */
   waveformZoom: number;
   layoutPresets: LayoutPreset[];
@@ -146,6 +142,7 @@ export interface PrefsState {
   library: LibraryOptions;
   hydrate: () => Promise<void>;
   setTheme: (theme: Theme) => void;
+  setUiScale: (scale: UiScalePref) => void;
   setWaveformZoom: (index: number) => void;
   setLibrary: (patch: Partial<LibraryOptions>) => void;
   saveLayoutPreset: (name: string) => void;
@@ -163,6 +160,7 @@ const initial = () => ({
   firstRunDone: true,
   firstRunOpen: false,
   theme: "dark" as Theme,
+  uiScale: "auto" as UiScalePref,
   waveformZoom: DEFAULT_ZOOM_INDEX,
   layoutPresets: [] as LayoutPreset[],
   layoutRevision: 0,
@@ -177,9 +175,10 @@ export function applyTheme(theme: Theme): void {
 export const usePrefsStore = create<PrefsState>()((set, get) => ({
   ...initial(),
   hydrate: async () => {
-    const [done, theme, zoom, layouts, library, range] = await Promise.all([
+    const [done, theme, scale, zoom, layouts, library, range] = await Promise.all([
       readPref<boolean>(PREF.firstRun),
       loadPref<Theme>(PREF.theme, "dark"),
+      loadPref<unknown>(PREF.uiScale, "auto"),
       loadPref<number>(PREF.zoom, DEFAULT_ZOOM_INDEX),
       loadPref<LayoutPreset[]>(PREF.layouts, []),
       loadPref<Partial<LibraryOptions>>(PREF.library, {}),
@@ -192,6 +191,7 @@ export const usePrefsStore = create<PrefsState>()((set, get) => ({
       firstRunDone,
       firstRunOpen: !firstRunDone,
       theme: theme === "light" ? "light" : "dark",
+      uiScale: parseScalePref(scale),
       waveformZoom: clampZoom(Number.isFinite(zoom) ? zoom : DEFAULT_ZOOM_INDEX),
       layoutPresets: Array.isArray(layouts) ? layouts : [],
       library: { ...DEFAULT_LIBRARY_OPTIONS, ...library, ...range },
@@ -200,6 +200,10 @@ export const usePrefsStore = create<PrefsState>()((set, get) => ({
   setTheme: (theme) => {
     set({ theme });
     void savePref(PREF.theme, theme);
+  },
+  setUiScale: (uiScale) => {
+    set({ uiScale });
+    void savePref(PREF.uiScale, uiScale);
   },
   setWaveformZoom: (index) => {
     const waveformZoom = clampZoom(index);
@@ -245,8 +249,14 @@ export const usePrefsStore = create<PrefsState>()((set, get) => ({
   resetAll: () => {
     set({ ...initial(), loaded: true, firstRunDone: true });
     try {
-      for (const key of [LAYOUT_KEY, FX_LAYOUT_KEY, ...EXTRA_LAYOUT_KEYS]) {
+      for (const key of [LAYOUT_KEY, ...EXTRA_LAYOUT_KEYS]) {
         globalThis.localStorage?.removeItem(key);
+      }
+      // Layouts of hidden-band combinations.
+      const storage = globalThis.localStorage;
+      for (let i = (storage?.length ?? 0) - 1; i >= 0; i--) {
+        const key = storage?.key(i);
+        if (key?.startsWith(`${LAYOUT_KEY}.`)) storage?.removeItem(key);
       }
     } catch {
       // Storage may be blocked; the layout then resets on the next launch.

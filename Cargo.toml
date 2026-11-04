@@ -1,9 +1,9 @@
 [workspace]
 resolver = "3"
-members = ["crates/*", "src-tauri"]
+members = ["crates/*", "crates/plugin-host/tests/fixtures/clap-test-plugin", "src-tauri"]
 
 [workspace.package]
-version = "0.8.1"
+version = "0.8.2"
 edition = "2024"
 rust-version = "1.97"
 license-file = "LICENSE"
@@ -22,6 +22,7 @@ opendeck-analysis = { path = "crates/analysis" }
 opendeck-library = { path = "crates/library" }
 opendeck-midi = { path = "crates/midi" }
 opendeck-app-core = { path = "crates/app-core" }
+opendeck-plugin-host = { path = "crates/plugin-host" }
 
 # Shell and IPC
 tauri = "2.12.5"
@@ -56,6 +57,12 @@ quick-xml = "0.42"
 rayon = "1"
 crossbeam-channel = "0.5"
 midir = "0.11"
+
+# Plugin hosting (ADR 0008). Optional features of opendeck-plugin-host.
+clack-host = "0.2"
+clack-extensions = { version = "0.2", default-features = false }
+clap-sys = "0.5"
+vst3 = "0.3"
 
 # Common
 serde = { version = "1", features = ["derive"] }

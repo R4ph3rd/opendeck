@@ -10,40 +10,46 @@ export type KeyNotation = "camelot" | "musical";
 
 /** Ids of the collection table columns. */
 export type ColumnId =
+  | "preview"
+  | "artwork"
   | "title"
   | "artist"
   | "album"
+  | "genre"
   | "bpm"
-  | "key"
+  | "rating"
   | "duration"
+  | "key"
   | "bitrate"
   | "year"
   | "date_added"
-  | "genre"
-  | "rating"
   | "comment"
   | "analysis";
 
 /** Every column in display order. */
 export const COLUMN_ORDER: readonly ColumnId[] = [
+  "preview",
+  "artwork",
   "title",
   "artist",
   "album",
+  "genre",
   "bpm",
-  "key",
+  "rating",
   "duration",
+  "key",
   "bitrate",
   "year",
   "date_added",
-  "genre",
-  "rating",
   "comment",
   "analysis",
 ];
 
 /** Header text per column. */
 export const COLUMN_LABEL: Record<ColumnId, string> = {
-  title: "Title",
+  preview: "Preview",
+  artwork: "Artwork",
+  title: "Track Title",
   artist: "Artist",
   album: "Album",
   bpm: "BPM",

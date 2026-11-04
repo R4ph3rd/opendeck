@@ -155,12 +155,30 @@ describe("CollectionView table", () => {
     expect(localStorage.getItem("opendeck.library.v1")).toContain('"musical"');
   });
 
+  it("lists the browser columns in order: preview, artwork, title, artist, album, genre, BPM, rating, time, key", async () => {
+    render(<CollectionView />);
+    await waitFor(() => expect(bodyRows().length).toBeGreaterThan(5));
+    const names = screen.getAllByRole("columnheader").map((h) => h.textContent?.trim());
+    expect(names).toEqual([
+      "Preview",
+      "Artwork",
+      "Track Title",
+      "Artist",
+      "Album",
+      "Genre",
+      "BPM",
+      "Rating",
+      "Time",
+      "Key",
+    ]);
+  });
+
   it("hides columns the user turned off and keeps the title", async () => {
     render(<CollectionView />);
     await waitFor(() => expect(bodyRows().length).toBeGreaterThan(5));
-    expect(screen.queryByRole("columnheader", { name: /Album/ })).toBeNull();
-    act(() => useLibraryStore.getState().setColumnVisibility({ album: true, bpm: false }));
     expect(screen.getByRole("columnheader", { name: /Album/ })).toBeTruthy();
+    act(() => useLibraryStore.getState().setColumnVisibility({ album: false, bpm: false }));
+    expect(screen.queryByRole("columnheader", { name: /Album/ })).toBeNull();
     expect(screen.queryByRole("columnheader", { name: /BPM/ })).toBeNull();
     expect(screen.getByRole("columnheader", { name: /Title/ })).toBeTruthy();
   });

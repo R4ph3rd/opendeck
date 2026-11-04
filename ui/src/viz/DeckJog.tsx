@@ -55,7 +55,7 @@ export function VinylToggle({ deck, className }: { deck: number; className?: str
       aria-label={`Vinyl mode ${letter}`}
       pressed={vinyl}
       className={cn(
-        "rounded-sm bg-surface-raised px-1.5 text-xs font-bold data-[state=on]:bg-accent data-[state=on]:text-accent-fg",
+        "rounded-sm bg-surface-raised px-1.5 ds-label data-[state=on]:text-accent data-[state=on]:shadow-[inset_0_0_0_1px_var(--accent)]",
         className,
       )}
       onPressedChange={(on) => {
