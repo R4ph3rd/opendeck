@@ -439,12 +439,12 @@ export function DeckMain({ deck, ready }: Props) {
       <div className="min-w-[calc(var(--pad-min-w)*1.5)] flex-1">
         <DeckPads deck={deck} />
       </div>
-      <div className="flex min-w-0 shrink items-center gap-2">
-        <div className="flex w-[var(--cluster-w)] shrink-0 flex-col gap-2">
+      <div className="flex min-w-0 shrink items-stretch gap-2">
+        <div className="flex w-[var(--cluster-w)] shrink-0 flex-col gap-2 self-center">
           <LoopColumn deck={deck} ready={ready} />
           <JumpColumn deck={deck} ready={ready} />
         </div>
-        <div className="flex h-[var(--jog-max)] min-w-0 items-stretch gap-2">
+        <div className="flex min-w-0 items-stretch gap-2">
           <TransportColumn deck={deck} ready={ready} />
           <div className="w-[var(--jog-max)] min-w-0 shrink [container-type:size]">
             <div className="size-[min(100cqh,100cqw)]">

@@ -87,13 +87,13 @@ export function DeckPads({ deck }: { deck: number }) {
   return (
     <section
       aria-label={`Deck ${deck + 1} pads`}
-      className="flex size-full min-h-0 min-w-0 flex-col gap-1"
+      className="flex size-full min-h-0 min-w-0 flex-col justify-center gap-1"
     >
       <motion.div
         key={mode}
         data-testid={`pad-view-${deck}`}
         data-mode={mode}
-        className="min-h-0 flex-1"
+        className="max-h-[var(--pad-grid-max-h)] min-h-0 flex-1"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: reduce ? 0 : MODE_FADE_SECONDS }}
