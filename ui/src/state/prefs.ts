@@ -28,9 +28,9 @@ export const EXTRA_LAYOUT_KEYS = [
 
 /** Bands top to bottom: zoomed waveforms, decks and mixer, browser (percent). */
 export const DEFAULT_LAYOUT: ResizableLayout = {
-  waves: 15,
-  decks: 38,
-  library: 47,
+  waves: 18,
+  decks: 28,
+  library: 54,
 };
 
 export type Theme = "dark" | "light";

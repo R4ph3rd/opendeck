@@ -51,8 +51,8 @@
   --mixer-w: 21rem; /* centre mixer column between the decks */
   --mixer-master-w: 5.5rem; /* master and headphone knob column inside the mixer, wide enough for MASTER */
   --ui-scale: 1; /* root font size factor, set at runtime: auto = clamp(1, height / 1080, 2) in 0.125 steps */
-  --pad-grid-max-h: 18.75rem; /* tallest hot cue pad grid; extra height goes to the jog */
-  --jog-max: 7.5rem; /* largest jog wheel diameter; it shrinks to fit the deck */
+  --pad-grid-max-h: 8rem; /* tallest hot cue pad grid; extra height goes to the jog */
+  --jog-max: 10rem; /* largest jog wheel diameter; it follows the deck height and shrinks to fit the width */
   --cluster-w: 5.25rem; /* loop and beat jump column between the pads and the transport */
   --fx-bar-h: 2rem; /* Beat FX bar under the menu row */
   --transport-w: 2.75rem; /* CUE and PLAY column */
