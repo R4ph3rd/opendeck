@@ -33,7 +33,7 @@ React app shell: layout (2 decks shown, 4-deck ready), deck headers and transpor
 
 ## Performance layout (reference rework)
 - Under the menu row (`TopBar`) sits the Beat FX bar (`FxBar`). Bands top to bottom: zoomed waveforms, decks with the slim mixer (`DeckRow`; each deck holds its pad panel `DeckPads` next to the small wheel), browser. Sizes come from the LAYOUT SIZES tokens, see `docs/design/theming.md`.
-- Each deck holds its own hot cue grid, pad mode tabs, beat loop and jump strip. The middle row shows the sampler for a deck in HOT CUE mode (SAMPLER toggle) and the mode view for any other pad mode.
+- Each deck holds its beat loop and jump strip and its pad panel (`DeckPads`): the view of the deck's pad mode, the sampler in SAMPLER mode, and the mode dropdown under the pads.
 - Menu row: mode, FX, SAMPLER, REC (disabled, no recording yet), VIEW, IMPORT | wordmark | layout selector, MIDI and audio status, clock, help, settings. No CPU load readout: telemetry has no such field.
 - Browser Preview column is a disabled placeholder: auditioning from the browser needs an engine command.
 
