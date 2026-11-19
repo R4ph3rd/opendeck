@@ -1,4 +1,12 @@
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { createBindingsMock } from "../../test/bindingsMock";
 import { neutralPadState, neutralSampler } from "../../test/bindingsMock";
@@ -16,7 +24,7 @@ const { usePadStore } = await import("../../state/pads");
 const { useFxStore } = await import("../../state/fx");
 const { telemetryStore } = await import("../../state/telemetry");
 const { DRAG_MIME } = await import("../../lib/dnd");
-const { PadMiddlePanel, PadModeTabs, PadModeView } = await import("./PadMiddlePanel");
+const { DeckPads, PadModeView } = await import("./DeckPads");
 const { fxEffects } = await import("../../test/bindingsMock");
 const { commands } = bindings;
 
@@ -35,7 +43,9 @@ function loadDeck(deck = 0, patch: Parameters<typeof telemetryFor>[2] = {}) {
     useAppStore.getState().patchDeck(deck, { track });
     telemetryStore
       .getState()
-      .push(telemetryFor(1, deck, { loaded: true, duration: 200 * RATE, ...patch }));
+      .push(
+        telemetryFor(1, deck, { loaded: true, duration: 200 * RATE, ...patch }),
+      );
   });
 }
 
@@ -66,7 +76,8 @@ beforeEach(() => {
 afterEach(cleanup);
 
 /** Opens the right-click menu of a pad. */
-const openMenu = (el: HTMLElement) => fireEvent.contextMenu(el, { clientX: 5, clientY: 5 });
+const openMenu = (el: HTMLElement) =>
+  fireEvent.contextMenu(el, { clientX: 5, clientY: 5 });
 
 /** The pads of a group, in order. */
 const padsOf = (group: string) =>
@@ -92,12 +103,13 @@ describe("pad grid", () => {
     }
   });
 
-  it("is a 2 x 4 grid that fills its container", () => {
+  it("is two columns of four, filled top to bottom, that fills its container", () => {
     loadDeck();
     render(<PadModeView deck={0} mode="hot_cue" />);
     const group = screen.getByRole("group", { name: "Deck 1 hot cues" });
-    expect(group.className).toContain("grid-cols-4");
-    expect(group.className).toContain("grid-rows-2");
+    expect(group.className).toContain("grid-cols-2");
+    expect(group.className).toContain("grid-rows-4");
+    expect(group.className).toContain("grid-flow-col");
     expect(group.className).toContain("size-full");
   });
 });
@@ -106,7 +118,9 @@ describe("hot cue view", () => {
   it("shows the cue name and time on a lit pad and Empty on a free one", () => {
     loadDeck();
     act(() =>
-      useAppStore.getState().patchDeck(0, { hotCues: [cue("Drop", 12.5), ...Array(7).fill(null)] }),
+      useAppStore
+        .getState()
+        .patchDeck(0, { hotCues: [cue("Drop", 12.5), ...Array(7).fill(null)] }),
     );
     render(<PadModeView deck={0} mode="hot_cue" />);
     const first = pad("Hot cue 1");
@@ -121,7 +135,9 @@ describe("hot cue view", () => {
   it("click is a pad press through the controller path, SHIFT+click the shifted action", () => {
     loadDeck();
     act(() =>
-      useAppStore.getState().patchDeck(0, { hotCues: [cue("", 1), ...Array(7).fill(null)] }),
+      useAppStore
+        .getState()
+        .patchDeck(0, { hotCues: [cue("", 1), ...Array(7).fill(null)] }),
     );
     render(<PadModeView deck={0} mode="hot_cue" />);
     press(pad("Hot cue 1"));
@@ -160,12 +176,16 @@ describe("hot cue view", () => {
   it("sets, renames and deletes from the right-click menu", async () => {
     loadDeck();
     act(() =>
-      useAppStore.getState().patchDeck(0, { hotCues: [cue("Drop", 12.5), ...Array(7).fill(null)] }),
+      useAppStore
+        .getState()
+        .patchDeck(0, { hotCues: [cue("Drop", 12.5), ...Array(7).fill(null)] }),
     );
     render(<PadModeView deck={0} mode="hot_cue" />);
 
     openMenu(pad("Hot cue 2 (empty)"));
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Set at playhead" }));
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Set at playhead" }),
+    );
     expect(commands.setHotCue).toHaveBeenCalledWith(0, 1);
 
     openMenu(pad("Hot cue 1"));
@@ -204,8 +224,22 @@ describe("pad FX view", () => {
     const first = screen.getByRole("button", { name: /^Pad 1, Echo/ });
     expect(first.textContent).toContain("Echo");
     press(first);
-    expect(commands.padPress).toHaveBeenNthCalledWith(1, 1, "pad_fx1", 0, false, true);
-    expect(commands.padPress).toHaveBeenNthCalledWith(2, 1, "pad_fx1", 0, false, false);
+    expect(commands.padPress).toHaveBeenNthCalledWith(
+      1,
+      1,
+      "pad_fx1",
+      0,
+      false,
+      true,
+    );
+    expect(commands.padPress).toHaveBeenNthCalledWith(
+      2,
+      1,
+      "pad_fx1",
+      0,
+      false,
+      false,
+    );
 
     fireEvent.pointerDown(pad("Pad 3 (empty)"), {
       button: 0,
@@ -228,10 +262,20 @@ describe("pad FX view", () => {
     });
     render(<PadModeView deck={0} mode="pad_fx2" />);
     press(pad("Pad 1 (empty)"));
-    expect(commands.padPress).toHaveBeenCalledWith(0, "pad_fx2", 0, false, true);
+    expect(commands.padPress).toHaveBeenCalledWith(
+      0,
+      "pad_fx2",
+      0,
+      false,
+      true,
+    );
     openMenu(pad("Pad 1 (empty)"));
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Deck 1 edit pad effects" }));
-    expect(await screen.findByRole("region", { name: "Pad 1 settings" })).toBeTruthy();
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Deck 1 edit pad effects" }),
+    );
+    expect(
+      await screen.findByRole("region", { name: "Pad 1 settings" }),
+    ).toBeTruthy();
   });
 });
 
@@ -240,7 +284,13 @@ describe("beat jump view", () => {
     loadDeck();
     render(<PadModeView deck={0} mode="beat_jump" />);
     press(pad("Jump back 2 beats"));
-    expect(commands.padPress).toHaveBeenCalledWith(0, "beat_jump", 2, false, true);
+    expect(commands.padPress).toHaveBeenCalledWith(
+      0,
+      "beat_jump",
+      2,
+      false,
+      true,
+    );
     expect(pad("Jump forward 8 beats").textContent).toContain("8 →");
   });
 
@@ -253,16 +303,30 @@ describe("beat jump view", () => {
         name: "Deck 1 double pad jump sizes",
       }),
     );
-    expect(commands.padPress).toHaveBeenCalledWith(0, "beat_jump", 7, true, true);
+    expect(commands.padPress).toHaveBeenCalledWith(
+      0,
+      "beat_jump",
+      7,
+      true,
+      true,
+    );
     openMenu(pad("Jump back 1 beats"));
     fireEvent.click(
       await screen.findByRole("menuitem", {
         name: "Deck 1 halve pad jump sizes",
       }),
     );
-    expect(commands.padPress).toHaveBeenCalledWith(0, "beat_jump", 6, true, true);
+    expect(commands.padPress).toHaveBeenCalledWith(
+      0,
+      "beat_jump",
+      6,
+      true,
+      true,
+    );
     act(() => {
-      usePadStore.getState().setPad(padStateWith({ jump_beats: [-2, 2, -4, 4, -8, 8, -16, 16] }));
+      usePadStore
+        .getState()
+        .setPad(padStateWith({ jump_beats: [-2, 2, -4, 4, -8, 8, -16, 16] }));
     });
     expect(pad("Jump back 16 beats").textContent).toContain("← 16");
   });
@@ -311,7 +375,9 @@ describe("sampler view", () => {
 
   it("follows the shared layout", () => {
     act(() =>
-      usePadStore.getState().setSampler({ ...neutralSampler(), layout: "shared" } as never),
+      usePadStore
+        .getState()
+        .setSampler({ ...neutralSampler(), layout: "shared" } as never),
     );
     render(<PadModeView deck={1} mode="sampler" />);
     expect(screen.getByLabelText("Sample slot 1 (empty)")).toBeTruthy();
@@ -321,23 +387,38 @@ describe("sampler view", () => {
     act(() => usePadStore.getState().setSampler(loadedState() as never));
     render(<PadModeView deck={0} mode="sampler" />);
     press(pad("Sample slot 1, Kick"));
-    expect(commands.padPress).toHaveBeenCalledWith(0, "sampler", 0, false, true);
+    expect(commands.padPress).toHaveBeenCalledWith(
+      0,
+      "sampler",
+      0,
+      false,
+      true,
+    );
 
     openMenu(pad("Sample slot 1, Kick"));
-    fireEvent.click(await screen.findByRole("menuitemcheckbox", { name: "Loop" }));
+    fireEvent.click(
+      await screen.findByRole("menuitemcheckbox", { name: "Loop" }),
+    );
     expect(commands.samplerSetSlot).toHaveBeenCalledWith(
       0,
       expect.objectContaining({ play_mode: "loop", name: null }),
     );
     openMenu(pad("Sample slot 1, Kick"));
-    fireEvent.click(await screen.findByRole("menuitemcheckbox", { name: "Sync to leader" }));
+    fireEvent.click(
+      await screen.findByRole("menuitemcheckbox", { name: "Sync to leader" }),
+    );
     expect(commands.samplerSetSlot).toHaveBeenCalledWith(
       0,
       expect.objectContaining({ sync: true }),
     );
     openMenu(pad("Sample slot 1, Kick"));
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Next colour" }));
-    expect(commands.samplerSetSlot).toHaveBeenCalledWith(0, expect.objectContaining({ color: 1 }));
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Next colour" }),
+    );
+    expect(commands.samplerSetSlot).toHaveBeenCalledWith(
+      0,
+      expect.objectContaining({ color: 1 }),
+    );
     openMenu(pad("Sample slot 1, Kick"));
     fireEvent.click(await screen.findByRole("menuitem", { name: "Rename..." }));
     fireEvent.change(await screen.findByRole("textbox", { name: "Name" }), {
@@ -354,8 +435,8 @@ describe("sampler view", () => {
   });
 
   it("changes layout, level and PFL from the mode strip", () => {
-    act(() => useAppStore.getState().setPadMode(1, "beat_jump"));
-    render(<PadMiddlePanel />);
+    act(() => useAppStore.getState().setPadMode(0, "sampler"));
+    render(<DeckPads deck={0} />);
     fireEvent.click(screen.getByRole("radio", { name: "Shared" }));
     expect(commands.samplerSetLayout).toHaveBeenCalledWith("shared");
     fireEvent.click(screen.getByRole("button", { name: "Deck 1 sampler PFL" }));
@@ -391,7 +472,13 @@ describe("keyboard view", () => {
     const { rerender } = render(<PadModeView deck={0} mode="keyboard" />);
     expect(pad("Choose hot cue 2").textContent).toContain("Hook");
     press(pad("Choose hot cue 2"));
-    expect(commands.padPress).toHaveBeenCalledWith(0, "keyboard", 1, false, true);
+    expect(commands.padPress).toHaveBeenCalledWith(
+      0,
+      "keyboard",
+      1,
+      false,
+      true,
+    );
 
     act(() => {
       usePadStore.getState().setPad(padStateWith({ keyboard_cue: 1 }));
@@ -400,14 +487,32 @@ describe("keyboard view", () => {
     expect(pad("Play cue 2 at +4 semitones")).toBeTruthy();
     expect(pad("Play cue 2 at ±0 semitones")).toBeTruthy();
     openMenu(pad("Play cue 2 at ±0 semitones"));
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Choose another cue" }));
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Choose another cue" }),
+    );
     expect(commands.setPadMode).toHaveBeenCalledWith(0, "keyboard");
     openMenu(pad("Play cue 2 at ±0 semitones"));
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Deck 1 pitch layout up" }));
-    expect(commands.padPress).toHaveBeenCalledWith(0, "keyboard", 6, true, true);
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Deck 1 pitch layout up" }),
+    );
+    expect(commands.padPress).toHaveBeenCalledWith(
+      0,
+      "keyboard",
+      6,
+      true,
+      true,
+    );
     openMenu(pad("Play cue 2 at ±0 semitones"));
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Deck 1 delete chosen cue" }));
-    expect(commands.padPress).toHaveBeenCalledWith(0, "keyboard", 0, true, true);
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Deck 1 delete chosen cue" }),
+    );
+    expect(commands.padPress).toHaveBeenCalledWith(
+      0,
+      "keyboard",
+      0,
+      true,
+      true,
+    );
   });
 });
 
@@ -417,12 +522,20 @@ describe("beat loop view", () => {
       loop_active: true,
       loop_region: { start: 0, end: 4 * RATE },
     });
-    act(() => useAppStore.getState().patchDeck(0, { track: { ...track, bpm: 60 } }));
+    act(() =>
+      useAppStore.getState().patchDeck(0, { track: { ...track, bpm: 60 } }),
+    );
     render(<PadModeView deck={0} mode="beat_loop" />);
     expect(pad("Loop 4 beats").getAttribute("aria-pressed")).toBe("true");
     expect(pad("Loop 8 beats").getAttribute("aria-pressed")).toBe("false");
     press(pad("Loop 1/4 beats"));
-    expect(commands.padPress).toHaveBeenCalledWith(0, "beat_loop", 0, false, true);
+    expect(commands.padPress).toHaveBeenCalledWith(
+      0,
+      "beat_loop",
+      0,
+      false,
+      true,
+    );
   });
 
   it("lights no pad without an active loop", () => {
@@ -439,58 +552,80 @@ describe("key shift view", () => {
     loadDeck();
     act(() => useAppStore.getState().patchDeck(0, { keyShift: 2 }));
     render(<PadModeView deck={0} mode="key_shift" />);
-    expect(pad("Key shift +2 semitones").getAttribute("aria-pressed")).toBe("true");
-    expect(pad("Key shift +3 semitones").getAttribute("aria-pressed")).toBe("false");
+    expect(pad("Key shift +2 semitones").getAttribute("aria-pressed")).toBe(
+      "true",
+    );
+    expect(pad("Key shift +3 semitones").getAttribute("aria-pressed")).toBe(
+      "false",
+    );
     openMenu(pad("Key shift +2 semitones"));
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Reset key shift" }));
-    await waitFor(() => expect(commands.setKeyShift).toHaveBeenCalledWith(0, 0));
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Reset key shift" }),
+    );
+    await waitFor(() =>
+      expect(commands.setKeyShift).toHaveBeenCalledWith(0, 0),
+    );
     openMenu(pad("Key shift +2 semitones"));
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Deck 1 pad layout up" }));
-    expect(commands.padPress).toHaveBeenCalledWith(0, "key_shift", 6, true, true);
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Deck 1 pad layout up" }),
+    );
+    expect(commands.padPress).toHaveBeenCalledWith(
+      0,
+      "key_shift",
+      6,
+      true,
+      true,
+    );
     press(pad("Key shift +1 semitones"));
-    expect(commands.padPress).toHaveBeenCalledWith(0, "key_shift", 5, false, true);
+    expect(commands.padPress).toHaveBeenCalledWith(
+      0,
+      "key_shift",
+      5,
+      false,
+      true,
+    );
   });
 });
 
-describe("middle panel", () => {
-  it("shows the sampler for decks in hot cue mode and the mode view for the others", () => {
-    render(<PadMiddlePanel />);
-    expect(screen.getByTestId("pad-view-0").dataset.mode).toBe("sampler");
-    expect(screen.getByTestId("pad-view-1").dataset.mode).toBe("sampler");
-    act(() => useAppStore.getState().setPadMode(1, "beat_jump"));
-    expect(screen.getByTestId("pad-view-1").dataset.mode).toBe("beat_jump");
-    expect(screen.getByTestId("pad-view-0").dataset.mode).toBe("sampler");
-    expect(screen.getByLabelText("Sample slot 1 (empty)")).toBeTruthy();
-    act(() => useAppStore.getState().setSamplerOpen(false));
-    expect(screen.queryByTestId("pad-view-0")).toBeNull();
-    expect(screen.getByTestId("pad-view-1").dataset.mode).toBe("beat_jump");
-  });
-
-  it("switches by click and by SHIFT-click, through the backend", () => {
+describe("deck pad panel", () => {
+  it("shows the pads of each deck's own mode, with the mode dropdown under them", () => {
     render(
       <>
-        <PadModeTabs deck={0} />
-        <PadMiddlePanel />
+        <DeckPads deck={0} />
+        <DeckPads deck={1} />
       </>,
     );
-    const tabs = within(screen.getByLabelText("Deck 1 pad mode"));
-    fireEvent.click(tabs.getByRole("radio", { name: /^Beat jump/ }));
-    expect(commands.setPadMode).toHaveBeenCalledWith(0, "beat_jump");
-    expect(useAppStore.getState().padModes[0]).toBe("beat_jump");
-    expect(screen.getByTestId("pad-view-0").dataset.mode).toBe("beat_jump");
+    expect(screen.getByTestId("pad-view-0").dataset.mode).toBe("hot_cue");
+    expect(screen.getByTestId("pad-view-1").dataset.mode).toBe("hot_cue");
+    expect(
+      within(screen.getByRole("region", { name: "Deck 1 pads" })).getByRole(
+        "combobox",
+        { name: "Deck 1 pad mode" },
+      ).textContent,
+    ).toBe("HOT CUE");
+    act(() => useAppStore.getState().setPadMode(1, "beat_jump"));
+    expect(screen.getByTestId("pad-view-1").dataset.mode).toBe("beat_jump");
+    expect(screen.getByTestId("pad-view-0").dataset.mode).toBe("hot_cue");
+    expect(
+      screen.getByRole("combobox", { name: "Deck 2 pad mode" }).textContent,
+    ).toBe("BEAT JUMP");
+  });
 
-    fireEvent.click(tabs.getByRole("radio", { name: /^Beat jump/ }), {
-      shiftKey: true,
-    });
+  it("switches the mode from the dropdown, through the backend", async () => {
+    render(<DeckPads deck={0} />);
+    const trigger = screen.getByRole("combobox", { name: "Deck 1 pad mode" });
+    fireEvent.keyDown(trigger, { key: "ArrowDown" });
+    fireEvent.click(await screen.findByRole("option", { name: "Beat loop" }));
     expect(commands.setPadMode).toHaveBeenCalledWith(0, "beat_loop");
+    expect(useAppStore.getState().padModes[0]).toBe("beat_loop");
     expect(screen.getByTestId("pad-view-0").dataset.mode).toBe("beat_loop");
-    expect(tabs.getByRole("radio", { name: /^Beat jump/ }).textContent).toBe("Loop");
+  });
 
-    fireEvent.click(tabs.getByRole("radio", { name: /^Sampler/ }), {
-      shiftKey: true,
-    });
-    expect(commands.setPadMode).toHaveBeenCalledWith(0, "key_shift");
-    expect(screen.getByTestId("pad-view-1").dataset.mode).toBe("sampler");
+  it("shows the sampler slots and controls in SAMPLER mode", () => {
+    act(() => useAppStore.getState().setPadMode(0, "sampler"));
+    render(<DeckPads deck={0} />);
+    expect(screen.getByLabelText("Sample slot 1 (empty)")).toBeTruthy();
+    expect(screen.getByRole("radio", { name: "Split" })).toBeTruthy();
   });
 
   it("renders every mode without error", () => {

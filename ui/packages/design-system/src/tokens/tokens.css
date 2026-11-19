@@ -48,15 +48,18 @@
   --deck-overview-h: 1.75rem; /* overview waveform under the deck header */
   --deck-tabs-h: 1.5rem; /* pad mode tabs above the hot cue grid */
   --deck-strip-h: 1.75rem; /* beat loop and beat jump strip under the pads */
-  --mixer-w: 19.5rem; /* centre mixer column between the decks */
+  --mixer-w: 21rem; /* centre mixer column between the decks */
+  --mixer-master-w: 5.5rem; /* master and headphone knob column inside the mixer, wide enough for MASTER */
   --ui-scale: 1; /* root font size factor, set at runtime: auto = clamp(1, height / 1080, 2) in 0.125 steps */
   --pad-grid-max-h: 18.75rem; /* tallest hot cue pad grid; extra height goes to the jog */
-  --jog-max: 32.5rem; /* largest jog wheel diameter; it shrinks to fit the deck */
-  --transport-w: 3.25rem; /* CUE and PLAY column */
+  --jog-max: 7.5rem; /* largest jog wheel diameter; it shrinks to fit the deck */
+  --cluster-w: 5.25rem; /* loop and beat jump column between the pads and the transport */
+  --fx-bar-h: 2rem; /* Beat FX bar under the menu row */
+  --transport-w: 2.75rem; /* CUE and PLAY column */
   --modes-w: 2.5rem; /* SLIP, Q, MT column */
   --tempo-w: 2.25rem; /* tempo fader column at the outer deck edge */
   --pad-min-w: 3.5rem; /* narrowest hot cue pad */
-  --fx-unit-w: 17.5rem; /* beat FX panel width in the middle row */
+  --fx-unit-w: 17.5rem; /* full Beat FX unit width in the More popover */
   --browser-tree-w: 12.5rem; /* default width hint of the browser tree */
   --preview-col-w: 6rem; /* browser Preview column */
   --artwork-col-w: 1.75rem; /* browser Artwork column */

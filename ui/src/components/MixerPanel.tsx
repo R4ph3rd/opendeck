@@ -89,11 +89,11 @@ export function MixerPanel() {
         <ChannelStrip deck={0} />
         <section
           aria-label="Master and headphones"
-          className="flex min-h-0 w-14 shrink-0 flex-col items-center gap-1 px-0.5 py-2"
+          className="flex min-h-0 w-[var(--mixer-master-w)] shrink-0 flex-col items-center gap-1 px-1 py-2"
         >
           <Knob
             compact
-            label="MST"
+            label="MASTER"
             name="Master level"
             value={master}
             defaultValue={LEVEL_DEFAULT}
@@ -102,7 +102,7 @@ export function MixerPanel() {
           />
           <Knob
             compact
-            label="PHN"
+            label="PHONES"
             name="Headphone level"
             value={headphone}
             defaultValue={LEVEL_DEFAULT}

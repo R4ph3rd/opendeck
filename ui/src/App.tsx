@@ -6,7 +6,7 @@ import {
   type ResizableLayout,
 } from "@opendeck/design-system";
 import { Fragment, useEffect } from "react";
-import { MiddleRow } from "./components/MiddleRow";
+import { FxBar } from "./components/fx/FxBar";
 import { DeckRow } from "./components/DeckRow";
 import { LibraryPane } from "./components/LibraryPane";
 import { MidiMonitorDialog } from "./components/MidiMonitor";
@@ -33,8 +33,8 @@ import { WaveformStack } from "./viz/DeckWaveforms";
 
 export { LAYOUT_KEY };
 
-type Band = "waves" | "decks" | "middle" | "library";
-const BAND_ORDER: readonly Band[] = ["waves", "decks", "middle", "library"];
+type Band = "waves" | "decks" | "library";
+const BAND_ORDER: readonly Band[] = ["waves", "decks", "library"];
 
 /** Default split for the visible bands: the default sizes rescaled to sum to 100. */
 const defaultsFor = (ids: readonly Band[]): ResizableLayout => {
@@ -60,8 +60,9 @@ const layoutKey = (ids: readonly Band[]): string =>
 /**
  * Performance layout, two decks horizontal: a menu row, then edge-to-edge
  * bands stacked with 1px separators you can drag: the zoomed waveforms (deck 1
- * over deck 2), the decks with the slim mixer between them, the middle row
- * (Beat FX, pad modes or sampler, Beat FX) and the browser.
+ * over deck 2), the decks with the slim mixer between them (pads and the
+ * transport sit inside each deck) and the browser. The Beat FX bar sits under
+ * the menu row.
  */
 export function App() {
   useKeyboardShortcuts();
@@ -69,6 +70,7 @@ export function App() {
   const layoutRevision = usePrefsStore((s) => s.layoutRevision);
   const wavesOpen = useAppStore((s) => s.wavesOpen);
   const browserOpen = useAppStore((s) => s.browserOpen);
+  const fxOpen = useAppStore((s) => s.fxOpen);
   const bands = BAND_ORDER.filter(
     (id) => (id !== "waves" || wavesOpen) && (id !== "library" || browserOpen),
   );
@@ -122,6 +124,7 @@ export function App() {
     <Toaster>
       <div className="flex h-full flex-col bg-bg text-fg">
         <TopBar />
+        {fxOpen ? <FxBar /> : null}
         <main className="min-h-0 flex-1">
           <ResizablePanelGroup
             key={`${layoutRevision}-${bands.join("+")}`}
@@ -136,7 +139,6 @@ export function App() {
                 <ResizablePanel id={id} minSize={px(BAND_MIN_PX[id])}>
                   {id === "waves" ? <WaveformStack decks={[DECK_A, DECK_B]} /> : null}
                   {id === "decks" ? <DeckRow /> : null}
-                  {id === "middle" ? <MiddleRow /> : null}
                   {id === "library" ? <LibraryPane /> : null}
                 </ResizablePanel>
               </Fragment>
