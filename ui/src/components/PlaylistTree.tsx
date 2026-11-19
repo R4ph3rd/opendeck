@@ -38,6 +38,7 @@ import {
   writeDrag,
   type DropIntent,
 } from "../lib/dnd";
+import { dropZone } from "../lib/pointerDrag";
 import {
   addToPlaylist,
   createPlaylist,
@@ -240,6 +241,15 @@ export function PlaylistTree() {
         }}
         onDragLeave={() => setMark(null)}
         onDrop={onDropCollection}
+        ref={dropZone({
+          accepts: (payload) => payload.kind === "files",
+          over: (_payload, point) =>
+            setMark(point ? { id: "collection", intent: "inside" } : null),
+          drop: (payload) => {
+            setMark(null);
+            if (payload.kind === "files") void importDropped(payload.files);
+          },
+        })}
       >
         <Library className="size-3.5 shrink-0" aria-hidden />
         <span className="flex-1 truncate">Collection</span>
@@ -310,6 +320,19 @@ export function PlaylistTree() {
                     onDragOver={(event) => onDragOverNode(event, node)}
                     onDragLeave={() => setMark((m) => (m?.id === node.id ? null : m))}
                     onDrop={(event) => onDropNode(event, node)}
+                    ref={dropZone({
+                      accepts: (payload) =>
+                        (payload.kind === "tracks" || payload.kind === "files") && canDropTracks(node),
+                      over: (_payload, point) =>
+                        setMark((m) =>
+                          point ? { id: node.id, intent: "inside" } : m?.id === node.id ? null : m,
+                        ),
+                      drop: (payload) => {
+                        setMark(null);
+                        if (payload.kind === "tracks") void addToPlaylist(node.id, payload.ids);
+                        else if (payload.kind === "files") void importDropped(payload.files, node.id);
+                      },
+                    })}
                   >
                     {isFolder ? (
                       expanded ? (

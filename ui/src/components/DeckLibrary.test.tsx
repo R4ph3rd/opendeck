@@ -2,7 +2,8 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { createBindingsMock } from "../test/bindingsMock";
 import { runningAudio, track } from "../test/fixtures";
-import { makeTransfer } from "../test/library";
+import { makeTransfer, pointerDrag } from "../test/library";
+import { startPointerDrag } from "../lib/pointerDrag";
 import { writeDrag, type DragPayload } from "../lib/dnd";
 
 vi.mock("../ipc/bindings", async () => (await import("../test/bindingsMock")).createBindingsMock());
@@ -94,5 +95,48 @@ describe("analysis on the deck", () => {
     act(() => useAppStore.getState().patchDeck(0, { track: { ...track, key: null, key_musical: null } }));
     render(<DeckPanel deck={0} />);
     expect(screen.getByTestId("key-0").textContent).toBe("--");
+  });
+});
+
+describe("loading a deck by pointer drag", () => {
+  // A stand-in for a track row: presses start a drag carrying `payload`.
+  const source = (payload: DragPayload) => (
+    <button type="button" onPointerDown={(e) => startPointerDrag(e, () => ({ payload, label: "drag" }))}>
+      row
+    </button>
+  );
+
+  it.each([1, 2])("loads a track dropped on deck %i", async (n) => {
+    render(
+      <>
+        {source({ kind: "tracks", ids: [7] })}
+        <DeckPanel deck={n - 1} />
+      </>,
+    );
+    act(() => pointerDrag(screen.getByRole("button", { name: "row" }), deck(n)));
+    await waitFor(() => expect(commands.loadTrack).toHaveBeenCalledWith(n - 1, 7));
+  });
+
+  it("loads a track dropped on a control inside the deck", async () => {
+    render(
+      <>
+        {source({ kind: "tracks", ids: [8] })}
+        <DeckPanel deck={1} />
+      </>,
+    );
+    const inside = screen.getByRole("button", { name: "PLAY" });
+    act(() => pointerDrag(screen.getByRole("button", { name: "row" }), inside));
+    await waitFor(() => expect(commands.loadTrack).toHaveBeenCalledWith(1, 8));
+  });
+
+  it("does nothing when the drag ends outside a deck", () => {
+    render(
+      <>
+        {source({ kind: "tracks", ids: [7] })}
+        <DeckPanel deck={0} />
+      </>,
+    );
+    act(() => pointerDrag(screen.getByRole("button", { name: "row" }), document.body));
+    expect(commands.loadTrack).not.toHaveBeenCalled();
   });
 });

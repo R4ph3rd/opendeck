@@ -9,7 +9,8 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { useState, type DragEvent, type HTMLAttributes } from "react";
 import { useStore } from "zustand";
 import type { SamplerSlotDto } from "../../ipc/bindings";
-import { dragKind, readDrag } from "../../lib/dnd";
+import { dragKind, readDrag, type DragPayload } from "../../lib/dnd";
+import { dropZone } from "../../lib/pointerDrag";
 import { PLAY_MODES, deckSlots, sampleLength } from "../../lib/pads";
 import { errorMessage } from "../../lib/errors";
 import { notifyError } from "../../state/notify";
@@ -132,6 +133,23 @@ export function SamplerView({ deck }: { deck: number }) {
     }
   };
 
+  const loadDropped = (index: number, payload: DragPayload | null): boolean => {
+    const slot = slotOf(index);
+    if (!slot) return false;
+    if (payload?.kind === "tracks" && payload.ids[0] !== undefined) {
+      samplerLoadTrack(slot.slot, payload.ids[0]);
+      return true;
+    }
+    if (payload?.kind === "files") {
+      const file = payload.files.find((f) => f.kind === "audio");
+      if (file) {
+        samplerLoadPath(slot.slot, file.path);
+        return true;
+      }
+    }
+    return false;
+  };
+
   const dropProps = (index: number): HTMLAttributes<HTMLButtonElement> => ({
     onDragOver: (event: DragEvent) => {
       const kind = dragKind(event.dataTransfer);
@@ -141,20 +159,17 @@ export function SamplerView({ deck }: { deck: number }) {
       }
     },
     onDrop: (event: DragEvent) => {
-      const slot = slotOf(index);
-      const payload = readDrag(event.dataTransfer);
-      if (!slot) return;
-      if (payload?.kind === "tracks" && payload.ids[0] !== undefined) {
+      if (loadDropped(index, readDrag(event.dataTransfer))) {
         event.preventDefault();
-        samplerLoadTrack(slot.slot, payload.ids[0]);
-      } else if (payload?.kind === "files") {
-        const file = payload.files.find((f) => f.kind === "audio");
-        if (file) {
-          event.preventDefault();
-          samplerLoadPath(slot.slot, file.path);
-        }
       }
     },
+    // PerformancePads spreads these onto the pad button, which accepts a ref in React 19.
+    ...({
+      ref: dropZone({
+        accepts: (payload) => payload.kind === "tracks" || payload.kind === "files",
+        drop: (payload) => void loadDropped(index, payload),
+      }),
+    } as object),
   });
 
   return (

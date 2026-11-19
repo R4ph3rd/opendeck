@@ -8,6 +8,7 @@ import {
 } from "@opendeck/design-system";
 import type { DragEvent } from "react";
 import { dragKind, readDrag } from "../lib/dnd";
+import { dropZone } from "../lib/pointerDrag";
 import { readStored, writeStored } from "../lib/persist";
 import { importDropped } from "../state/libraryActions";
 import { useLibraryStore } from "../state/library";
@@ -76,6 +77,12 @@ export function LibraryPane() {
             className="flex size-full min-h-0 min-w-0 flex-col"
             onDragOver={onDragOver}
             onDrop={onDrop}
+            ref={dropZone({
+              accepts: (payload) => payload.kind === "files",
+              drop: (payload) =>
+                payload.kind === "files" &&
+                void importDropped(payload.files, view.kind === "playlist" ? view.id : null),
+            })}
           >
             <PanelHeader
               title={title}
