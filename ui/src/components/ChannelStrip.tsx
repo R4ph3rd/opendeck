@@ -1,4 +1,10 @@
-import { Slider, Toggle, ToggleGroup, ToggleGroupItem, cn } from "@opendeck/design-system";
+import {
+  Slider,
+  Toggle,
+  ToggleGroup,
+  ToggleGroupItem,
+  cn,
+} from "@opendeck/design-system";
 import type { CrossfaderAssign, EqBand } from "../ipc/bindings";
 import { DECK_FILL, deckLetter } from "../lib/deck";
 import {
@@ -31,12 +37,19 @@ const FADER_STEP = 0.01;
 /** EQ knobs run high to low, top to bottom, like a hardware strip. */
 const EQ_ORDER: EqBand[] = ["high", "mid", "low"];
 
+/** Grid cells of the first knob column, top to bottom: HIGH, MID, LOW, S1. */
+const CELL = [
+  "col-start-1 row-start-1",
+  "col-start-1 row-start-2",
+  "col-start-1 row-start-3",
+  "col-start-1 row-start-4",
+] as const;
+
 const EQ_LABEL: Record<EqBand, string> = {
   low: "Low",
   mid: "Mid",
   high: "High",
 };
-const EQ_SHORT: Record<EqBand, string> = { low: "LOW", mid: "MID", high: "HI" };
 
 const ASSIGN_LABEL: Record<CrossfaderAssign, string> = {
   a: "A",
@@ -54,8 +67,8 @@ interface ChannelStripProps {
 }
 
 /**
- * One mixer channel: trim, three EQ bands, filter, Sound Color FX and sends
- * as a two-column knob grid, then CUE (PFL) with crossfader assign, the
+ * One mixer channel: a two-column knob grid on a shared row grid (HIGH, MID,
+ * LOW, S1 down the first column; TRM, FLT, CFX, S2 down the second), then CUE (PFL) with crossfader assign, the
  * channel fader and a stereo meter.
  */
 export function ChannelStrip({ deck }: ChannelStripProps) {
@@ -70,9 +83,30 @@ export function ChannelStrip({ deck }: ChannelStripProps) {
       aria-label={`Channel ${letter}`}
       className="relative flex min-h-0 min-w-0 flex-1 flex-col items-center gap-1 px-0.5 pb-1 pt-2"
     >
-      <span aria-hidden className={cn("absolute inset-x-0 top-0 h-0.5", DECK_FILL[deck] ?? "")} />
-      <div className="grid w-full grid-cols-2 gap-x-1 gap-y-0.5">
+      <span
+        aria-hidden
+        className={cn("absolute inset-x-0 top-0 h-0.5", DECK_FILL[deck] ?? "")}
+      />
+      <div className="grid w-full grid-cols-2 grid-rows-4 gap-x-1 gap-y-0.5">
+        {EQ_ORDER.map((band, row) => (
+          <Knob
+            key={band}
+            className={CELL[row] ?? ""}
+            compact
+            label={EQ_LABEL[band].toUpperCase()}
+            name={`${EQ_LABEL[band]} EQ ${letter}`}
+            value={channel.eq[EQ_BANDS.indexOf(band)] ?? EQ_DEFAULT}
+            defaultValue={EQ_DEFAULT}
+            format={formatEq}
+            bipolar
+            onChange={(v) => setEq(deck, band, v)}
+          />
+        ))}
+        <div className={CELL[3]}>
+          <SendKnobs deck={deck} bus={0} />
+        </div>
         <Knob
+          className="col-start-2 row-start-1"
           compact
           label="TRM"
           name={`Trim ${letter}`}
@@ -83,6 +117,7 @@ export function ChannelStrip({ deck }: ChannelStripProps) {
           onChange={(v) => setTrim(deck, v)}
         />
         <Knob
+          className="col-start-2 row-start-2"
           compact
           label="FLT"
           name={`Filter ${letter}`}
@@ -94,21 +129,12 @@ export function ChannelStrip({ deck }: ChannelStripProps) {
           bipolar
           onChange={(v) => setFilter(deck, v)}
         />
-        {EQ_ORDER.map((band) => (
-          <Knob
-            key={band}
-            compact
-            label={EQ_SHORT[band]}
-            name={`${EQ_LABEL[band]} EQ ${letter}`}
-            value={channel.eq[EQ_BANDS.indexOf(band)] ?? EQ_DEFAULT}
-            defaultValue={EQ_DEFAULT}
-            format={formatEq}
-            bipolar
-            onChange={(v) => setEq(deck, band, v)}
-          />
-        ))}
-        <CfxKnob deck={deck} compact />
-        <SendKnobs deck={deck} />
+        <div className="col-start-2 row-start-3">
+          <CfxKnob deck={deck} compact />
+        </div>
+        <div className="col-start-2 row-start-4">
+          <SendKnobs deck={deck} bus={1} />
+        </div>
       </div>
       <CfxType deck={deck} />
       <div className="flex w-full items-center justify-between gap-0.5">
@@ -155,7 +181,9 @@ export function ChannelStrip({ deck }: ChannelStripProps) {
           value={[channel.fader]}
           aria-label={`Channel fader ${letter}`}
           aria-valuetext={`${Math.round(channel.fader * 100)}%`}
-          onValueChange={([value]) => setChannelFader(deck, value ?? FADER_DEFAULT)}
+          onValueChange={([value]) =>
+            setChannelFader(deck, value ?? FADER_DEFAULT)
+          }
           onDoubleClick={() => setChannelFader(deck, FADER_DEFAULT)}
         />
         <LevelMeter source={{ deck }} label={`Level ${letter}`} />
