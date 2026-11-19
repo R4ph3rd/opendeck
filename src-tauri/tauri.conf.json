@@ -25,7 +25,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis", "msi", "appimage", "deb", "dmg"],
+    "targets": ["nsis", "msi", "appimage", "deb", "rpm", "dmg"],
     "category": "Music",
     "publisher": "R4ph3rd",
     "copyright": "Copyright (c) R4ph3rd",
@@ -43,6 +43,9 @@
       "deb": {
         "section": "sound",
         "priority": "optional",
+        "desktopTemplate": "linux/opendeck.desktop"
+      },
+      "rpm": {
         "desktopTemplate": "linux/opendeck.desktop"
       }
     },

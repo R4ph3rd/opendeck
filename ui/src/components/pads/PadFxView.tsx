@@ -59,6 +59,8 @@ export function PadFxView({ deck, mode }: PadFxViewProps) {
   return (
     <>
       <PerformancePads
+        columns={2}
+        className="grid-flow-col"
         label={`Deck ${deck + 1} pad FX`}
         pads={specs}
         onPress={(index, { shift: shifted }) => padDown(deck, mode, index, shifted)}

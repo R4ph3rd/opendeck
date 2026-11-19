@@ -73,3 +73,24 @@ export function makeTransfer() {
     dropEffect: "none",
   };
 }
+
+const fire = (target: EventTarget, type: string, x: number, y: number) =>
+  target.dispatchEvent(new MouseEvent(type, { bubbles: true, clientX: x, clientY: y, button: 0 }));
+
+/**
+ * Drags from `source` to `target` with pointer events, the way the track table
+ * and explorer start drags. jsdom has no layout, so the element under the
+ * pointer is whatever `target` says. Wrap in `act` when state changes.
+ */
+export function pointerDrag(source: Element, target: Element | null): void {
+  const original = document.elementFromPoint;
+  document.elementFromPoint = () => target;
+  try {
+    fire(source, "pointerdown", 10, 10);
+    fire(window, "pointermove", 40, 40);
+    fire(window, "pointermove", 80, 80);
+    fire(window, "pointerup", 80, 80);
+  } finally {
+    document.elementFromPoint = original;
+  }
+}

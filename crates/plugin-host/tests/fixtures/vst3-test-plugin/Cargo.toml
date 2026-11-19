@@ -1,0 +1,19 @@
+[package]
+name = "opendeck-vst3-test-plugin"
+description = "Test fixture: tiny VST3 plugins (gain, crash, hang) written with the vst3 crate. Not shipped."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license-file.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lib]
+name = "opendeck_vst3_test_plugin"
+crate-type = ["cdylib"]
+
+[dependencies]
+vst3.workspace = true
+
+[lints]
+workspace = true

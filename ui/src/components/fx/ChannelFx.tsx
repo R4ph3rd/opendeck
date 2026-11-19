@@ -9,7 +9,10 @@ interface ChannelFxProps {
 }
 
 /** Sound Color FX knob of a channel: bipolar, centre is neutral. Renders nothing until the FX model has been read. */
-export function CfxKnob({ deck, compact = false }: ChannelFxProps & { compact?: boolean }) {
+export function CfxKnob({
+  deck,
+  compact = false,
+}: ChannelFxProps & { compact?: boolean }) {
   const cfx = useFxStore((s) => s.state?.cfx[deck]);
   if (!cfx) {
     return null;
@@ -56,8 +59,11 @@ export function CfxType({ deck }: ChannelFxProps) {
   );
 }
 
-/** Send knobs of a channel, one per send bus. */
-export function SendKnobs({ deck }: ChannelFxProps) {
+/** Send knobs of a channel, one per send bus, or only bus `bus`. */
+export function SendKnobs({
+  deck,
+  bus: only,
+}: ChannelFxProps & { bus?: number }) {
   const levels = useFxStore((s) => s.state?.send_levels[deck]);
   if (!levels) {
     return null;
@@ -65,18 +71,22 @@ export function SendKnobs({ deck }: ChannelFxProps) {
   const letter = deckLetter(deck);
   return (
     <>
-      {levels.map((level, bus) => (
-        <Knob
-          key={bus}
-          label={`S${bus + 1}`}
-          name={`Send ${bus + 1} ${letter}`}
-          value={level ?? 0}
-          defaultValue={0}
-          compact
-          format={formatSend}
-          onChange={(value) => applyFx({ kind: "set_send_level", deck, bus, level: value })}
-        />
-      ))}
+      {levels.map((level, bus) =>
+        only !== undefined && only !== bus ? null : (
+          <Knob
+            key={bus}
+            label={`S${bus + 1}`}
+            name={`Send ${bus + 1} ${letter}`}
+            value={level ?? 0}
+            defaultValue={0}
+            compact
+            format={formatSend}
+            onChange={(value) =>
+              applyFx({ kind: "set_send_level", deck, bus, level: value })
+            }
+          />
+        ),
+      )}
     </>
   );
 }

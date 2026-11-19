@@ -26,12 +26,11 @@ export const EXTRA_LAYOUT_KEYS = [
   "opendeck.layout.library",
 ] as const;
 
-/** Bands top to bottom: zoomed waveforms, decks and mixer, FX and pad modes, browser (percent). */
+/** Bands top to bottom: zoomed waveforms, decks and mixer, browser (percent). */
 export const DEFAULT_LAYOUT: ResizableLayout = {
-  waves: 15,
-  decks: 33,
-  middle: 16,
-  library: 36,
+  waves: 18,
+  decks: 28,
+  library: 54,
 };
 
 export type Theme = "dark" | "light";

@@ -28,6 +28,8 @@ export function KeyShiftView({ deck }: { deck: number }) {
   };
   return (
     <PerformancePads
+      columns={2}
+      className="grid-flow-col"
       label={`Deck ${deck + 1} key shift`}
       pads={pads}
       disabled={!loaded}

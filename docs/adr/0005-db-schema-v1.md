@@ -12,7 +12,7 @@ The library holds the collection, analysis results (including waveform peaks), c
 
 ### Engine and access
 
-- SQLite, bundled through `rusqlite` **0.40** (not 0.41: `rusqlite_migration` 2.6 requires `^0.40`, and two `rusqlite` versions cannot both link the bundled SQLite). Revisit when `rusqlite_migration` supports 0.41.
+- SQLite, bundled through `rusqlite` **0.40** (not 0.41: `rusqlite_migration` 2.6 requires `^0.40`, and two `rusqlite` versions cannot both link the bundled SQLite). Revisit when `rusqlite_migration` supports 0.41. Done 2026-11-19: `rusqlite` 0.41 with `rusqlite_migration` 2.7, which bundles SQLite 3.54 (RUSTSEC-2026-0459).
 - On every open: `journal_mode=WAL`, `synchronous=NORMAL`, `foreign_keys=ON`, `busy_timeout=5s`. These are connection pragmas, so they live in `library::db::open`, not in migrations.
 - One writer connection on the library's own thread; readers use separate connections (WAL allows concurrent reads). No connection is shared with the audio thread.
 

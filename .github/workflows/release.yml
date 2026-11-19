@@ -1,102 +1,217 @@
+# Builds, signs (when secrets exist) and publishes an OpenDeck release.
+#
+# Automatic: runs when CI completes on main and proceeds only if CI succeeded
+# for that exact commit. The version comes from the Cargo workspace version; if
+# v<that> is already released, the next patch after the highest v* tag is used
+# and stamped into the version files at build time (never committed). Bump with
+# scripts/bump-version.mjs in a commit for minor or major releases.
+#
+# Manual: Actions -> Release -> Run workflow on main with the version, or push a
+# v* tag on a commit of main; both require the version files to match.
+#
+# The release is created as a draft and published by the last job only when all
+# legs built and the expected assets exist. Pre-release while the major is 0.
+# See docs/RELEASING.md.
 name: Release
 
-# Runs when a milestone is promoted to main (docs/RELEASING.md).
-# Creates a draft release, builds all bundles, then un-drafts it only if every build passed.
-
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, semver without leading v (e.g. 0.8.0)"
+        required: true
+        type: string
+      platforms:
+        description: "Platforms to build (macOS bills 10x minutes, Windows 2x): all, windows, or windows,linux"
+        required: false
+        default: all
+        type: choice
+        options: [all, windows, "windows,linux"]
+
+permissions:
+  contents: write
+  actions: read
 
 concurrency:
   group: release
   cancel-in-progress: false
 
-permissions:
-  contents: write
-
 env:
   CARGO_TERM_COLOR: always
-  GH_TOKEN: ${{ github.token }}
 
 jobs:
-  prepare:
-    name: Prepare draft release
+  verify:
+    name: Verify commit is releasable
     runs-on: ubuntu-22.04
+    # workflow_run fires for every completed CI run on main; only successful pushes count.
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success')
     outputs:
-      skip: ${{ steps.check.outputs.skip }}
       version: ${{ steps.version.outputs.version }}
-      tag: ${{ steps.version.outputs.tag }}
-      release_id: ${{ steps.create.outputs.release_id }}
+      sha: ${{ steps.meta.outputs.sha }}
+      release: ${{ steps.gate.outputs.release }}
+      release_id: ${{ steps.draft.outputs.release_id }}
+      prerelease: ${{ steps.draft.outputs.prerelease }}
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
+      - name: Resolve the commit
+        id: meta
+        env:
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          if [ "$EVENT" = "workflow_dispatch" ] && [ "$REF" != "refs/heads/main" ]; then
+            echo "::error::Releases can only be dispatched on main (got $REF)."
+            exit 1
+          fi
+          if [ "$EVENT" = "workflow_run" ]; then sha="$RUN_SHA"; else sha="$GITHUB_SHA"; fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ steps.meta.outputs.sha }}
+
+      - name: Commit must be on main
+        env:
+          SHA: ${{ steps.meta.outputs.sha }}
+        run: |
+          git fetch origin main
+          git merge-base --is-ancestor "$SHA" origin/main || {
+            echo "::error::Releases must be built from a commit on main."
+            exit 1
+          }
+
+      # Automatic runs stop quietly when CI did not pass or the commit is
+      # already released; manual runs fail loudly.
+      - name: CI must have passed for this commit
+        id: gate
+        env:
+          EVENT: ${{ github.event_name }}
+          SHA: ${{ steps.meta.outputs.sha }}
+        run: |
+          ok=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --commit "$SHA" \
+            --limit 50 --json conclusion,status \
+            --jq '[.[] | select(.status == "completed" and .conclusion == "success")] | length')
+          if [ "$ok" -eq 0 ]; then
+            if [ "$EVENT" = "workflow_run" ]; then
+              echo "::notice::Not releasing: ci.yml has no successful run for $SHA."
+              echo "release=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "::error::ci.yml has no successful run for commit $SHA. Wait for it to pass (or fix it) before releasing."
+            exit 1
+          fi
+          git fetch --tags --force origin
+          if [ "$EVENT" = "workflow_run" ] && [ -n "$(git tag --points-at "$SHA" -l 'v*')" ]; then
+            echo "::notice::$SHA is already released as $(git tag --points-at "$SHA" -l 'v*' | head -1)."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "release=true" >> "$GITHUB_OUTPUT"
+
       - uses: actions/setup-node@v4
+        if: steps.gate.outputs.release == 'true'
         with:
           node-version: 22
-      - name: Read version
+
+      - name: Choose the version
         id: version
-        run: |
-          # tauri.conf.json has no version field, so Tauri uses the Cargo version.
-          # scripts/check-version-sync.mjs keeps all version files equal.
-          node scripts/check-version-sync.mjs
-          version=$(node -e 'import("./scripts/version-files.mjs").then(m => console.log(m.readVersions().cargo))')
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "tag=v$version" >> "$GITHUB_OUTPUT"
-      - name: Skip if the release or tag already exists
-        id: check
+        if: steps.gate.outputs.release == 'true'
         env:
-          TAG: ${{ steps.version.outputs.tag }}
+          EVENT: ${{ github.event_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+          REF_NAME: ${{ github.ref_name }}
+        run: node scripts/pick-release-version.mjs
+
+      # Automatic runs may stamp a newer patch, so only manual runs compare.
+      - name: Version files match the release version
+        if: steps.gate.outputs.release == 'true' && github.event_name != 'workflow_run'
+        run: node scripts/check-version-sync.mjs "${{ steps.version.outputs.version }}"
+
+      # A draft left by an earlier failed run points at that run's commit and
+      # holds its assets, so it is removed and rebuilt from this commit.
+      - name: Release must not already be published
+        if: steps.gate.outputs.release == 'true'
+        env:
+          TAG: v${{ steps.version.outputs.version }}
         run: |
-          # A draft left by a failed earlier run is replaced, so a fixed main can re-release.
-          for id in $(gh api "repos/$GITHUB_REPOSITORY/releases" --paginate --jq ".[] | select(.tag_name == \"$TAG\" and .draft) | .id"); do
+          state=$(gh api "repos/$GITHUB_REPOSITORY/releases" --paginate \
+            --jq ".[] | select(.tag_name == \"$TAG\") | \"\(.id) \(.draft)\"")
+          while read -r id draft; do
+            [ -z "$id" ] && continue
+            if [ "$draft" = "false" ]; then
+              echo "::error::Release $TAG is already published."
+              exit 1
+            fi
             echo "Deleting stale draft release $id for $TAG."
             gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/$id"
-          done
-          exists=$(gh api "repos/$GITHUB_REPOSITORY/releases" --paginate --jq ".[] | select(.tag_name == \"$TAG\") | .id")
-          if [ -n "$exists" ] || git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
-            echo "Release or tag $TAG exists, skipping."
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-          fi
-      - name: Generate release notes
-        if: steps.check.outputs.skip == 'false'
-        run: node scripts/release-notes.mjs "${{ steps.version.outputs.version }}" > "$RUNNER_TEMP/notes.md"
-      - name: Create draft release
-        id: create
-        if: steps.check.outputs.skip == 'false'
+          done <<< "$state"
+
+      # Automatic and tag runs build everything; dispatch can drop platforms
+      # (macOS bills 10x minutes, Windows 2x).
+      - name: Choose build legs
+        id: matrix
+        if: steps.gate.outputs.release == 'true'
         env:
-          TAG: ${{ steps.version.outputs.tag }}
-          VERSION: ${{ steps.version.outputs.version }}
+          PLATFORMS: ${{ github.event_name == 'workflow_dispatch' && inputs.platforms || 'all' }}
         run: |
-          # Pre-releases while the major version is 0.
+          node -e '
+            const all = [
+              { name: "windows-x64", key: "windows", os: "windows-latest", args: "--bundles nsis,msi" },
+              { name: "macos-universal", key: "macos", os: "macos-latest", args: "--target universal-apple-darwin --bundles dmg" },
+              { name: "linux-x64", key: "linux", os: "ubuntu-22.04", args: "--bundles deb,rpm,appimage" },
+            ];
+            const p = process.env.PLATFORMS;
+            const legs = p === "all" ? all : all.filter((l) => p.split(",").includes(l.key));
+            console.log("matrix=" + JSON.stringify(legs));
+          ' >> "$GITHUB_OUTPUT"
+
+      - name: Create the draft release
+        id: draft
+        if: steps.gate.outputs.release == 'true'
+        env:
+          TAG: v${{ steps.version.outputs.version }}
+          VERSION: ${{ steps.version.outputs.version }}
+          SHA: ${{ steps.meta.outputs.sha }}
+        run: |
+          # Pre-release while the major version is 0.
           if [ "${VERSION%%.*}" = "0" ]; then pre=true; else pre=false; fi
+          # Notes cover the commits since the previous release tag (not this one).
+          prev=$(git describe --tags --abbrev=0 --match 'v*' --exclude "$TAG" "$SHA" 2>/dev/null || true)
+          node scripts/release-notes.mjs "$VERSION" "$prev" > "$RUNNER_TEMP/notes.md"
           id=$(gh api "repos/$GITHUB_REPOSITORY/releases" \
-            -f tag_name="$TAG" -f target_commitish="$GITHUB_SHA" -f name="OpenDeck $TAG" \
+            -f tag_name="$TAG" -f target_commitish="$SHA" -f name="OpenDeck $TAG" \
             -F body=@"$RUNNER_TEMP/notes.md" -F draft=true -F prerelease="$pre" --jq .id)
           echo "release_id=$id" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$pre" >> "$GITHUB_OUTPUT"
 
   build:
     name: Build (${{ matrix.name }})
-    needs: prepare
-    if: needs.prepare.outputs.skip == 'false'
+    needs: verify
+    if: needs.verify.outputs.release == 'true'
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
-        include:
-          - name: windows-x64
-            os: windows-latest
-            args: "--bundles nsis,msi"
-          - name: macos-universal
-            os: macos-latest
-            args: "--target universal-apple-darwin --bundles dmg"
-          - name: linux-x64
-            os: ubuntu-22.04
-            args: "--bundles appimage,deb"
+        include: ${{ fromJSON(needs.verify.outputs.matrix) }}
     runs-on: ${{ matrix.os }}
+    env:
+      VERSION: ${{ needs.verify.outputs.version }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.verify.outputs.sha }}
+
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
         run: |
@@ -120,34 +235,170 @@ jobs:
             pnpm-lock.yaml
             ui/pnpm-lock.yaml
       - run: pnpm -C ui install --frozen-lockfile
+
+      # No-op when the files already carry the version; automatic patch
+      # releases stamp it here so the binaries report the released version.
+      - name: Stamp the release version
+        shell: bash
+        run: node scripts/bump-version.mjs "$VERSION"
+
+      # Windows signing: import the PFX and hand its thumbprint to Tauri via a
+      # generated config override. Without secrets the build is unsigned.
+      # ui/scripts/tauri.mjs adds tauri.sidecars.conf.json first; Tauri merges
+      # every --config in the order given, so this override layers on top.
+      - name: Configure Windows signing
+        id: winsign
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          if ([string]::IsNullOrEmpty($env:WINDOWS_CERTIFICATE) -or [string]::IsNullOrEmpty($env:WINDOWS_CERTIFICATE_PASSWORD)) {
+            Write-Output "::notice::Windows installers are unsigned (WINDOWS_CERTIFICATE / WINDOWS_CERTIFICATE_PASSWORD secrets not configured). Users will see a SmartScreen warning."
+            "signed=false" >> $env:GITHUB_OUTPUT
+            "args=--bundles nsis,msi" >> $env:GITHUB_OUTPUT
+            exit 0
+          }
+          $pfx = Join-Path $env:RUNNER_TEMP "codesign.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
+          $password = ConvertTo-SecureString -String $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force
+          $cert = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $password
+          Remove-Item $pfx -Force
+          $config = @{
+            bundle = @{
+              windows = @{
+                certificateThumbprint = $cert.Thumbprint
+                digestAlgorithm       = "sha256"
+                timestampUrl          = "http://timestamp.digicert.com"
+              }
+            }
+          } | ConvertTo-Json -Depth 5
+          $configPath = Join-Path $env:RUNNER_TEMP "tauri-sign.json"
+          Set-Content -Path $configPath -Value $config
+          "signed=true" >> $env:GITHUB_OUTPUT
+          "args=--bundles nsis,msi --config `"$configPath`"" >> $env:GITHUB_OUTPUT
+
+      # macOS signing/notarization: Tauri reads the APPLE_* variables natively
+      # and signs the app bundle, including the externalBin sidecar, with the
+      # hardened runtime. Export only the variables that are actually set.
+      - name: Configure macOS signing
+        id: macsign
+        if: runner.os == 'macOS'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ -z "$APPLE_CERTIFICATE" ] || [ -z "$APPLE_CERTIFICATE_PASSWORD" ] || [ -z "$APPLE_SIGNING_IDENTITY" ]; then
+            echo "::notice::macOS build is unsigned (APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY secrets not all configured). Gatekeeper will warn users."
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "signed=true" >> "$GITHUB_OUTPUT"
+          # Multiline-safe export (a base64 certificate may contain newlines).
+          export_env() {
+            local delim="EOF_$(openssl rand -hex 8)"
+            { echo "$1<<$delim"; printf '%s\n' "$2"; echo "$delim"; } >> "$GITHUB_ENV"
+          }
+          export_env APPLE_CERTIFICATE "$APPLE_CERTIFICATE"
+          export_env APPLE_CERTIFICATE_PASSWORD "$APPLE_CERTIFICATE_PASSWORD"
+          export_env APPLE_SIGNING_IDENTITY "$APPLE_SIGNING_IDENTITY"
+          if [ -n "$APPLE_ID" ] && [ -n "$APPLE_PASSWORD" ] && [ -n "$APPLE_TEAM_ID" ]; then
+            export_env APPLE_ID "$APPLE_ID"
+            export_env APPLE_PASSWORD "$APPLE_PASSWORD"
+            export_env APPLE_TEAM_ID "$APPLE_TEAM_ID"
+          else
+            echo "::notice::macOS build is signed but not notarized (APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID not all configured)."
+          fi
+
       - name: Build and upload bundles
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          # Signing is off. Uncomment and add the secrets to enable it (docs/RELEASING.md).
-          # WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
-          # WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
-          # APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          # APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          # APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          # APPLE_ID: ${{ secrets.APPLE_ID }}
-          # APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          # APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          # TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         with:
-          # ui/scripts/tauri.mjs points the CLI at src-tauri; the frontend builds from ui/.
+          # ui/scripts/tauri.mjs points the CLI at src-tauri and merges
+          # tauri.sidecars.conf.json; beforeBuildCommand builds the sidecars.
           projectPath: .
           tauriScript: pnpm -C ui tauri
-          releaseId: ${{ needs.prepare.outputs.release_id }}
-          args: ${{ matrix.args }}
+          releaseId: ${{ needs.verify.outputs.release_id }}
+          args: ${{ runner.os == 'Windows' && steps.winsign.outputs.args || matrix.args }}
+
+      - name: Verify Windows signatures
+        if: runner.os == 'Windows' && steps.winsign.outputs.signed == 'true'
+        shell: pwsh
+        run: |
+          # Installers and the app binary must be Valid. The plugin scanner
+          # sidecar is checked too but only warns: Tauri's Windows signing of
+          # externalBin is unconfirmed. TODO(verify) once a real certificate runs.
+          $release = "target/release"
+          $required = @("$release/opendeck.exe") +
+            (Get-ChildItem "$release/bundle" -Recurse -Include *.exe, *.msi | ForEach-Object FullName)
+          $optional = @(Get-ChildItem $release -Filter "opendeck-plugin-scan.exe" -ErrorAction SilentlyContinue | ForEach-Object FullName)
+          $bad = 0
+          foreach ($f in $required) {
+            $sig = Get-AuthenticodeSignature $f
+            if ($sig.Status -ne "Valid") {
+              Write-Output "::error::$f signature status is $($sig.Status), expected Valid."
+              $bad++
+            } else {
+              Write-Output "$f signature is Valid"
+            }
+          }
+          foreach ($f in $optional) {
+            $sig = Get-AuthenticodeSignature $f
+            if ($sig.Status -ne "Valid") {
+              Write-Output "::warning::$f signature status is $($sig.Status)."
+            } else {
+              Write-Output "$f signature is Valid"
+            }
+          }
+          if ($bad -gt 0) { exit 1 }
+
+      - name: Verify macOS signature
+        if: runner.os == 'macOS' && steps.macsign.outputs.signed == 'true'
+        run: |
+          app=$(find target/universal-apple-darwin/release/bundle/macos -maxdepth 1 -name '*.app' | head -1)
+          [ -n "$app" ] || { echo "::error::No .app bundle found."; exit 1; }
+          codesign --verify --deep --strict --verbose=2 "$app"
+          # The sidecar must be signed too (Tauri signs externalBin).
+          codesign --verify --strict --verbose=2 "$app/Contents/MacOS/opendeck-plugin-scan"
 
   publish:
     name: Publish release
-    needs: [prepare, build]
-    if: needs.prepare.outputs.skip == 'false'
+    needs: [verify, build]
+    if: needs.verify.outputs.release == 'true' && needs.build.result == 'success'
     runs-on: ubuntu-22.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_ID: ${{ needs.verify.outputs.release_id }}
+      PRERELEASE: ${{ needs.verify.outputs.prerelease }}
+      PLATFORMS: ${{ github.event_name == 'workflow_dispatch' && inputs.platforms || 'all' }}
     steps:
-      - name: Un-draft the release
-        env:
-          RELEASE_ID: ${{ needs.prepare.outputs.release_id }}
-        run: gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" -F draft=false
+      - name: Verify expected assets exist
+        run: |
+          names=$(gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" --jq '.assets[].name')
+          echo "$names"
+          missing=0
+          patterns=('_x64-setup\.exe$' '_x64_en-US\.msi$')
+          case "$PLATFORMS" in
+            all) patterns+=('\.dmg$' '\.deb$' '\.rpm$' '\.AppImage$') ;;
+            *linux*) patterns+=('\.deb$' '\.rpm$' '\.AppImage$') ;;
+          esac
+          for pattern in "${patterns[@]}"; do
+            if ! echo "$names" | grep -Eq "$pattern"; then
+              echo "::error::Release is missing an asset matching $pattern"
+              missing=1
+            fi
+          done
+          exit $missing
+
+      - name: Publish release
+        run: |
+          # make_latest only applies to stable releases.
+          if [ "$PRERELEASE" = "true" ]; then latest=false; else latest=true; fi
+          gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
+            -F draft=false -F prerelease="$PRERELEASE" -f make_latest="$latest"

@@ -63,9 +63,15 @@ Then `pnpm install && pnpm -C ui install && pnpm -C ui tauri build --bundles app
 
 Runtime dependencies of the installed app: `libwebkit2gtk-4.1`, `libasound2`, `libayatana-appindicator3`.
 
-## Unsigned binaries
+## Code signing
 
-Releases are not code-signed yet.
+Local builds are unsigned. The release workflow signs when repository secrets exist (see `docs/RELEASING.md`):
+
+- Windows: `WINDOWS_CERTIFICATE` and `WINDOWS_CERTIFICATE_PASSWORD`. The workflow imports the PFX and passes a second `--config` with `bundle.windows.certificateThumbprint`, `digestAlgorithm` and `timestampUrl`. Tauri merges all `--config` values in order, so it layers on `src-tauri/tauri.sidecars.conf.json`, which `ui/scripts/tauri.mjs` adds.
+- macOS: `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, plus `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID` to notarize. Tauri reads them from the environment and signs the app including the `opendeck-plugin-scan` sidecar.
+- Self-signed test certificate: `./scripts/new-test-certificate.ps1` (output in the ignored `test-cert/` folder).
+
+Unsigned builds show these warnings:
 
 - Windows: SmartScreen shows "Windows protected your PC". Click "More info", then "Run anyway".
 - macOS: Gatekeeper blocks the first launch. Right-click the app, choose "Open", confirm. Or run `xattr -dr com.apple.quarantine /Applications/OpenDeck.app`.

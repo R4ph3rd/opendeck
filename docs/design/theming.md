@@ -82,20 +82,23 @@ Size tokens are rem; the table gives px at UI scale 1 (1rem = 16px). The UI scal
 | `--toolbar-h` | 28px | Top menu row. |
 | `--deck-header-h` | 46px | Deck number, title, clocks, key, SYNC and MASTER. |
 | `--deck-overview-h` | 28px | Overview waveform under the deck header. |
-| `--deck-tabs-h` | 24px | Pad mode tabs above the hot cue grid, and the pane header in the middle row. |
+| `--deck-tabs-h` | 24px | Height hint for the pad mode row. |
 | `--deck-strip-h` | 28px | Reserved height hint for the beat loop and jump strip. |
-| `--mixer-w` | 312px | Centre mixer column. |
-| `--jog-max` | 520px | Largest jog diameter. The jog also shrinks to the deck height. |
-| `--transport-w` | 52px | CUE and PLAY column. |
+| `--mixer-w` | 336px | Centre mixer column. |
+| `--mixer-master-w` | 88px | Master and headphone knob column, wide enough for MASTER. |
+| `--cluster-w` | 84px | Loop and beat jump column next to the wheel. |
+| `--fx-bar-h` | 32px | Beat FX bar under the menu row. |
+| `--jog-max` | 120px | Jog diameter. It shrinks when the deck is narrow. |
+| `--transport-w` | 44px | CUE and PLAY column. |
 | `--modes-w` | 40px | SLIP, Q, MT, VINYL column. |
 | `--tempo-w` | 36px | Tempo fader column at the outer deck edge. |
 | `--pad-min-w` | 56px | Smallest hot cue pad height. |
-| `--fx-unit-w` | 280px | Beat FX block on each side of the middle row. |
+| `--fx-unit-w` | 280px | Full Beat FX unit in the More popover. |
 | `--preview-col-w`, `--artwork-col-w` | 96px, 28px | Browser Preview and Artwork columns (starting widths are in `trackColumns.tsx`). |
 | `--row-h` | 24px | Browser row height. |
 | `--text-xs` to `--text-2xl`, `--space-*`, `--radius-*` | | Type scale, spacing, corner radii. |
 
-Band heights (waveforms, decks, middle row, browser) are draggable and stored per user. Their defaults are percentages in `ui/src/state/prefs.ts` (`DEFAULT_LAYOUT`) and their minimum heights are px at scale 1 in `ui/src/lib/layout.ts` (`BAND_MIN_PX`), passed to the resizable panels as rem so they follow the UI scale. "Reset layout" in the View menu restores the defaults.
+Band heights (waveforms, decks, browser) are draggable and stored per user. Their defaults are percentages in `ui/src/state/prefs.ts` (`DEFAULT_LAYOUT`) and their minimum heights are px at scale 1 in `ui/src/lib/layout.ts` (`BAND_MIN_PX`), passed to the resizable panels as rem so they follow the UI scale. "Reset layout" in the View menu restores the defaults.
 
 ## Rules
 

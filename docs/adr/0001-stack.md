@@ -46,7 +46,7 @@ Versions below are the latest stable on crates.io / npm on the ADR date. Exact v
 | Concern | Crate | Version | Licence | Notes |
 |---|---|---|---|---|
 | DB | `rusqlite` (bundled SQLite) | 0.41 | MIT | WAL mode, `synchronous=NORMAL`, foreign keys on. |
-| Migrations | `rusqlite_migration` | 2.6 | Apache-2.0 | Uses `user_version`, embeds SQL files. Chosen over `refinery` for zero extra tables and a smaller footprint. |
+| Migrations | `rusqlite_migration` | 2.7 | Apache-2.0 | Uses `user_version`, embeds SQL files. Chosen over `refinery` for zero extra tables and a smaller footprint. |
 | Tags and artwork | `lofty` | 0.25 | MIT / Apache-2.0 | |
 | Content hash | `blake3` | 1.x | CC0 / Apache-2.0 | **Addition.** Dedupe key: file size plus BLAKE3 of the first and last 1 MiB. Fast on large imports; a full-file hash runs only on collision. |
 | Rekordbox XML import | `quick-xml` | 0.x | MIT | **Addition.** Documented XML export only. |

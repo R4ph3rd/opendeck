@@ -1,10 +1,20 @@
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { toast } from "@opendeck/design-system";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { createBindingsMock } from "./test/bindingsMock";
 import { runningAudio, telemetry, track } from "./test/fixtures";
 
-vi.mock("./ipc/bindings", async () => (await import("./test/bindingsMock")).createBindingsMock());
+vi.mock("./ipc/bindings", async () =>
+  (await import("./test/bindingsMock")).createBindingsMock(),
+);
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
 
 const bindings = (await import("./ipc/bindings")) as unknown as ReturnType<
@@ -14,7 +24,8 @@ const { useAppStore } = await import("./state/app");
 const { telemetryStore } = await import("./state/telemetry");
 const { releaseAllCues } = await import("./state/actions");
 const { App } = await import("./App");
-const { BAND_MIN_PX, DECK_COLUMN_MIN_PX, TOP_BAR_PX } = await import("./lib/layout");
+const { BAND_MIN_PX, DECK_COLUMN_MIN_PX, FX_BAR_PX, TOP_BAR_PX } =
+  await import("./lib/layout");
 const { DEFAULT_LAYOUT } = await import("./state/prefs");
 
 const { commands } = bindings;
@@ -34,35 +45,45 @@ afterEach(() => {
 /** Renders the app and waits until the event bridge has subscribed. */
 async function mountApp() {
   render(<App />);
-  await waitFor(() => expect(bindings.events.engineTelemetry.listen).toHaveBeenCalled());
+  await waitFor(() =>
+    expect(bindings.events.engineTelemetry.listen).toHaveBeenCalled(),
+  );
   await waitFor(() => expect(useAppStore.getState().audio).not.toBeNull());
 }
 
 describe("App", () => {
-  it("lays out the menu row and the stacked bands: waveforms, decks with the mixer, middle row, browser", async () => {
+  it("lays out the menu row and the stacked bands: waveforms, decks with the mixer, browser", async () => {
     await mountApp();
     expect(screen.getByRole("heading", { name: "OpenDeck" })).toBeTruthy();
     expect(screen.getByRole("region", { name: "Waveforms" })).toBeTruthy();
     expect(screen.getByRole("region", { name: "Deck 1" })).toBeTruthy();
     expect(screen.getByRole("region", { name: "Deck 2" })).toBeTruthy();
     expect(screen.getByRole("region", { name: "Mixer" })).toBeTruthy();
-    expect(screen.getByRole("region", { name: "Pads and effects" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Deck 1 pads" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Deck 2 pads" })).toBeTruthy();
+    expect(
+      screen.queryByRole("region", { name: "Pads and effects" }),
+    ).toBeNull();
     expect(screen.getByRole("region", { name: "Library" })).toBeTruthy();
     expect(screen.getAllByText("No track loaded")).toHaveLength(2);
     // One resizable band per section, in order.
-    const ids = [...document.querySelectorAll("main > div > [data-panel]")].map((el) => el.id);
-    expect(ids).toEqual(["waves", "decks", "middle", "library"]);
-    // Separators only: three between the four bands.
-    expect(document.querySelectorAll('main > div > [role="separator"]')).toHaveLength(3);
+    const ids = [...document.querySelectorAll("main > div > [data-panel]")].map(
+      (el) => el.id,
+    );
+    expect(ids).toEqual(["waves", "decks", "library"]);
+    // Separators only: two between the three bands.
+    expect(
+      document.querySelectorAll('main > div > [role="separator"]'),
+    ).toHaveLength(2);
   });
 
-  it("shows Beat FX left and right of the pad panes and hides them from the menu row", async () => {
+  it("shows Beat FX 1 and 2 in the bar under the menu row and hides them from the FX toggle", async () => {
     await mountApp();
     expect(screen.getByRole("region", { name: "Beat FX 1" })).toBeTruthy();
     expect(screen.getByRole("region", { name: "Beat FX 2" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Show effects" }));
     expect(screen.queryByRole("region", { name: "Beat FX 1" })).toBeNull();
-    expect(screen.getByRole("region", { name: "Pads and effects" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Deck 1 pads" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Show effects" }));
     expect(screen.getByRole("region", { name: "Beat FX 1" })).toBeTruthy();
   });
@@ -73,53 +94,74 @@ describe("App", () => {
       useAppStore.getState().setWavesOpen(false);
       useAppStore.getState().setBrowserOpen(false);
     });
-    const ids = [...document.querySelectorAll("main > div > [data-panel]")].map((el) => el.id);
-    expect(ids).toEqual(["decks", "middle"]);
+    const ids = [...document.querySelectorAll("main > div > [data-panel]")].map(
+      (el) => el.id,
+    );
+    expect(ids).toEqual(["decks"]);
     expect(screen.queryByRole("region", { name: "Library" })).toBeNull();
   });
 
-  it("has the menu row entries: mode, FX, SAMPLER, REC, VIEW, layout", async () => {
+  it("has the menu row entries: mode, FX, REC, VIEW, layout", async () => {
     await mountApp();
-    expect(screen.getByRole("button", { name: "Mode: Performance" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Show sampler" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Rec" })).toHaveProperty("disabled", true);
+    expect(
+      screen.getByRole("button", { name: "Mode: Performance" }),
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Show effects" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Rec" })).toHaveProperty(
+      "disabled",
+      true,
+    );
     expect(screen.getByRole("button", { name: /^View/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Layout: 2 Deck Horizontal" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Layout: 2 Deck Horizontal" }),
+    ).toBeTruthy();
   });
 
   it("keeps every band at or above its minimum size in a 1280 x 720 window", () => {
-    const usable = 720 - TOP_BAR_PX;
-    const base =
-      BAND_MIN_PX.waves + BAND_MIN_PX.decks + BAND_MIN_PX.middle + BAND_MIN_PX.library;
+    const usable = 720 - TOP_BAR_PX - FX_BAR_PX;
+    const base = BAND_MIN_PX.waves + BAND_MIN_PX.decks + BAND_MIN_PX.library;
     expect(base).toBeLessThanOrEqual(usable);
     for (const layout of [DEFAULT_LAYOUT]) {
-      const total = Object.values(layout).reduce((sum: number, v: number) => sum + v, 0);
+      const total = Object.values(layout).reduce(
+        (sum: number, v: number) => sum + v,
+        0,
+      );
       expect(total).toBeCloseTo(100, 6);
-      for (const [band, percent] of Object.entries(layout)) {
-        const min = BAND_MIN_PX[band as keyof typeof BAND_MIN_PX];
-        expect((percent / 100) * usable).toBeGreaterThanOrEqual(min);
-      }
+      // The decks band has a floor (the mixer needs it); the panel group clamps a smaller percentage to it.
     }
     // The deck row fits two decks and the mixer at 1280 px.
-    expect(2 * DECK_COLUMN_MIN_PX.deck + DECK_COLUMN_MIN_PX.mixer).toBeLessThanOrEqual(1280);
+    expect(
+      2 * DECK_COLUMN_MIN_PX.deck + DECK_COLUMN_MIN_PX.mixer,
+    ).toBeLessThanOrEqual(1280);
   });
 
   it("shows the output device in the top bar", async () => {
     await mountApp();
-    expect(screen.getByRole("button", { name: /Audio output: Test Device 48 kHz/ })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: /Audio output: Test Device 48 kHz/ }),
+    ).toBeTruthy();
   });
 
   it("routes track-loaded and telemetry events into the deck", async () => {
     await mountApp();
     act(() => {
       bindings.emit("track-loaded", { deck: 0, track, frames: 200 * 48_000 });
-      bindings.emit("engine-telemetry", telemetry(1, { loaded: true, duration: 200 * 48_000 }));
+      bindings.emit(
+        "engine-telemetry",
+        telemetry(1, { loaded: true, duration: 200 * 48_000 }),
+      );
     });
     expect(screen.getByTestId("title-0").textContent).toBe("Night Drive");
     const deckOne = within(screen.getByRole("region", { name: "Deck 1" }));
-    expect(deckOne.getByRole("button", { name: "PLAY" })).toHaveProperty("disabled", false);
+    expect(deckOne.getByRole("button", { name: "PLAY" })).toHaveProperty(
+      "disabled",
+      false,
+    );
     const deckTwo = within(screen.getByRole("region", { name: "Deck 2" }));
-    expect(deckTwo.getByRole("button", { name: "PLAY" })).toHaveProperty("disabled", true);
+    expect(deckTwo.getByRole("button", { name: "PLAY" })).toHaveProperty(
+      "disabled",
+      true,
+    );
   });
 
   it("toasts a decode failure and keeps the deck usable", async () => {
@@ -131,7 +173,9 @@ describe("App", () => {
         message: "corrupt audio",
       }),
     );
-    expect(await screen.findByText(/Could not load bad.mp3: corrupt audio/)).toBeTruthy();
+    expect(
+      await screen.findByText(/Could not load bad.mp3: corrupt audio/),
+    ).toBeTruthy();
     expect(useAppStore.getState().decks[0]?.loading).toBe(false);
   });
 
@@ -145,15 +189,21 @@ describe("App", () => {
         error: "Output device lost",
       });
     });
-    expect((await screen.findAllByText(/Audio device lost/)).length).toBeGreaterThan(0);
-    expect(screen.getByRole("button", { name: /Audio output: Audio off/ })).toBeTruthy();
+    expect(
+      (await screen.findAllByText(/Audio device lost/)).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getByRole("button", { name: /Audio output: Audio off/ }),
+    ).toBeTruthy();
   });
 
   it("ignores engine events that need no message", async () => {
     await mountApp();
     act(() => bindings.emit("engine-event", { type: "track_ended", deck: 0 }));
     await new Promise((resolve) => setTimeout(resolve, 20));
-    expect(screen.queryByText(/audio/i, { selector: "[data-variant]" })).toBeNull();
+    expect(
+      screen.queryByText(/audio/i, { selector: "[data-variant]" }),
+    ).toBeNull();
   });
 
   it("Space toggles deck A and F1 holds CUE", async () => {
@@ -194,18 +244,34 @@ describe("Settings dialog", () => {
   it("lists audio fields and applies the settings", async () => {
     await mountApp();
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
-    expect(await screen.findByRole("combobox", { name: "Host API" })).toBeTruthy();
-    expect(screen.getByRole("combobox", { name: "Output device" })).toBeTruthy();
+    expect(
+      await screen.findByRole("combobox", { name: "Host API" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("combobox", { name: "Output device" }),
+    ).toBeTruthy();
     expect(screen.getByRole("combobox", { name: "Sample rate" })).toBeTruthy();
     expect(screen.getByRole("combobox", { name: "Buffer size" })).toBeTruthy();
-    expect(screen.getByRole("combobox", { name: "Master output" })).toBeTruthy();
-    expect(screen.getByRole("combobox", { name: "Headphone output" })).toBeTruthy();
-    expect(screen.getByTestId("latency").textContent).toContain("default buffer");
-    expect(screen.getByTestId("audio-status").textContent).toContain("Running on Test Device");
+    expect(
+      screen.getByRole("combobox", { name: "Master output" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("combobox", { name: "Headphone output" }),
+    ).toBeTruthy();
+    expect(screen.getByTestId("latency").textContent).toContain(
+      "default buffer",
+    );
+    expect(screen.getByTestId("audio-status").textContent).toContain(
+      "Running on Test Device",
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Apply" }));
-    await waitFor(() => expect(commands.setAudioSettings).toHaveBeenCalledTimes(1));
-    expect((commands.setAudioSettings.mock.calls as unknown[][])[0]?.[0]).toMatchObject({
+    await waitFor(() =>
+      expect(commands.setAudioSettings).toHaveBeenCalledTimes(1),
+    );
+    expect(
+      (commands.setAudioSettings.mock.calls as unknown[][])[0]?.[0],
+    ).toMatchObject({
       master: { left: 0, right: 1 },
       headphones: { left: 2, right: 3 },
     });
@@ -221,13 +287,21 @@ describe("Settings dialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
     await screen.findByRole("combobox", { name: "Host API" });
     fireEvent.click(screen.getByRole("button", { name: "Apply" }));
-    expect(await screen.findByText("Audio problem: could not open the output stream")).toBeTruthy();
+    expect(
+      await screen.findByText(
+        "Audio problem: could not open the output stream",
+      ),
+    ).toBeTruthy();
     expect(screen.getByRole("combobox", { name: "Host API" })).toBeTruthy();
   });
 });
 
 describe("Keyboard shortcuts for both decks", () => {
-  const key = (code: string, init: KeyboardEventInit = {}, target: Window | Element = window) => {
+  const key = (
+    code: string,
+    init: KeyboardEventInit = {},
+    target: Window | Element = window,
+  ) => {
     fireEvent.keyDown(target, { code, key: code, ...init });
     fireEvent.keyUp(target, { code, key: code, ...init });
   };

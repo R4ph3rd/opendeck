@@ -17,6 +17,8 @@ export function BeatLoopView({ deck }: { deck: number }) {
   }));
   return (
     <PerformancePads
+      columns={2}
+      className="grid-flow-col"
       label={`Deck ${deck + 1} beat loop`}
       pads={pads}
       disabled={!loaded}

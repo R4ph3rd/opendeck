@@ -1,8 +1,9 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DirListing } from "../ipc/bindings";
 import type { createBindingsMock } from "../test/bindingsMock";
-import { makeTransfer } from "../test/library";
+import { dropZone } from "../lib/pointerDrag";
+import { pointerDrag } from "../test/library";
 
 vi.mock("../ipc/bindings", async () => (await import("../test/bindingsMock")).createBindingsMock());
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
@@ -112,28 +113,31 @@ describe("FileExplorer", () => {
   it("drags the selection, or just the row when it is not selected", async () => {
     render(<FileExplorer />);
     await screen.findByRole("option", { name: "crate" });
+    const dropped = vi.fn();
+    const zone = document.createElement("div");
+    document.body.append(zone);
+    dropZone({ accepts: () => true, drop: dropped })(zone);
+
     fireEvent.click(option("a.wav"));
     fireEvent.click(option("b.flac"), { ctrlKey: true });
-    const together = makeTransfer();
-    fireEvent.dragStart(option("b.flac"), { dataTransfer: together });
-    expect(JSON.parse(together.getData("application/x-opendeck"))).toEqual({
+    act(() => pointerDrag(option("b.flac"), zone));
+    expect(dropped.mock.calls[0]?.[0]).toEqual({
       kind: "files",
       files: [
         { path: "/music/a.wav", kind: "audio" },
         { path: "/music/b.flac", kind: "audio" },
       ],
     });
-    expect(together.getData("text/plain")).toBe("2 items");
 
-    const alone = makeTransfer();
-    fireEvent.dragStart(option("library.xml"), { dataTransfer: alone });
-    expect(JSON.parse(alone.getData("application/x-opendeck"))).toEqual({
+    act(() => pointerDrag(option("library.xml"), zone));
+    expect(dropped.mock.calls[1]?.[0]).toEqual({
       kind: "files",
       files: [{ path: "/music/library.xml", kind: "playlist", ext: "xml" }],
     });
     // The dragged row becomes the selection.
     expect(option("library.xml").getAttribute("aria-selected")).toBe("true");
     expect(option("a.wav").getAttribute("aria-selected")).toBe("false");
+    zone.remove();
   });
 
   it("offers deck loading and import in the context menu", async () => {

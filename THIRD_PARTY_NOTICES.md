@@ -30,9 +30,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## VST 3 interface headers (builds with the `vst3` feature only, wave 9a-2)
+## VST 3 interface headers (builds with the `vst3` feature, on by default)
 
-The `vst3` crate (MIT OR Apache-2.0) ships Rust bindings generated from Steinberg's VST 3 interface headers, fork `coupler-rs/vst3_pluginterfaces` (source: `LICENSE.txt` of that repository; upstream SDK `steinbergmedia/vst3sdk`, also MIT). OpenDeck does not use the VST logo (ADR 0008). The `vst3` feature is off by default; this notice applies to builds that enable it.
+The `vst3` crate (MIT OR Apache-2.0) ships Rust bindings generated from Steinberg's VST 3 interface headers, fork `coupler-rs/vst3_pluginterfaces` (source: `LICENSE.txt` of that repository; upstream SDK `steinbergmedia/vst3sdk`, also MIT). OpenDeck does not use the VST logo (ADR 0008). The `vst3` feature is on by default since wave 9a-2; this notice applies to every build that includes it.
 
 ```
 MIT License

@@ -10,7 +10,8 @@ import {
 import { ArrowUp, Folder, HardDrive, Home, ListMusic, Music } from "lucide-react";
 import { useCallback, useEffect, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { commands, type DirListing, type FsEntry } from "../ipc/bindings";
-import { writeDrag, type DraggedFile } from "../lib/dnd";
+import type { DraggedFile } from "../lib/dnd";
+import { startPointerDrag } from "../lib/pointerDrag";
 import { baseName } from "../lib/library";
 import { EMPTY_SELECTION, clickSelect, type SelectionState } from "../lib/selection";
 import { report } from "../state/actions";
@@ -148,7 +149,6 @@ export function FileExplorer() {
                   role="option"
                   tabIndex={0}
                   aria-selected={selected}
-                  draggable
                   title={entry.path}
                   className={cn(
                     "flex h-[var(--control-md)] items-center gap-1.5 rounded-sm px-2 text-sm text-fg-muted",
@@ -165,19 +165,20 @@ export function FileExplorer() {
                       );
                     }
                   }}
-                  onDragStart={(event) => {
-                    const files = draggedFor(index);
-                    if (!selected) {
-                      setSelection(
-                        clickSelect(EMPTY_SELECTION, index, { shift: false, ctrl: false }, idAt),
-                      );
-                    }
-                    writeDrag(
-                      event.dataTransfer,
-                      { kind: "files", files },
-                      files.length === 1 ? entry.name : `${files.length} items`,
-                    );
-                  }}
+                  onPointerDown={(event) =>
+                    startPointerDrag(event, () => {
+                      const files = draggedFor(index);
+                      if (!selected) {
+                        setSelection(
+                          clickSelect(EMPTY_SELECTION, index, { shift: false, ctrl: false }, idAt),
+                        );
+                      }
+                      return {
+                        payload: { kind: "files", files },
+                        label: files.length === 1 ? entry.name : `${files.length} items`,
+                      };
+                    })
+                  }
                 >
                   <Icon className="size-3.5 shrink-0" aria-hidden />
                   <span className="truncate">{entry.name}</span>
