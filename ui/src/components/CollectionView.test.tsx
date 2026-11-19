@@ -2,7 +2,8 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { Toaster, toast } from "@opendeck/design-system";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { createBindingsMock } from "../test/bindingsMock";
-import { makeRow, mockViewport, pageFor } from "../test/library";
+import { dropZone } from "../lib/pointerDrag";
+import { makeRow, mockViewport, pageFor, pointerDrag } from "../test/library";
 
 vi.mock("../ipc/bindings", async () => (await import("../test/bindingsMock")).createBindingsMock());
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
@@ -308,18 +309,48 @@ describe("CollectionView selection and actions", () => {
     await waitFor(() => expect(commands.setRating).toHaveBeenCalledWith(1, 0));
   });
 
-  it("starts a drag with every selected track", async () => {
+  it("starts a pointer drag with every selected track", async () => {
     await ready();
     fireEvent.click(row(0));
     fireEvent.click(row(2), { ctrlKey: true });
-    const { makeTransfer } = await import("../test/library");
-    const transfer = makeTransfer();
-    fireEvent.dragStart(row(2), { dataTransfer: transfer });
-    expect(JSON.parse(transfer.getData("application/x-opendeck"))).toEqual({
-      kind: "tracks",
-      ids: [1, 3],
-    });
-    expect(transfer.getData("text/plain")).toBe("2 tracks");
+    const dropped = vi.fn();
+    const zone = document.createElement("div");
+    document.body.append(zone);
+    dropZone({ accepts: () => true, drop: dropped })(zone);
+    act(() => pointerDrag(row(2), zone));
+    expect(dropped).toHaveBeenCalledTimes(1);
+    expect(dropped.mock.calls[0]?.[0]).toEqual({ kind: "tracks", ids: [1, 3] });
+    zone.remove();
+  });
+
+  it("drags just the pressed row, and selects it, when it is not selected", async () => {
+    await ready();
+    fireEvent.click(row(0));
+    const dropped = vi.fn();
+    const zone = document.createElement("div");
+    document.body.append(zone);
+    dropZone({ accepts: () => true, drop: dropped })(zone);
+    act(() => pointerDrag(row(4), zone));
+    expect(dropped.mock.calls[0]?.[0]).toEqual({ kind: "tracks", ids: [5] });
+    expect(row(4).getAttribute("aria-selected")).toBe("true");
+    expect(row(0).getAttribute("aria-selected")).toBe("false");
+    zone.remove();
+  });
+
+  it("moves the selection with the arrow keys and loads it with Enter", async () => {
+    await ready();
+    fireEvent.click(row(1));
+    const grid = screen.getByRole("grid", { name: "Collection" });
+    fireEvent.keyDown(grid, { key: "ArrowDown" });
+    expect(row(2).getAttribute("aria-selected")).toBe("true");
+    fireEvent.keyDown(grid, { key: "ArrowUp" });
+    fireEvent.keyDown(grid, { key: "ArrowUp" });
+    expect(row(0).getAttribute("aria-selected")).toBe("true");
+    fireEvent.keyDown(grid, { key: "ArrowDown", shiftKey: true });
+    expect(row(1).getAttribute("aria-selected")).toBe("true");
+    expect(row(0).getAttribute("aria-selected")).toBe("true");
+    fireEvent.keyDown(grid, { key: "Enter" });
+    await waitFor(() => expect(commands.loadTrack).toHaveBeenCalledWith(expect.any(Number), 2));
   });
 });
 

@@ -1,7 +1,8 @@
 import { Panel, cn } from "@opendeck/design-system";
 import { useState, type DragEvent } from "react";
 import { useStore } from "zustand";
-import { dragKind, readDrag } from "../lib/dnd";
+import { dragKind, readDrag, type DragPayload } from "../lib/dnd";
+import { dropZone } from "../lib/pointerDrag";
 import { loadDroppedFile, loadTrackById } from "../state/libraryActions";
 import { selectDeckUi, useAppStore } from "../state/app";
 import { telemetryStore } from "../state/telemetry";
@@ -34,24 +35,40 @@ export function DeckPanel({ deck }: DeckPanelProps) {
       setDropActive(true);
     }
   };
-  const onDrop = (event: DragEvent) => {
-    setDropActive(false);
-    const payload = readDrag(event.dataTransfer);
+  const load = (payload: DragPayload | null): boolean => {
     if (payload?.kind === "tracks" && payload.ids[0] !== undefined) {
-      event.preventDefault();
       void loadTrackById(deck, payload.ids[0]);
-    } else if (payload?.kind === "files") {
+      return true;
+    }
+    if (payload?.kind === "files") {
       const file = payload.files.find((f) => f.kind === "audio");
       if (file) {
-        event.preventDefault();
         void loadDroppedFile(deck, file);
+        return true;
       }
     }
+    return false;
   };
+  const onDrop = (event: DragEvent) => {
+    setDropActive(false);
+    if (load(readDrag(event.dataTransfer))) {
+      event.preventDefault();
+    }
+  };
+  // The pointer drag of the track table and the explorer (see lib/pointerDrag).
+  const zoneRef = dropZone({
+    accepts: (payload) => payload.kind === "tracks" || payload.kind === "files",
+    over: (_payload, point) => setDropActive(point !== null),
+    drop: (payload) => {
+      setDropActive(false);
+      load(payload);
+    },
+  });
 
   return (
     <Panel
       flush
+      ref={zoneRef}
       aria-label={name}
       className={cn(
         "size-full min-w-0",

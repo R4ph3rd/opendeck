@@ -36,12 +36,11 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
-  type DragEvent,
   type KeyboardEvent,
   type MouseEvent,
 } from "react";
 import { commands, type SortColumnDto } from "../ipc/bindings";
-import { writeDrag } from "../lib/dnd";
+import { startPointerDrag, type DragSpec } from "../lib/pointerDrag";
 import { SORT_COLUMN, displayTitle, type ColumnId } from "../lib/library";
 import {
   EMPTY_SELECTION,
@@ -165,8 +164,12 @@ export function TrackTable({
     }
   }, [source, first, last, version]);
 
-  const windowRows = items.map(
-    (item): TableRowData => source.getRow(item.index),
+  // Must keep its identity between renders: a fresh array on every render makes
+  // TanStack Table reset its state, which renders again, in a loop that starves input.
+  const windowRows = useMemo(
+    () => items.map((item): TableRowData => source.getRow(item.index)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `version` marks cache updates.
+    [items, source, version],
   );
   const columns = useMemo(
     () =>
@@ -183,6 +186,7 @@ export function TrackTable({
     data: windowRows,
     columns,
     getCoreRowModel: getCoreRowModel(),
+    autoResetPageIndex: false,
     getRowId: (row, index) =>
       row ? String(row.id) : `loading-${first + index}`,
     columnResizeMode: "onChange",
@@ -356,11 +360,8 @@ export function TrackTable({
     setMenuEntries(entriesFor(targets));
   };
 
-  const onDragStart = (
-    event: DragEvent,
-    index: number,
-    row: NonNullable<TableRowData>,
-  ) => {
+  /** What a drag that starts on `row` carries: the selection when the row is in it, else the row. */
+  const dragSpec = (index: number, row: NonNullable<TableRowData>): DragSpec => {
     const ids = selection.ids.has(row.id) ? [...selection.ids] : [row.id];
     if (!selection.ids.has(row.id)) {
       setSelection(
@@ -373,15 +374,14 @@ export function TrackTable({
       );
     }
     const entries = playlist === null ? [] : entriesFor(ids);
-    writeDrag(
-      event.dataTransfer,
-      {
+    return {
+      payload: {
         kind: "tracks",
         ids,
         ...(playlist !== null ? { playlist: { id: playlist, entries } } : {}),
       },
-      ids.length === 1 ? displayTitle(row) : `${ids.length} tracks`,
-    );
+      label: ids.length === 1 ? displayTitle(row) : `${ids.length} tracks`,
+    };
   };
 
   /** Playlist entry ids of the given tracks; empty for sources that are not playlists. */
@@ -507,9 +507,9 @@ export function TrackTable({
                       aria-rowindex={index + 2}
                       aria-selected={selected}
                       data-index={index}
-                      draggable={row !== null}
                       style={{ height: rowHeight }}
                       className={cn(
+                        "select-none aria-selected:bg-accent/30 aria-selected:hover:bg-accent/40",
                         row?.missing && "text-fg-subtle line-through",
                         selection.focus === index &&
                           "outline-2 -outline-offset-2 outline-focus-ring/40",
@@ -519,8 +519,9 @@ export function TrackTable({
                         loadIndexToDeck(index, firstFreeDeck())
                       }
                       onContextMenu={() => row && onRowContextMenu(index, row)}
-                      onDragStart={(event) =>
-                        row && onDragStart(event, index, row)
+                      onPointerDown={(event) =>
+                        row &&
+                        startPointerDrag(event, () => dragSpec(index, row))
                       }
                     >
                       {tableRow.getVisibleCells().map((cell) => (
