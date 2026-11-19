@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { createBindingsMock } from "../test/bindingsMock";
+import { neutralSampler } from "../test/bindingsMock";
 import { runningAudio, track } from "../test/fixtures";
 import { makeTransfer, pointerDrag } from "../test/library";
 import { startPointerDrag } from "../lib/pointerDrag";
@@ -15,6 +16,7 @@ const bindings = (await import("../ipc/bindings")) as unknown as ReturnType<
 const { useAppStore } = await import("../state/app");
 const { useLibraryStore } = await import("../state/library");
 const { telemetryStore } = await import("../state/telemetry");
+const { usePadStore } = await import("../state/pads");
 const { DeckPanel } = await import("./DeckPanel");
 
 const { commands } = bindings;
@@ -33,6 +35,7 @@ beforeEach(() => {
   useAppStore.getState().setAudio(runningAudio);
   useLibraryStore.getState().reset();
   telemetryStore.getState().reset();
+  usePadStore.getState().reset();
   vi.clearAllMocks();
 });
 
@@ -127,6 +130,23 @@ describe("loading a deck by pointer drag", () => {
     const inside = screen.getByRole("button", { name: "PLAY" });
     act(() => pointerDrag(screen.getByRole("button", { name: "row" }), inside));
     await waitFor(() => expect(commands.loadTrack).toHaveBeenCalledWith(1, 8));
+  });
+
+  it("loads a sampler slot, not the deck, when dropped on a sampler pad", () => {
+    act(() => {
+      usePadStore.getState().setSampler(neutralSampler() as never);
+      useAppStore.getState().setPadMode(1, "sampler");
+    });
+    render(
+      <>
+        {source({ kind: "tracks", ids: [9] })}
+        <DeckPanel deck={1} />
+      </>,
+    );
+    const pad = screen.getByLabelText("Sample slot 11 (empty)");
+    act(() => pointerDrag(screen.getByRole("button", { name: "row" }), pad));
+    expect(commands.samplerLoadTrack).toHaveBeenCalledWith(10, 9);
+    expect(commands.loadTrack).not.toHaveBeenCalled();
   });
 
   it("does nothing when the drag ends outside a deck", () => {
