@@ -53,9 +53,9 @@ rustfft = "6.4"
 ebur128 = "0.1"
 
 # Library, metadata, MIDI
-# rusqlite 0.40, not 0.41: rusqlite_migration 2.6 requires ^0.40 (ADR 0005).
-rusqlite = { version = "0.40", features = ["bundled"] }
-rusqlite_migration = "2.6"
+# rusqlite 0.41 with rusqlite_migration 2.7 (ADR 0005); 0.41 bundles SQLite 3.54 (RUSTSEC-2026-0459).
+rusqlite = { version = "0.41", features = ["bundled"] }
+rusqlite_migration = "2.7"
 lofty = "0.25"
 blake3 = "1"
 quick-xml = "0.42"
