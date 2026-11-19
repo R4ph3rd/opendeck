@@ -155,9 +155,8 @@ describe("Interface page", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Restore" })[0] as HTMLElement);
     expect(JSON.parse(localStorage.getItem(LAYOUT_KEY) ?? "{}")).toEqual({
       waves: 15,
-      decks: 33,
-      middle: 16,
-      library: 36,
+      decks: 38,
+      library: 47,
     });
     expect(usePrefsStore.getState().layoutRevision).toBe(1);
     fireEvent.click(screen.getAllByRole("button", { name: "Restore" })[1] as HTMLElement);

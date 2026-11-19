@@ -160,6 +160,8 @@ export function SamplerView({ deck }: { deck: number }) {
   return (
     <>
       <PerformancePads
+        columns={2}
+        className="grid-flow-col"
         label={`Deck ${deck + 1} sampler slots`}
         pads={pads}
         padProps={dropProps}

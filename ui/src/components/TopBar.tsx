@@ -79,10 +79,9 @@ function ModeMenu() {
 
 /** Which panels of the layout are shown, and layout reset. */
 function ViewMenu() {
-  const { wavesOpen, fxOpen, samplerOpen, browserOpen } = useAppStore();
+  const { wavesOpen, fxOpen, browserOpen } = useAppStore();
   const setWavesOpen = useAppStore((s) => s.setWavesOpen);
   const setFxOpen = useAppStore((s) => s.setFxOpen);
-  const setSamplerOpen = useAppStore((s) => s.setSamplerOpen);
   const setBrowserOpen = useAppStore((s) => s.setBrowserOpen);
   const restore = usePrefsStore((s) => s.restoreLayout);
   return (
@@ -97,9 +96,6 @@ function ViewMenu() {
         </DropdownMenuCheckboxItem>
         <DropdownMenuCheckboxItem checked={fxOpen} onCheckedChange={setFxOpen}>
           Effects
-        </DropdownMenuCheckboxItem>
-        <DropdownMenuCheckboxItem checked={samplerOpen} onCheckedChange={setSamplerOpen}>
-          Sampler
         </DropdownMenuCheckboxItem>
         <DropdownMenuCheckboxItem checked={browserOpen} onCheckedChange={setBrowserOpen}>
           Browser
@@ -152,7 +148,7 @@ function LayoutMenu() {
 }
 
 /**
- * Menu row of the performance layout. Left: mode, FX, SAMPLER, REC, VIEW and
+ * Menu row of the performance layout. Left: mode, FX, REC, VIEW and
  * import. Centre: the OpenDeck wordmark. Right: layout selector, controller
  * and audio status, clock, help and settings.
  */
@@ -165,8 +161,6 @@ export function TopBar() {
   const openFirstRun = usePrefsStore((s) => s.openFirstRun);
   const fxOpen = useAppStore((s) => s.fxOpen);
   const setFxOpen = useAppStore((s) => s.setFxOpen);
-  const samplerOpen = useAppStore((s) => s.samplerOpen);
-  const setSamplerOpen = useAppStore((s) => s.setSamplerOpen);
 
   let status = "Audio starting";
   let variant: "success" | "danger" | "neutral" = "neutral";
@@ -200,15 +194,6 @@ export function TopBar() {
         className={cn(MENU_BUTTON, "data-[state=on]:text-accent data-[state=on]:shadow-[inset_0_0_0_1px_var(--accent)]")}
       >
         FX
-      </Toggle>
-      <Toggle
-        size="sm"
-        aria-label="Show sampler"
-        pressed={samplerOpen}
-        onPressedChange={setSamplerOpen}
-        className={cn(MENU_BUTTON, "data-[state=on]:text-accent data-[state=on]:shadow-[inset_0_0_0_1px_var(--accent)]")}
-      >
-        Sampler
       </Toggle>
       <Button
         size="sm"

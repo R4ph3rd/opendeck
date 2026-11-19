@@ -77,11 +77,9 @@ export interface AppState {
   settingsOpen: boolean;
   /** View toggles of the performance layout (toolbar FX, SAMPLER and VIEW). */
   fxOpen: boolean;
-  samplerOpen: boolean;
   wavesOpen: boolean;
   browserOpen: boolean;
   setFxOpen: (open: boolean) => void;
-  setSamplerOpen: (open: boolean) => void;
   setWavesOpen: (open: boolean) => void;
   setBrowserOpen: (open: boolean) => void;
   patchDeck: (deck: number, patch: Partial<DeckUi>) => void;
@@ -136,7 +134,6 @@ const initial = () => ({
   audio: null,
   settingsOpen: false,
   fxOpen: true,
-  samplerOpen: true,
   wavesOpen: true,
   browserOpen: true,
 });
@@ -174,7 +171,6 @@ export const useAppStore = create<AppState>()((set) => ({
   setLeader: (leader) => set({ leader }),
   setAudio: (audio) => set({ audio }),
   setFxOpen: (fxOpen) => set({ fxOpen }),
-  setSamplerOpen: (samplerOpen) => set({ samplerOpen }),
   setWavesOpen: (wavesOpen) => set({ wavesOpen }),
   setBrowserOpen: (browserOpen) => set({ browserOpen }),
   setSettingsOpen: (settingsOpen) => set({ settingsOpen }),

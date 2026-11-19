@@ -11,13 +11,12 @@ export const TOP_BAR_PX = 28;
 /** Smallest height of each stacked band, px. The sum fits a 1280 x 720 window. */
 export const BAND_MIN_PX = {
   waves: 72,
-  decks: 220,
-  middle: 96,
+  decks: 240,
   library: 120,
 } as const;
 
 /** Smallest width of the deck row columns, px. `mixer` follows `--mixer-w`. */
-export const DECK_COLUMN_MIN_PX = { deck: 400, mixer: 240 } as const;
+export const DECK_COLUMN_MIN_PX = { deck: 400, mixer: 336 } as const;
 
 /**
  * Size for a resizable panel from a px value at UI scale 1, as rem (`72` gives

@@ -38,6 +38,8 @@ export function HotCueView({ deck }: { deck: number }) {
   return (
     <>
       <PerformancePads
+        columns={2}
+        className="grid-flow-col"
         label={`Deck ${deck + 1} hot cues`}
         pads={pads}
         disabled={!loaded}

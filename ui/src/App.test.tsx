@@ -39,30 +39,32 @@ async function mountApp() {
 }
 
 describe("App", () => {
-  it("lays out the menu row and the stacked bands: waveforms, decks with the mixer, middle row, browser", async () => {
+  it("lays out the menu row and the stacked bands: waveforms, decks with the mixer, browser", async () => {
     await mountApp();
     expect(screen.getByRole("heading", { name: "OpenDeck" })).toBeTruthy();
     expect(screen.getByRole("region", { name: "Waveforms" })).toBeTruthy();
     expect(screen.getByRole("region", { name: "Deck 1" })).toBeTruthy();
     expect(screen.getByRole("region", { name: "Deck 2" })).toBeTruthy();
     expect(screen.getByRole("region", { name: "Mixer" })).toBeTruthy();
-    expect(screen.getByRole("region", { name: "Pads and effects" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Deck 1 pads" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Deck 2 pads" })).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "Pads and effects" })).toBeNull();
     expect(screen.getByRole("region", { name: "Library" })).toBeTruthy();
     expect(screen.getAllByText("No track loaded")).toHaveLength(2);
     // One resizable band per section, in order.
     const ids = [...document.querySelectorAll("main > div > [data-panel]")].map((el) => el.id);
-    expect(ids).toEqual(["waves", "decks", "middle", "library"]);
-    // Separators only: three between the four bands.
-    expect(document.querySelectorAll('main > div > [role="separator"]')).toHaveLength(3);
+    expect(ids).toEqual(["waves", "decks", "library"]);
+    // Separators only: two between the three bands.
+    expect(document.querySelectorAll('main > div > [role="separator"]')).toHaveLength(2);
   });
 
-  it("shows Beat FX left and right of the pad panes and hides them from the menu row", async () => {
+  it("shows Beat FX 1 and 2 in the bar under the menu row and hides them from the FX toggle", async () => {
     await mountApp();
     expect(screen.getByRole("region", { name: "Beat FX 1" })).toBeTruthy();
     expect(screen.getByRole("region", { name: "Beat FX 2" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Show effects" }));
     expect(screen.queryByRole("region", { name: "Beat FX 1" })).toBeNull();
-    expect(screen.getByRole("region", { name: "Pads and effects" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Deck 1 pads" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Show effects" }));
     expect(screen.getByRole("region", { name: "Beat FX 1" })).toBeTruthy();
   });
@@ -74,14 +76,14 @@ describe("App", () => {
       useAppStore.getState().setBrowserOpen(false);
     });
     const ids = [...document.querySelectorAll("main > div > [data-panel]")].map((el) => el.id);
-    expect(ids).toEqual(["decks", "middle"]);
+    expect(ids).toEqual(["decks"]);
     expect(screen.queryByRole("region", { name: "Library" })).toBeNull();
   });
 
-  it("has the menu row entries: mode, FX, SAMPLER, REC, VIEW, layout", async () => {
+  it("has the menu row entries: mode, FX, REC, VIEW, layout", async () => {
     await mountApp();
     expect(screen.getByRole("button", { name: "Mode: Performance" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Show sampler" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Show effects" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Rec" })).toHaveProperty("disabled", true);
     expect(screen.getByRole("button", { name: /^View/ })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Layout: 2 Deck Horizontal" })).toBeTruthy();
@@ -90,7 +92,7 @@ describe("App", () => {
   it("keeps every band at or above its minimum size in a 1280 x 720 window", () => {
     const usable = 720 - TOP_BAR_PX;
     const base =
-      BAND_MIN_PX.waves + BAND_MIN_PX.decks + BAND_MIN_PX.middle + BAND_MIN_PX.library;
+      BAND_MIN_PX.waves + BAND_MIN_PX.decks + BAND_MIN_PX.library;
     expect(base).toBeLessThanOrEqual(usable);
     for (const layout of [DEFAULT_LAYOUT]) {
       const total = Object.values(layout).reduce((sum: number, v: number) => sum + v, 0);

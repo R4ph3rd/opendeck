@@ -44,6 +44,8 @@ export function KeyboardView({ deck }: { deck: number }) {
 
   return (
     <PerformancePads
+      columns={2}
+      className="grid-flow-col"
       label={`Deck ${deck + 1} keyboard`}
       pads={specs}
       disabled={!loaded}

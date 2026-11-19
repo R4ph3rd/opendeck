@@ -16,7 +16,7 @@ import { BeatFxUnit } from "./BeatFxUnit";
 import { PadFxEditor } from "./PadFxEditor";
 import { SendUnit } from "./SendUnit";
 
-/** All effects: two Beat FX units in full, the send buses and the pad FX editor. Opened from the middle row. */
+/** All effects: two Beat FX units in full, the send buses and the pad FX editor. Opened from the FX bar. */
 export function FxPanel() {
   const ready = useFxStore((s) => s.state !== null);
   return (

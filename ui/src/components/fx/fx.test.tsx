@@ -16,7 +16,7 @@ const { useFxStore, hydrateFx } = await import("../../state/fx");
 const { useMixerStore } = await import("../../state/mixer");
 const { FxPanel } = await import("./FxPanel");
 const { BeatFxCompact } = await import("./BeatFxCompact");
-const { MiddleRow } = await import("../MiddleRow");
+const { FxBar } = await import("./FxBar");
 const { PadFxEditor } = await import("./PadFxEditor");
 const { ChannelStrip } = await import("../ChannelStrip");
 
@@ -40,7 +40,7 @@ function setKnob(name: string, value: number) {
   fireEvent.change(slider(name), { target: { value: String(value) } });
 }
 
-describe("BeatFxCompact and the middle row", () => {
+describe("BeatFxCompact and the FX bar", () => {
   it("shows effect, beat, level and ON for a unit and sends the same commands", () => {
     render(<BeatFxCompact index={0} />);
     const unit = within(screen.getByRole("region", { name: "Beat FX 1 quick" }));
@@ -52,11 +52,11 @@ describe("BeatFxCompact and the middle row", () => {
     expect(unit.getByRole("button", { name: "Beat FX 1 more" })).toBeTruthy();
   });
 
-  it("puts Beat FX left and right of the pad panes and reaches every effect from All FX", async () => {
-    render(<MiddleRow />);
+  it("puts Beat FX 1 and 2 in the bar and reaches every effect from All FX", async () => {
+    render(<FxBar />);
     expect(screen.getByRole("region", { name: "Beat FX 1" })).toBeTruthy();
     expect(screen.getByRole("region", { name: "Beat FX 2" })).toBeTruthy();
-    expect(screen.getByRole("region", { name: "Pads and effects" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Beat FX 1 quick" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "All effects, sends and Pad FX" }));
     expect(await screen.findByRole("button", { name: "Pad FX" })).toBeTruthy();
   });
