@@ -4,6 +4,30 @@ All notable changes are recorded here. Format follows [Keep a Changelog](https:/
 
 ## [Unreleased]
 
+## [0.8.3] - 2026-11-19
+
+Deck layout rework, track drag and drop fixes, VST3 effects. Pre-release; Windows and macOS builds are signed only when the signing secrets exist.
+
+### Added
+
+- VST3 plugin effects in FX slots (ADR 0008, wave 9a-2).
+- Release workflow: gated on CI for the commit, signs Windows and macOS builds when the secrets exist, `platforms` input, rpm bundle.
+
+### Changed
+
+- Deck layout: pads sit in each deck beside the jog wheel, with shorter pad rows and a jog that follows the deck height; an FX bar replaces the middle row; new band defaults.
+- Mixer knobs aligned on a two-column grid; the master section is labelled MASTER in full.
+
+### Fixed
+
+- Track drag and drop onto decks, sampler pads and playlists, with pointer events instead of HTML5 drag and drop.
+- Collection selection by mouse click and arrow keys.
+- A track table render loop that blocked mouse input.
+
+### Security
+
+- Bundled SQLite 3.54 through `rusqlite` 0.41 (RUSTSEC-2026-0459).
+
 ## [0.8.2] - 2026-11-04
 
 Second UI rework and the first plugin effects. Pre-release, unsigned.
