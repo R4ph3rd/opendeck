@@ -114,7 +114,7 @@ export function PerformancePads({
               "-outline-offset-2 focus-visible:outline-2 focus-visible:outline-focus-ring",
               "disabled:pointer-events-none disabled:opacity-50",
               "hover:bg-surface-hover data-[pressed]:translate-y-px data-[pressed]:bg-surface-hover",
-              "bg-surface-raised text-fg",
+              pad.label ? "bg-surface-raised text-fg" : "bg-surface text-fg",
               pad.active && "bg-surface-hover shadow-[inset_0_0_0_1px_var(--accent)]",
             )}
             onPointerDown={(event: PointerEvent<HTMLButtonElement>) => {
@@ -146,9 +146,11 @@ export function PerformancePads({
             >
               {index + 1}
             </span>
-            <span className="w-full truncate text-center text-sm font-normal leading-tight">
-              {pad.label}
-            </span>
+            {pad.label ? (
+              <span className="w-full truncate text-center text-sm font-normal leading-tight">
+                {pad.label}
+              </span>
+            ) : null}
             {pad.sublabel ? (
               <span className="w-full truncate text-center font-mono text-xs leading-tight tabular-nums opacity-80">
                 {pad.sublabel}

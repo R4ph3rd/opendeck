@@ -4,6 +4,7 @@
   body,
   #root {
     height: 100%;
+    overflow: hidden;
   }
   /*
    * UI scale: --ui-scale is set from the window height or Settings, Interface.
@@ -11,6 +12,7 @@
    * zoom, Radix menus, selects and tooltips land offset (Chromium and WebKitGTK).
    */
   html {
+    --ring-w: calc(1.5px * var(--ui-scale, 1)); /* CUE and PLAY ring stroke: 1.5px at 1080p */
     font-size: calc(16px * var(--ui-scale, 1));
   }
   body {

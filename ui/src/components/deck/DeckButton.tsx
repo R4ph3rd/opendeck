@@ -54,7 +54,7 @@ export function RingButton({
   return (
     <Button
       className={cn(
-        "size-[min(100cqh,100cqw)] rounded-full border-4 bg-surface-raised p-0 text-sm font-normal",
+        "size-[min(100cqh,100cqw)] rounded-full border-[length:var(--ring-w)] bg-surface-raised p-0 text-sm font-normal",
         ring === "cue" ? "border-accent" : "border-fg-muted",
         "hover:bg-surface-hover data-[active=true]:bg-surface-hover",
         className,

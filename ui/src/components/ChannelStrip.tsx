@@ -45,6 +45,9 @@ const CELL = [
   "col-start-1 row-start-4",
 ] as const;
 
+/** Dial at the left edge of its column, so every dial of a column shares one x whatever its label width. */
+const KNOB = "justify-start";
+
 const EQ_LABEL: Record<EqBand, string> = {
   low: "Low",
   mid: "Mid",
@@ -91,7 +94,7 @@ export function ChannelStrip({ deck }: ChannelStripProps) {
         {EQ_ORDER.map((band, row) => (
           <Knob
             key={band}
-            className={CELL[row] ?? ""}
+            className={cn(CELL[row], KNOB)}
             compact
             label={EQ_LABEL[band].toUpperCase()}
             name={`${EQ_LABEL[band]} EQ ${letter}`}
@@ -103,10 +106,10 @@ export function ChannelStrip({ deck }: ChannelStripProps) {
           />
         ))}
         <div className={CELL[3]}>
-          <SendKnobs deck={deck} bus={0} />
+          <SendKnobs deck={deck} bus={0} className={KNOB} />
         </div>
         <Knob
-          className="col-start-2 row-start-1"
+          className={cn("col-start-2 row-start-1", KNOB)}
           compact
           label="TRM"
           name={`Trim ${letter}`}
@@ -117,7 +120,7 @@ export function ChannelStrip({ deck }: ChannelStripProps) {
           onChange={(v) => setTrim(deck, v)}
         />
         <Knob
-          className="col-start-2 row-start-2"
+          className={cn("col-start-2 row-start-2", KNOB)}
           compact
           label="FLT"
           name={`Filter ${letter}`}
@@ -130,10 +133,10 @@ export function ChannelStrip({ deck }: ChannelStripProps) {
           onChange={(v) => setFilter(deck, v)}
         />
         <div className="col-start-2 row-start-3">
-          <CfxKnob deck={deck} compact />
+          <CfxKnob deck={deck} compact className={KNOB} />
         </div>
         <div className="col-start-2 row-start-4">
-          <SendKnobs deck={deck} bus={1} />
+          <SendKnobs deck={deck} bus={1} className={KNOB} />
         </div>
       </div>
       <CfxType deck={deck} />
