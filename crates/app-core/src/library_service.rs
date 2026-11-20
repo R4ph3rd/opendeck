@@ -676,6 +676,30 @@ impl LibraryService {
         }
     }
 
+    /// Auditions a library track on the preview voice (headphones, or the
+    /// master at a reduced level without a headphone pair), starting at
+    /// `fraction` (`0..=1`) of the track. Returns the preview token that
+    /// `EngineTelemetry::preview.token` carries once the track is playing.
+    /// See [`AudioController::preview_play`].
+    pub fn preview_track(&self, id: TrackId, fraction: f32) -> Result<u32, CoreError> {
+        let audio = self.inner.audio()?;
+        let lib = &self.inner.lib;
+        let track = lib
+            .get_track(id)?
+            .ok_or_else(|| CoreError::Invalid("track not found".into()))?;
+        let path = PathBuf::from(&track.path);
+        if !path.is_file() {
+            let _ = lib.set_missing(id, true);
+            return Err(CoreError::Media(format!("file not found: {}", track.path)));
+        }
+        audio.preview_play(id, &path, track.tech.duration_secs.unwrap_or(0.0), fraction)
+    }
+
+    /// Stops the preview voice.
+    pub fn preview_stop(&self) -> Result<(), CoreError> {
+        self.inner.audio()?.preview_stop()
+    }
+
     /// Loads a file that may not be in the library: imports it, then loads
     /// the new track by id. A file the importer does not take is loaded
     /// straight from the path, without analysis.
