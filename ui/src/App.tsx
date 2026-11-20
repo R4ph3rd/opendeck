@@ -29,7 +29,7 @@ import { notifyWarning } from "./state/notify";
 import { FirstRunDialog } from "./components/FirstRun";
 import { useVizStore } from "./viz/useTrackData";
 import { startEventBridge } from "./state/events";
-import { WaveformStack } from "./viz/DeckWaveforms";
+import { WaveformBand } from "./components/WaveformBand";
 
 export { LAYOUT_KEY };
 
@@ -122,10 +122,10 @@ export function App() {
 
   return (
     <Toaster>
-      <div className="flex h-full flex-col bg-bg text-fg">
+      <div className="flex h-full flex-col overflow-hidden bg-bg text-fg">
         <TopBar />
         {fxOpen ? <FxBar /> : null}
-        <main className="min-h-0 flex-1">
+        <main className="min-h-0 flex-1 overflow-hidden">
           <ResizablePanelGroup
             key={`${layoutRevision}-${bands.join("+")}`}
             orientation="vertical"
@@ -137,7 +137,7 @@ export function App() {
               <Fragment key={id}>
                 {i > 0 ? <ResizableHandle /> : null}
                 <ResizablePanel id={id} minSize={px(BAND_MIN_PX[id])}>
-                  {id === "waves" ? <WaveformStack decks={[DECK_A, DECK_B]} /> : null}
+                  {id === "waves" ? <WaveformBand decks={[DECK_A, DECK_B]} /> : null}
                   {id === "decks" ? <DeckRow /> : null}
                   {id === "library" ? <LibraryPane /> : null}
                 </ResizablePanel>
