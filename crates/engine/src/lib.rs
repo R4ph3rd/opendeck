@@ -23,6 +23,7 @@ mod inputs;
 mod meter;
 mod mixer;
 mod offline;
+mod preview;
 mod reopen;
 mod routing;
 mod sampler;
@@ -45,6 +46,8 @@ mod tests_mixer;
 #[cfg(test)]
 mod tests_playback;
 #[cfg(test)]
+mod tests_preview;
+#[cfg(test)]
 mod tests_sampler;
 #[cfg(test)]
 mod tests_support;
@@ -63,6 +66,7 @@ pub use crate::handle::{
 pub use crate::inputs::{INPUT_CHANNELS, INPUT_RING_FRAMES, InputProducer};
 pub use crate::mixer::{EQ_LOW_MID_HZ, EQ_MID_HIGH_HZ, FILTER_DEAD_ZONE, FILTER_Q};
 pub use crate::offline::{OfflineRenderer, RenderStats};
+pub use crate::preview::PREVIEW_MASTER_GAIN;
 pub use crate::reopen::{REOPEN_INITIAL, REOPEN_MAX, ReopenOutcome, ReopenState, Reopener};
 pub use crate::sampler::SamplerSlotStatus;
 pub use crate::tone::{TEST_TONE_HZ, TEST_TONE_LEVEL, TEST_TONE_MS, ToneOutput};
