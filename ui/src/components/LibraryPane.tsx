@@ -61,7 +61,7 @@ export function LibraryPane() {
   };
 
   return (
-    <Panel flush aria-label="Library" className="size-full">
+    <Panel flush aria-label="Library" className="size-full bg-library">
       <ResizablePanelGroup
         orientation="horizontal"
         id="library-layout"
@@ -74,7 +74,7 @@ export function LibraryPane() {
         <ResizableHandle />
         <ResizablePanel id="collection" minSize="20rem">
           <div
-            className="flex size-full min-h-0 min-w-0 flex-col"
+            className="flex size-full min-h-0 min-w-0 flex-col bg-library"
             onDragOver={onDragOver}
             onDrop={onDrop}
             ref={dropZone({

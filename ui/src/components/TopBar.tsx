@@ -207,7 +207,7 @@ export function TopBar() {
       <ViewMenu />
       <ImportMenu />
 
-      <h1 className="pointer-events-none absolute inset-x-0 text-center text-sm font-medium tracking-wider text-fg">
+      <h1 className="pointer-events-none absolute inset-x-0 text-center text-sm font-normal tracking-wider text-fg">
         OpenDeck
       </h1>
 

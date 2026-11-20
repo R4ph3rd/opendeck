@@ -14,7 +14,7 @@ export function Section({
   return (
     <section className="flex flex-col gap-3" aria-label={title}>
       <div>
-        <h3 className="text-sm font-semibold text-fg">{title}</h3>
+        <h3 className="text-sm font-medium text-fg">{title}</h3>
         {description ? <p className="text-xs text-fg-muted">{description}</p> : null}
       </div>
       <Separator />

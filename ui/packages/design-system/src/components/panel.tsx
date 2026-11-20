@@ -34,7 +34,7 @@ export function PanelHeader({ title, actions, className, ...props }: PanelHeader
       )}
       {...props}
     >
-      <h2 className="truncate text-xs font-semibold uppercase tracking-wide text-fg-muted">
+      <h2 className="truncate text-xs font-medium uppercase tracking-wide text-fg-muted">
         {title}
       </h2>
       {actions ? <div className="flex items-center gap-1">{actions}</div> : null}
