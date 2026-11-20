@@ -278,7 +278,11 @@ impl EngineCore {
         }
         self.fx.process_master(out);
         self.inputs.mix_into(out);
-        if let Some(old) = self.preview.take_finished() {
+        // Like every replacement, only when the buffer has somewhere to go;
+        // otherwise the voice keeps it until a later block.
+        if self.can_return()
+            && let Some(old) = self.preview.take_finished()
+        {
             self.return_buffer(old);
         }
         self.preview.render(frames);
