@@ -96,6 +96,12 @@ Real-time audio engine: decks (2 shown, 4 supported), transport, CUE behaviour, 
 - Test tone (`tone.rs`): `EngineHandle::play_test_tone(ToneOutput)` stores a request in an atomic; the core takes it at the next block and adds 900 ms of 440 Hz at -14 dBFS (20 ms fades) to that bus after the mixer, so meters and the booth copy are untouched. One atomic swap per block, no allocation.
 - Post-MVP: second output device for headphones only (two clocks need async resampling, same as a separate input device with drift correction); input resampling when the input device cannot run at the output rate; WASAPI exclusive mode.
 
+## Output recovery (v0.8.4)
+- `recover.rs` (pure, tested with a fake device): `open_with_recovery` opens the configured output, retries once after `RETRY_DELAY` (200 ms) when the failure can be transient (`Busy`, `Build`, `Play`), then opens the system default output when the configured device is not the default (`fallback_settings`: host, device, rate and buffer reset, routing and inputs kept). A missing device (`DeviceNotFound`) is neither retried nor replaced: app-core's `Reopener` waits for it. `release_then` drops the old engine before the next open.
+- `device::open_output_recovering` wraps `open_output`; `StreamInfo::fallback` carries `FallbackInfo` (wanted device, reason), app-core turns it into `AudioStatus::notice` and the UI toasts it.
+- Error text: cpal keeps the `ErrorKind` of the HRESULT through `ResultExt::context`, and the message ends in `OS Error <signed hresult>`. `describe_failure` maps `AUDCLNT_E_DEVICE_IN_USE` (0x8889000A) and the other `AUDCLNT_E_*` codes cpal knows to text for the user and appends `(code 0x...)`. `AudioError::Busy` is the in-use case; `open_output` stops after the first buffer-size attempt on it.
+- cpal 0.18.2 WASAPI (`host/wasapi/device.rs`): output streams use `AUDCLNT_SHAREMODE_SHARED` with `AUTOCONVERTPCM`, the only channel count offered is the mix format's, and `Stream::drop` joins the render thread, so a dropped stream is released before the drop returns. No exclusive mode exists in cpal, so `DEVICE_IN_USE` means another process holds the endpoint exclusively (Microsoft `IAudioClient::Initialize` docs; not verified on hardware, `TODO(verify)`).
+
 ## Open questions
 - Jog nudge sensitivity and `MAX_PITCH_BEND`: product tuning. M2 uses 0.10 per rev/s and 8 % (`TODO(verify)`).
 - `DeckTelemetry` has `sync_mode`, `is_leader`, `loop_region` and `loop_active`. The finer `SyncStatus` (no grid, no leader) is still engine-local.

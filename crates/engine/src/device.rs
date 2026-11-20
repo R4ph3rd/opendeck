@@ -38,6 +38,7 @@ use opendeck_contracts::{EngineEvent, SampleRate};
 use crate::audio::EngineCore;
 use crate::handle::{EngineHandle, engine_with_xruns};
 use crate::inputs::{INPUT_RING_FRAMES, InputProducer, InputShared};
+use crate::recover::{Direction, FallbackInfo, describe_failure, is_busy, open_with_recovery};
 use crate::routing::{
     InputChoice, InputMismatch, InputRouter, RangeInfo, Router, negotiate, negotiate_input,
 };
@@ -62,6 +63,10 @@ pub enum AudioError {
     /// `f32`, `i32` or `i16`).
     #[error("device has no usable output configuration")]
     NoConfig,
+    /// The device is held by another application (WASAPI
+    /// `AUDCLNT_E_DEVICE_IN_USE`, ALSA busy). The text is for the user.
+    #[error("{0}")]
+    Busy(String),
     /// The stream could not be built.
     #[error("could not open the output stream: {0}")]
     Build(String),
@@ -423,6 +428,9 @@ pub struct StreamInfo {
     pub input: Option<InputInfo>,
     /// Why mic and aux are not available although routed, if so.
     pub input_error: Option<String>,
+    /// The configured device could not be opened and the system default
+    /// output plays instead. See [`open_output_recovering`].
+    pub fallback: Option<FallbackInfo>,
 }
 
 /// Gives the input ring's writer back when the stream that owns it is
@@ -607,7 +615,7 @@ pub fn open_output(
     }
     buffer_options.push(BufferSize::Default);
 
-    let mut last_error = String::new();
+    let mut last_error: Option<cpal::Error> = None;
     for buffer_size in buffer_options {
         let config = EngineConfig {
             sample_rate: SampleRate(choice.rate),
@@ -676,7 +684,7 @@ pub fn open_output(
                         Err(error) => input_error = Some(error.to_string()),
                     }
                 }
-                stream.play().map_err(|e| AudioError::Play(e.to_string()))?;
+                stream.play().map_err(|e| play_error(&e))?;
                 let routing = choice.routing;
                 let info = StreamInfo {
                     host_id: host.id().to_string(),
@@ -693,6 +701,7 @@ pub fn open_output(
                     stereo_fallback: choice.stereo_fallback,
                     input: input_info,
                     input_error,
+                    fallback: None,
                 };
                 let output = AudioOutput {
                     _stream: stream,
@@ -703,10 +712,70 @@ pub fn open_output(
                 };
                 return Ok((output, handle));
             }
-            Err(error) => last_error = error.to_string(),
+            Err(error) => {
+                // A device held by another application stays held whatever
+                // the buffer size, so a second attempt would only repeat it.
+                let busy = is_busy(error.kind(), &error.to_string());
+                last_error = Some(error);
+                if busy {
+                    break;
+                }
+            }
         }
     }
-    Err(AudioError::Build(last_error))
+    Err(last_error.map_or_else(|| AudioError::Build(String::new()), |e| build_error(&e)))
+}
+
+/// The error for a failed `build_output_stream`, with a readable message and
+/// the busy case told apart.
+fn build_error(error: &cpal::Error) -> AudioError {
+    let raw = error.to_string();
+    let text = describe_failure(error.kind(), &raw, Direction::Output);
+    if is_busy(error.kind(), &raw) {
+        AudioError::Busy(text)
+    } else {
+        AudioError::Build(text)
+    }
+}
+
+/// The error for a stream that was built but would not start.
+fn play_error(error: &cpal::Error) -> AudioError {
+    let raw = error.to_string();
+    let text = describe_failure(error.kind(), &raw, Direction::Output);
+    if is_busy(error.kind(), &raw) {
+        AudioError::Busy(text)
+    } else {
+        AudioError::Play(text)
+    }
+}
+
+/// An output opened by [`open_output_recovering`].
+pub struct OpenedOutput {
+    /// The streams; keep them alive while audio should play.
+    pub output: AudioOutput,
+    /// The control-side handle of the engine.
+    pub handle: EngineHandle,
+}
+
+/// [`open_output`] with recovery (see [`crate::recover`]): when the chosen
+/// device fails to open it waits [`crate::recover::RETRY_DELAY`] and tries once
+/// more, then falls back to the system default output.
+/// [`StreamInfo::fallback`] says when that happened and why.
+///
+/// Blocks for the retry delay when the first attempt fails; call it from the
+/// control thread, never from the audio thread. Any previous output must be
+/// dropped first (see [`crate::recover::release_then`]).
+pub fn open_output_recovering(
+    settings: &AudioSettings,
+    engine: EngineConfig,
+) -> Result<OpenedOutput, AudioError> {
+    let ((mut output, handle), fallback) = open_with_recovery(
+        settings,
+        |attempt| open_output(attempt, engine),
+        std::thread::sleep,
+    )?;
+    output.info.fallback = fallback;
+    Ok(OpenedOutput { output, handle })
 }
 
 fn select_device(host: &Host, name: Option<&str>) -> Result<cpal::Device, AudioError> {
@@ -832,13 +901,13 @@ fn open_input_stream(
                     return Ok((stream, info));
                 }
                 Err(error) => {
-                    last_error = error.to_string();
+                    last_error = input_error_text(&error);
                     drop(stream);
                     producer = port.back_rx.recv_timeout(Duration::from_millis(500)).ok();
                 }
             },
             Err(error) => {
-                last_error = error.to_string();
+                last_error = input_error_text(&error);
                 // The failed build dropped the closure, which sent the writer back.
                 producer = port.back_rx.try_recv().ok();
             }
@@ -848,6 +917,10 @@ fn open_input_stream(
         port.parked = Some(p);
     }
     Err(AudioError::InputBuild(last_error))
+}
+
+fn input_error_text(error: &cpal::Error) -> String {
+    describe_failure(error.kind(), &error.to_string(), Direction::Input)
 }
 
 fn build_input_stream(
