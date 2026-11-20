@@ -98,7 +98,7 @@ export function Toaster({ duration = 5000, label = "Notifications", children }: 
             if (!open) toast.dismiss(t.id);
           }}
         >
-          <Primitive.Title className="font-medium">{t.title}</Primitive.Title>
+          <Primitive.Title className="font-normal">{t.title}</Primitive.Title>
           <Primitive.Close
             aria-label="Dismiss"
             className="row-span-2 rounded-sm p-0.5 text-fg-muted hover:bg-surface-hover hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring"
@@ -115,7 +115,7 @@ export function Toaster({ duration = 5000, label = "Notifications", children }: 
               altText={t.action.label}
               onClick={t.action.onClick}
               className={cn(
-                "col-start-1 mt-1 justify-self-start rounded-sm border border-border px-2 py-0.5 text-xs font-medium text-fg",
+                "col-start-1 mt-1 justify-self-start rounded-sm border border-border px-2 py-0.5 text-xs font-normal text-fg",
                 "hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring",
               )}
             >

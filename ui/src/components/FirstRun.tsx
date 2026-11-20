@@ -190,7 +190,7 @@ export function AudioStep() {
           Pick the output you want to use. You can connect the controller later.
         </Callout>
       )}
-      <label className="flex flex-col gap-1 text-xs font-medium text-fg-muted">
+      <label className="flex flex-col gap-1 text-xs font-normal text-fg-muted">
         Output device
         <Select
           value={draft.device ?? "default"}
@@ -347,7 +347,7 @@ export function TourStep() {
     <ul className="flex flex-col gap-2 text-sm" aria-label="Panels">
       {TOUR.map((panel) => (
         <li key={panel.name}>
-          <span className="font-semibold">{panel.name}.</span>{" "}
+          <span className="font-medium">{panel.name}.</span>{" "}
           <span className="text-fg-muted">{panel.text}</span>
         </li>
       ))}

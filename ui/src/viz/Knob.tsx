@@ -208,7 +208,7 @@ export function Knob({
       <label
         htmlFor={id}
         className={cn(
-          "text-xs font-medium uppercase text-fg-muted",
+          "text-xs font-normal uppercase text-fg-muted",
           compact && "order-2 min-w-0 truncate leading-none",
         )}
         title={compact ? `${label} ${format(value)}` : undefined}

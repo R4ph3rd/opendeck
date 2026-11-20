@@ -41,7 +41,7 @@ export function BreadcrumbLink({
 
 /** The current location. Not interactive. */
 export function BreadcrumbPage({ className, ...props }: ComponentProps<"span">) {
-  return <span aria-current="page" className={cn("px-1 font-medium text-fg", className)} {...props} />;
+  return <span aria-current="page" className={cn("px-1 font-normal text-fg", className)} {...props} />;
 }
 
 export function BreadcrumbSeparator({ children, className, ...props }: ComponentProps<"li">) {

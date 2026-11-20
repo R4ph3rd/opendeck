@@ -6,7 +6,7 @@ import { cn, focusRing } from "../lib/cn";
 
 export const buttonVariants = cva(
   [
-    "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium",
+    "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md font-normal",
     "transition-colors duration-[var(--duration-fast)] ease-standard",
     "disabled:pointer-events-none disabled:opacity-50",
     focusRing,

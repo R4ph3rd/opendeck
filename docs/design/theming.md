@@ -11,7 +11,7 @@ Look and feel: neutral grey surfaces, one red accent family, everything else mut
 
 | Area | Tokens | Notes |
 |---|---|---|
-| Surfaces | `--bg`, `--bg-subtle`, `--surface`, `--surface-raised`, `--surface-hover`, `--border`, `--border-strong` | Darkest to lightest in that order. `--border` is darker than every surface. |
+| Surfaces | `--bg`, `--bg-subtle`, `--surface`, `--surface-raised`, `--surface-hover`, `--border`, `--border-strong` | Darkest to lightest in that order. `--library-bg` is the collection area (sidebar, track table, import panel), darker than `--bg` and every deck surface; use `bg-library`. `--border` is darker than every surface. |
 | Text | `--fg`, `--fg-muted`, `--fg-subtle` | `fg` and `fg-muted` must stay 4.5:1 on every surface. |
 | Accent | `--accent`, `--accent-hover`, `--accent-fg`, `--accent-muted`, `--focus-ring`, `--selection` | `--accent-fg` is text on `--accent` (4.5:1). `--focus-ring` needs 3:1 on every surface. |
 | Status | `--danger`, `--success`, `--warning`, `--info` and their `-bg` fills | Callouts and badges only. |
@@ -29,6 +29,7 @@ Dark theme values, near-black and flat. Contrast tests stay green (text 4.5:1, f
 | Token | Value |
 |---|---|
 | `--bg` | `#0b0c0d` |
+| `--library-bg` | `#060708` (light: `#d9dbde`) |
 | `--bg-subtle` | `#101214` |
 | `--surface` | `#15171a` |
 | `--surface-raised` | `#1d2023` |
@@ -42,7 +43,7 @@ Dark theme values, near-black and flat. Contrast tests stay green (text 4.5:1, f
 
 - Pads and sampler slots are neutral (`--surface-raised`). A set cue or sample shows a 3px left edge in its muted `--cue-1` to `--cue-8` colour (low chroma). Pressed or sounding: `--surface-hover` plus a 1px accent inset.
 - Latching buttons (Q, MT, VINYL, SYNC, MASTER, mode tabs) are neutral; when on they get accent text and a 1px accent outline, never a solid fill.
-- Labels use the `ds-label` utility: `--text-label` (10.5px), `--weight-label` (500), `--tracking-label` (0.04em), uppercase.
+- Labels use the `ds-label` utility: `--text-label` (9.5px), `--weight-label` (400), `--tracking-label` (0.04em), uppercase.
 - Slider caps are thin rectangles: `--slider-thumb-along` (5px, travel direction) by `--slider-thumb-across` (12px).
 
 ## Waveform drawing
@@ -56,10 +57,10 @@ The waveform is a red ramp on a near-black ground. Bands are drawn low, mid, hig
 | Token | Default | Role |
 |---|---|---|
 | `--wave-bg` | `#08090a` | Ground behind zoomed and overview waveforms. |
-| `--wave-low` | `#b52b33` | Bass: deep red, outer shape. |
-| `--wave-mid` | `#ea5a3c` | Mids: red-orange. |
-| `--wave-high` | `#ffcfb0` | Highs: warm light core. |
-| `--wave-played-opacity` | `0.45` | How much the played part dims (0 to 1). |
+| `--wave-low` | `#8f323a` | Bass: muted deep red, outer shape. |
+| `--wave-mid` | `#b04642` | Mids: muted red. |
+| `--wave-high` | `#d98c86` | Highs: rose core. Never near-white, so the overview does not wash out. |
+| `--wave-played-opacity` | `0.4` | How much the played part dims (0 to 1). |
 | `--wave-unplayed-opacity` | `1` | Opacity of the part still to play. |
 | `--playhead` | `#ffffff` | Playhead line. |
 | `--beat-grid`, `--beat-grid-downbeat` | 10% and 38% light | Subtle grid, stronger downbeat. |
@@ -96,7 +97,8 @@ Size tokens are rem; the table gives px at UI scale 1 (1rem = 16px). The UI scal
 | `--fx-unit-w` | 280px | Full Beat FX unit in the More popover. |
 | `--preview-col-w`, `--artwork-col-w` | 96px, 28px | Browser Preview and Artwork columns (starting widths are in `trackColumns.tsx`). |
 | `--row-h` | 24px | Browser row height. |
-| `--text-xs` to `--text-2xl`, `--space-*`, `--radius-*` | | Type scale, spacing, corner radii. |
+| `--text-xs` to `--text-2xl` | 10, 11, 12, 14, 17, 22px | Type scale (one step down in v0.8.4). Body is 12px, labels 9.5px. Weights step down too: titles `font-medium`, body `font-normal`. |
+| `--space-*`, `--radius-*` | | Spacing, corner radii. |
 
 Band heights (waveforms, decks, browser) are draggable and stored per user. Their defaults are percentages in `ui/src/state/prefs.ts` (`DEFAULT_LAYOUT`) and their minimum heights are px at scale 1 in `ui/src/lib/layout.ts` (`BAND_MIN_PX`), passed to the resizable panels as rem so they follow the UI scale. "Reset layout" in the View menu restores the defaults.
 

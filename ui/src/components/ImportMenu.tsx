@@ -20,7 +20,7 @@ export function ImportMenu() {
         <Button
           size="sm"
           variant="ghost"
-          className="h-5 gap-1 rounded-sm bg-surface-raised px-2 text-xs font-bold uppercase hover:bg-surface-hover"
+          className="h-5 gap-1 rounded-sm bg-surface-raised px-2 text-xs font-semibold uppercase hover:bg-surface-hover"
         >
           Import
           <ChevronDown className="size-3" aria-hidden />
