@@ -9,7 +9,9 @@ import { hydrateMixer, useMixerStore } from "./mixer";
 import { hydratePads, usePadStore } from "./pads";
 import { hydrateMidi, onLearned, useMidiStore } from "./midi";
 import { notifyError } from "./notify";
+import { clearPreview } from "./preview";
 import { telemetryStore } from "./telemetry";
+import { miniPeaks } from "../lib/miniPeaks";
 
 /** Message for engine events the user should see; `null` for the quiet ones. */
 export function engineEventMessage(event: EngineEvent): string | null {
@@ -58,6 +60,10 @@ export async function startEventBridge(): Promise<() => void> {
         useAppStore.getState().patchDeck(e.payload.deck, { incoming: null, loading: false });
         notifyError(`Could not load ${fileName(e.payload.path)}: ${e.payload.message}`);
       }),
+      await events.previewFailed.listen((e) => {
+        clearPreview(e.payload.track);
+        notifyError(`Could not preview the track: ${e.payload.message}`);
+      }),
       await events.hotCuesChanged.listen((e) => {
         useAppStore.getState().patchDeck(e.payload.deck, { hotCues: e.payload.slots });
       }),
@@ -68,7 +74,10 @@ export async function startEventBridge(): Promise<() => void> {
         // Imports can create playlists; keep the tree and its counts current.
         void refreshPlaylists();
       }),
-      await events.analysisReady.listen((e) => void refreshDeckAnalysis(e.payload)),
+      await events.analysisReady.listen((e) => {
+        miniPeaks.forget(e.payload);
+        void refreshDeckAnalysis(e.payload);
+      }),
       await events.fxStateChanged.listen((e) => useFxStore.getState().setState(e.payload)),
       await events.midiConnectionChanged.listen((e) => useMidiStore.getState().setStatus(e.payload)),
       await events.midiMonitor.listen((e) => useMidiStore.getState().pushMonitor(e.payload)),

@@ -123,7 +123,6 @@ Carried to later 9a waves: session marker for unclean exits; acting on plugin re
 | M7 ui | Pad FX view has the assignment grid but no live parameter knobs (the pad model carries effect, division and release only) |
 | UI rework | REC is disabled: there is no recording backend |
 | UI rework | No CPU readout in the menu row: telemetry does not report CPU load |
-| UI rework | Browser Preview column is disabled: there is no preview engine command |
 | UI rework | The browser tree has no Sampler entry |
 | UI rework | The mixer does not collapse below `--mixer-w` |
 | UI polish | Waveform peaks are amplitude only, so the waveform is drawn symmetric; a min/max peak format needs an analysis and contracts change |
