@@ -90,6 +90,14 @@ pub(crate) enum Handoff {
     },
     /// Empty sampler `slot`.
     SamplerClear { slot: SamplerSlotId },
+    /// Load `track` into the preview voice and play it from `fraction`.
+    Preview {
+        track: TrackBuffer,
+        /// Echoed in telemetry so the control side can tell buffers apart.
+        token: u32,
+        /// Start position as a fraction of the buffer.
+        fraction: f32,
+    },
 }
 
 #[cfg(test)]

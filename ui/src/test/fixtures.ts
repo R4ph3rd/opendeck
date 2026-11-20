@@ -59,6 +59,7 @@ export function telemetry(sequence: number, deckA: Partial<DeckTelemetry> = {}):
     fx_sends: [fxUnit, fxUnit],
     sampler: samplerSlots,
     sampler_meter: meter,
+    preview: { loaded: false, playing: false, token: 0, position: 0, duration: 0 },
     leader: null,
     dsp_load: 0,
     xruns: 0,

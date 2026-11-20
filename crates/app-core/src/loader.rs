@@ -37,10 +37,28 @@ pub(crate) struct DecodeResult {
     pub(crate) outcome: Result<Vec<f32>, CoreError>,
 }
 
+/// Decode `path` for the preview voice at `rate`.
+pub(crate) struct PreviewRequest {
+    /// Matches the control thread's counter; stale results are dropped there.
+    pub(crate) generation: u64,
+    pub(crate) path: PathBuf,
+    pub(crate) rate: SampleRate,
+    pub(crate) cancel: CancelFlag,
+}
+
+/// What the loader found for a preview.
+pub(crate) struct PreviewResult {
+    pub(crate) generation: u64,
+    /// Interleaved stereo samples at the request rate.
+    pub(crate) outcome: Result<Vec<f32>, CoreError>,
+}
+
 /// Work for the loader thread.
 pub(crate) enum LoaderJob {
     /// Decode a file.
     Load(Box<LoadRequest>),
+    /// Decode a file for the preview voice.
+    Preview(Box<PreviewRequest>),
     /// Drop a buffer or effect the audio thread gave back, so a large free
     /// never runs on the control thread (ADR 0003).
     Free(Reclaimed),
@@ -62,6 +80,13 @@ pub(crate) fn spawn(
                             break;
                         }
                     }
+                    LoaderJob::Preview(request) => {
+                        let request = *request;
+                        let result = run_preview(request);
+                        if results.send(Msg::PreviewDecoded(result)).is_err() {
+                            break;
+                        }
+                    }
                     LoaderJob::Free(old) => {
                         drop(old);
                         #[cfg(test)]
@@ -76,6 +101,29 @@ pub(crate) fn spawn(
 /// started. Lets tests check that frees happen off the control thread.
 #[cfg(test)]
 pub(crate) static FREED: AtomicUsize = AtomicUsize::new(0);
+
+/// Decodes `path` at `rate`; the frame count is left to the caller.
+fn decode(
+    path: &std::path::Path,
+    rate: SampleRate,
+    cancel: &CancelFlag,
+) -> Result<Vec<f32>, CoreError> {
+    if cancel.is_cancelled() {
+        return Err(CoreError::Cancelled);
+    }
+    match decode_file(path, rate, cancel) {
+        Ok(audio) => Ok(audio.samples),
+        Err(MediaError::Cancelled) => Err(CoreError::Cancelled),
+        Err(e) => Err(CoreError::Media(e.to_string())),
+    }
+}
+
+fn run_preview(request: PreviewRequest) -> PreviewResult {
+    PreviewResult {
+        generation: request.generation,
+        outcome: decode(&request.path, request.rate, &request.cancel),
+    }
+}
 
 fn run(request: LoadRequest) -> DecodeResult {
     let LoadRequest {

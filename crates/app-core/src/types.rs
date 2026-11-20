@@ -90,6 +90,16 @@ pub struct TrackLoadFailed {
     pub message: String,
 }
 
+/// A track preview could not start (unreadable file, unsupported format).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct PreviewFailed {
+    /// Library track the preview was for.
+    pub track: TrackId,
+    /// Human-readable reason.
+    pub message: String,
+}
+
 /// An output device and what it supports, for the settings screen.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
@@ -257,6 +267,8 @@ pub enum CoreEvent {
     TrackLoaded(TrackLoaded),
     /// A load failed.
     TrackLoadFailed(TrackLoadFailed),
+    /// A track preview failed to decode.
+    PreviewFailed(PreviewFailed),
     /// A deck's hot cue slots changed.
     HotCues(HotCues),
     /// The stored cues of a library track changed (set, deleted).

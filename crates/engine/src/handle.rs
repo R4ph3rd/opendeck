@@ -234,6 +234,30 @@ impl EngineHandle {
         self.handoff.push(Handoff::SamplerClear { slot }).is_ok()
     }
 
+    /// Hands a decoded track to the preview voice and starts it at `fraction`
+    /// (`0..=1` of the buffer; clamped). Same buffer type and rings as
+    /// [`load_track`](Self::load_track): interleaved stereo `f32` at the engine
+    /// rate, and a replaced buffer comes back through [`reclaim`](Self::reclaim).
+    /// `token` shows up in `EngineTelemetry::preview` while this buffer is
+    /// loaded. Later positions go through `EngineCommand::PreviewPlay`.
+    ///
+    /// Returns the buffer when the hand-off ring is full so the caller can retry.
+    pub fn load_preview(
+        &mut self,
+        track: TrackBuffer,
+        token: u32,
+        fraction: f32,
+    ) -> Result<(), TrackBuffer> {
+        let backup = track.clone();
+        self.handoff
+            .push(Handoff::Preview {
+                track,
+                token,
+                fraction,
+            })
+            .map_err(|_| backup)
+    }
+
     /// Installs `effect` into `slot`, replacing the effect there (a hard cut:
     /// disable the slot and let it settle first to avoid a click).
     ///

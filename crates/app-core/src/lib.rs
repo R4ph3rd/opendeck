@@ -45,6 +45,7 @@ use crossbeam_channel::Sender;
 use opendeck_contracts::beatgrid::BeatGrid;
 use opendeck_contracts::cue::{Cue, HotCueIndex};
 use opendeck_contracts::deck::DeckState;
+use opendeck_contracts::ids::TrackId;
 use opendeck_contracts::mixer::{CrossfaderAssign, CrossfaderCurve, EqBand, MixerState};
 use opendeck_contracts::settings::{AudioHostInfo, AudioHostKind, AudioSettings, TalkOverSettings};
 use opendeck_contracts::tempo::{SyncMode, TempoRange};
@@ -99,7 +100,7 @@ pub use crate::sampler::{
 pub use crate::settings_store::{SETTINGS_FILE, SettingsStore, StoredSettings};
 pub use crate::types::{
     AudioDeviceInfo, AudioStatus, CoreError, CoreEvent, HotCues, InputState, OfflineAudio,
-    TestToneOutput, TrackInfo, TrackLoadFailed, TrackLoaded,
+    PreviewFailed, TestToneOutput, TrackInfo, TrackLoadFailed, TrackLoaded,
 };
 pub use opendeck_engine::TEST_TONE_MS;
 pub use opendeck_library::DATABASE_FILE_NAME;
@@ -546,6 +547,43 @@ impl AudioController {
     /// the output is not routed.
     pub fn play_test_tone(&self, output: TestToneOutput) -> Result<(), CoreError> {
         self.ask(|reply| Msg::TestTone { output, reply })?
+    }
+
+    /// Auditions a library track on the preview voice: the headphones, or the
+    /// master at -12 dB when the device has no headphone pair. Playback starts
+    /// at `fraction` (`0..=1`, clamped) of the track. The first call for a
+    /// track decodes it on the loader thread (the call returns at once);
+    /// later calls for the same track jump inside the held buffer. Returns the
+    /// token that `EngineTelemetry::preview.token` carries while this track's
+    /// buffer is the one loaded, so a caller can tell it from the previous
+    /// preview. `duration_secs` is the library's length of the track, for the
+    /// length limit; `0` skips the check. A decode failure arrives as
+    /// [`CoreEvent::PreviewFailed`].
+    pub fn preview_play(
+        &self,
+        track: TrackId,
+        path: &Path,
+        duration_secs: f64,
+        fraction: f32,
+    ) -> Result<u32, CoreError> {
+        if duration_secs > self.max_track_secs {
+            return Err(CoreError::TooLong {
+                minutes: duration_secs / 60.0,
+                limit_minutes: self.max_track_secs / 60.0,
+            });
+        }
+        self.ask(|reply| Msg::PreviewPlay {
+            track,
+            path: path.to_path_buf(),
+            fraction,
+            reply,
+        })?
+    }
+
+    /// Stops the preview voice (short fade). The decoded buffer stays for a
+    /// quick replay.
+    pub fn preview_stop(&self) -> Result<(), CoreError> {
+        self.post(Msg::PreviewStop)
     }
 
     /// Booth, mic, aux and talk-over controls as last sent to the engine.

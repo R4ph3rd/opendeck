@@ -40,6 +40,7 @@ On a 4-channel device (FLX4 or similar) with headphones on 3/4.
 ## M3 Library
 
 - [ ] Import a large folder from an external drive; unplug and replug.
+- [ ] Collection preview: click an analysed track's mini waveform; it plays in the headphones (3/4) only, not the master, at any cue/master blend. On a stereo-only device it plays on the master about 12 dB down. Clicking again stops it, another track switches, no clicks.
 
 ## M4 Waveforms and deck UI
 

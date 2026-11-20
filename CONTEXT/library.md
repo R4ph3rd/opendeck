@@ -26,6 +26,8 @@ SQLite collection: schema and migrations, track queries for the collection view,
 - A locked beat grid (`analysis.grid_locked`) survives re-analysis and rekordbox import. Analysis blobs are written by `save_analysis`; fields a partial result lacks keep their old value.
 - Import resume point: `import_job_items.stage` is `dedupe` once a placeholder track row exists, `tags` once tags are written; items finish with their analysis write in one transaction. Cancelled jobs are terminal; paused jobs resume only on request; `resume_pending` resumes `queued` and `running` jobs at startup.
 
+- Reuse after a restart (tested: `stored_analysis_is_reused_after_a_restart_and_survives_a_reimport` in the library, `tests/reuse.rs` in app-core): BPM, key, grid, loudness and peaks are read from the database. `LibraryService::load_track` sends the stored grid with the load and the deck reports the stored BPM without an analyzer running. Re-importing a folder, a copy of a file or a moved file finds the existing row (path, then size + fingerprint) and never touches its analysis; a moved file keeps its row and analysis through `relink_track`.
+
 ## Acceptance per milestone
 - M0: schema v1 with in-memory tests. **Done in wave 0a.**
 - M2: folder/files/M3U import with dedupe (path, then size + hash), tags and artwork, decode and peaks and loudness analysis, persist; pause, cancel and resume across restart (test kills the worker mid-job); collection query with sort, filter and text search over 50k rows in under 50 ms; playlists and folders CRUD with ordering. **Done in M3 (library crate): the whole list, with an injected `Analyzer`. Worst query on 50k rows is about 23 ms in a debug build (text prefix search sorted by BPM), most under 5 ms.**

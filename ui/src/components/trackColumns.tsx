@@ -1,5 +1,5 @@
 import { Badge } from "@opendeck/design-system";
-import { Music, Play } from "lucide-react";
+import { Music } from "lucide-react";
 import type { ReactNode } from "react";
 import { useArtworkUrl } from "../hooks/useArtwork";
 import { createColumnHelper, type ColumnDef } from "@tanstack/react-table";
@@ -16,6 +16,7 @@ import {
   type ColumnId,
   type KeyNotation,
 } from "../lib/library";
+import { PreviewCell } from "./PreviewCell";
 import { StarRating } from "./StarRating";
 
 /** A table row: a track, or `null` while its page is loading. */
@@ -65,21 +66,6 @@ function ArtworkCell({ track }: { track: TrackRowDto }) {
         <Music className="size-3" aria-hidden />
       )}
     </span>
-  );
-}
-
-/** Preview slot. Auditioning a track from the browser needs an engine command that does not exist yet. */
-function PreviewCell({ track }: { track: TrackRowDto }) {
-  return (
-    <button
-      type="button"
-      disabled
-      title="Preview is not available yet"
-      aria-label={`Preview ${displayTitle(track)}`}
-      className="grid h-4 w-full place-items-center rounded-sm bg-surface-raised text-fg-subtle disabled:cursor-default"
-    >
-      <Play className="size-3" aria-hidden />
-    </button>
   );
 }
 

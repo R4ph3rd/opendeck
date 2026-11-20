@@ -30,6 +30,7 @@ Cross-crate types and traits: IDs, units, key, beat grid, cues, tempo, mixer, pa
 - M5: add `FxState`.
 - M6: add `MidiPorts`, `MappingInfo`, `MidiMonitorEntry`, `MidiLearnResult`, `MidiStatus`.
 - M7: add `SavedSetId`, `SavedSet`, `SamplerState`.
+- Track preview (feat/track-preview, for architect review): `EngineCommand::{PreviewPlay, PreviewStop, SetPreviewToMaster}`, `preview::PreviewTelemetry`, `EngineTelemetry::preview`. All `Copy`; the command stays within 40 bytes.
 
 ## Open questions
 - Sampler slot count: 16 assumed (8 pads per deck side, message list 5-5); TODO(verify).

@@ -634,3 +634,75 @@ fn sampler_makes_no_heap_calls() {
     assert!(audible > 400, "only {audible} of 800 blocks played");
     assert_eq!(heap_calls, 0, "{heap_calls} heap calls");
 }
+
+/// The preview voice on every path: loads over the hand-off ring (the
+/// callback side of the swap), jumps, stops, route changes and garbage
+/// fractions, next to a playing deck.
+#[test]
+fn preview_makes_no_heap_calls() {
+    use opendeck_contracts::Gain;
+
+    let config = EngineConfig {
+        sample_rate: SampleRate(SR),
+        max_block_frames: 512,
+        deck_count: 2,
+        interpolation: Interpolation::Cubic,
+    };
+    let mut r = OfflineRenderer::new(config)
+        .expect("valid config")
+        .with_block_frames(333);
+    let (track, grid) = crate::tests_support::click_track(120.0, 30.0);
+    r.handle()
+        .load_track_with_grid(deck0(), track, None, Some(grid))
+        .expect("ring");
+    r.handle()
+        .send(EngineCommand::SetPlaying {
+            deck: deck0(),
+            playing: true,
+        })
+        .expect("ring");
+    let mut seed = 0xC0FF_EE11_u32;
+    let mut next = move || {
+        seed ^= seed << 13;
+        seed ^= seed >> 17;
+        seed ^= seed << 5;
+        seed
+    };
+    let mut master = vec![0.0; 333 * 2];
+    let mut phones = vec![0.0; 333 * 2];
+    let mut heap_calls = 0;
+    let mut audible = 0;
+    for i in 0..800_u32 {
+        let command = match next() % 8 {
+            0..=2 => EngineCommand::PreviewPlay {
+                fraction: [0.0, 0.5, 0.999, 1.0, 7.0, -1.0, f32::NAN, f32::INFINITY]
+                    [(next() % 8) as usize],
+            },
+            3 => EngineCommand::PreviewStop,
+            4 => EngineCommand::SetPreviewToMaster {
+                on: next() % 2 == 0,
+            },
+            5 => EngineCommand::SetHeadphoneMix {
+                mix: (next() % 1001) as f32 / 1000.0,
+            },
+            _ => EngineCommand::SetHeadphoneLevel {
+                gain: Gain((next() % 1501) as f32 / 1000.0),
+            },
+        };
+        r.handle().send(command).expect("ring");
+        if next() % 6 == 0 {
+            let sample =
+                TrackBuffer::from_vec(noise(500 + (next() % 30_000) as usize)).expect("sample");
+            let _ = r
+                .handle()
+                .load_preview(sample, i, (next() % 101) as f32 / 100.0);
+        }
+        let (_, calls) = count_heap_calls(|| r.render_both(&mut master, &mut phones));
+        heap_calls += calls;
+        audible += usize::from(master.iter().chain(phones.iter()).any(|s| s.abs() > 0.01));
+        r.handle().reclaim();
+        r.handle().poll_telemetry();
+    }
+    assert!(audible > 300, "only {audible} of 800 blocks sounded");
+    assert_eq!(heap_calls, 0, "{heap_calls} heap calls");
+}
