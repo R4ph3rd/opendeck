@@ -423,9 +423,8 @@ function TempoColumn({ deck, ready }: Props) {
 /**
  * The deck's working row, outer edge to wheel: tempo fader, the pad panel (two
  * columns of four pads and the mode dropdown), the loop and beat jump column,
- * then the small wheel with CUE and PLAY on one side and SLIP, Q, MT on the
- * other. Deck 2 mirrors deck 1: its pads sit right of the wheel, both wheels
- * at the mixer side.
+ * the SLIP, Q, MT, VINYL column, the wheel, then CUE and PLAY at the mixer
+ * side. Deck 2 is the exact mirror (row-reverse).
  */
 export function DeckMain({ deck, ready }: Props) {
   return (
@@ -439,20 +438,23 @@ export function DeckMain({ deck, ready }: Props) {
       <div className="min-w-[calc(var(--pad-min-w)*1.5)] flex-1">
         <DeckPads deck={deck} />
       </div>
-      <div className="flex min-w-0 shrink items-stretch gap-2">
+      <div
+        className={cn(
+          "flex min-w-0 shrink items-stretch gap-2",
+          deck % 2 === 1 && "flex-row-reverse",
+        )}
+      >
         <div className="flex w-[var(--cluster-w)] shrink-0 flex-col gap-2 self-center">
           <LoopColumn deck={deck} ready={ready} />
           <JumpColumn deck={deck} ready={ready} />
         </div>
-        <div className="flex min-w-0 items-stretch gap-2">
-          <TransportColumn deck={deck} ready={ready} />
-          <div className="w-[var(--jog-max)] min-w-0 shrink [container-type:size]">
-            <div className="size-[min(100cqh,100cqw)]">
-              <DeckJog deck={deck} disabled={!ready} />
-            </div>
+        <ModeColumn deck={deck} ready={ready} />
+        <div className="w-[var(--jog-max)] min-w-0 shrink [container-type:size]">
+          <div className="size-[min(100cqh,100cqw)]">
+            <DeckJog deck={deck} disabled={!ready} />
           </div>
-          <ModeColumn deck={deck} ready={ready} />
         </div>
+        <TransportColumn deck={deck} ready={ready} />
       </div>
     </div>
   );
