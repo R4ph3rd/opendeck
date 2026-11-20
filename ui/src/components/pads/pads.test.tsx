@@ -115,7 +115,7 @@ describe("pad grid", () => {
 });
 
 describe("hot cue view", () => {
-  it("shows the cue name and time on a lit pad and Empty on a free one", () => {
+  it("shows the cue name and time on a lit pad and a bare number on a free one", () => {
     loadDeck();
     act(() =>
       useAppStore
@@ -128,7 +128,7 @@ describe("hot cue view", () => {
     expect(first.textContent).toContain("0:12");
     expect(first.getAttribute("aria-pressed")).toBe("true");
     expect(first.getAttribute("style")).toContain("--cue-1");
-    expect(pad("Hot cue 2 (empty)").textContent).toContain("Empty");
+    expect(pad("Hot cue 2 (empty)").textContent).toBe("2");
     expect(pad("Hot cue 2 (empty)").getAttribute("aria-pressed")).toBe("false");
   });
 
