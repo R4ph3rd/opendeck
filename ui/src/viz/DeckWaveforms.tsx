@@ -82,7 +82,7 @@ export function WaveformStack({ decks }: { decks: readonly number[] }) {
           <span
             aria-hidden
             className={cn(
-              "pointer-events-none absolute left-0 top-0 grid size-5 place-items-center text-xs font-bold text-cue-fg",
+              "pointer-events-none absolute left-0 top-0 grid size-5 place-items-center text-xs font-semibold text-cue-fg",
               DECK_FILL[deck] ?? "",
             )}
           >

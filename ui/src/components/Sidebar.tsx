@@ -5,7 +5,7 @@ import { PlaylistTree } from "./PlaylistTree";
 /** Library navigation (collection, playlists, sets) and the in-app file explorer. */
 export function Sidebar() {
   return (
-    <Tabs defaultValue="library" className="flex size-full min-h-0 min-w-0 flex-col bg-bg-subtle">
+    <Tabs defaultValue="library" className="flex size-full min-h-0 min-w-0 flex-col bg-library">
       <TabsList className="shrink-0">
         <TabsTrigger value="library">Library</TabsTrigger>
         <TabsTrigger value="files">Files</TabsTrigger>

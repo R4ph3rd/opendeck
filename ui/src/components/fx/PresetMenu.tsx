@@ -43,7 +43,7 @@ export function PresetMenu({ slot, unit, scope }: PresetMenuProps) {
       </PopoverTrigger>
       <PopoverContent align="start" className="flex w-64 flex-col gap-3 p-3">
         <section aria-label="Effect presets" className="flex flex-col gap-1">
-          <h4 className="text-xs font-semibold uppercase tracking-wide text-fg-muted">Effect</h4>
+          <h4 className="text-xs font-medium uppercase tracking-wide text-fg-muted">Effect</h4>
           {!current ? <p className="text-xs text-fg-subtle">Choose an effect first.</p> : null}
           <ul className="flex flex-col gap-px">
             {factory.map((p) => (
@@ -101,7 +101,7 @@ export function PresetMenu({ slot, unit, scope }: PresetMenuProps) {
           </form>
         </section>
         <section aria-label="Chain presets" className="flex flex-col gap-1">
-          <h4 className="text-xs font-semibold uppercase tracking-wide text-fg-muted">Chain</h4>
+          <h4 className="text-xs font-medium uppercase tracking-wide text-fg-muted">Chain</h4>
           <ul className="flex flex-col gap-px">
             {(presets?.chains ?? []).map((c) => (
               <li key={c.name} className="flex items-center gap-1">

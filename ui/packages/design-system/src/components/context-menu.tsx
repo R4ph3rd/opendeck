@@ -42,7 +42,7 @@ export function ContextMenuCheckboxItem({
 export function ContextMenuLabel({ className, ...props }: ComponentProps<typeof Primitive.Label>) {
   return (
     <Primitive.Label
-      className={cn("px-2 py-1 text-xs font-medium text-fg-subtle", className)}
+      className={cn("px-2 py-1 text-xs font-normal text-fg-subtle", className)}
       {...props}
     />
   );

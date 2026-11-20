@@ -49,7 +49,7 @@ export function DialogFooter({ className, ...props }: ComponentProps<"div">) {
 
 export function DialogTitle({ className, ...props }: ComponentProps<typeof DialogPrimitive.Title>) {
   return (
-    <DialogPrimitive.Title className={cn("text-lg font-semibold text-fg", className)} {...props} />
+    <DialogPrimitive.Title className={cn("text-lg font-medium text-fg", className)} {...props} />
   );
 }
 

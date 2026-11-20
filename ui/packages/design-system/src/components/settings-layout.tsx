@@ -87,7 +87,7 @@ export function SettingsSection({
   return (
     <section id={id} aria-labelledby={headingId} className={cn("flex flex-col gap-3", className)} {...props}>
       <header className="flex flex-col gap-1 border-b border-border pb-2">
-        <h2 id={headingId} className="text-lg font-semibold text-fg">
+        <h2 id={headingId} className="text-lg font-medium text-fg">
           {title}
         </h2>
         {description ? <p className="text-sm text-fg-muted">{description}</p> : null}
@@ -108,7 +108,7 @@ export function SettingsRow({ title, description, control, className, ...props }
   return (
     <div className={cn("flex items-center justify-between gap-6 py-3", className)} {...props}>
       <div className="min-w-0">
-        <div className="text-sm font-medium text-fg">{title}</div>
+        <div className="text-sm font-normal text-fg">{title}</div>
         {description ? <div className="text-xs text-fg-muted">{description}</div> : null}
       </div>
       <div className="shrink-0">{control}</div>

@@ -60,7 +60,7 @@ export function PadFxEditor() {
           aria-label={padGroupLabel(bank, shift)}
           className="flex flex-col gap-1"
         >
-          <h4 className="text-xs font-semibold uppercase tracking-wide text-fg-muted">
+          <h4 className="text-xs font-medium uppercase tracking-wide text-fg-muted">
             {padGroupLabel(bank, shift)}
           </h4>
           <div className="grid grid-cols-4 gap-1 sm:grid-cols-8">
@@ -83,7 +83,7 @@ export function PadFxEditor() {
                       : "border-border bg-bg-subtle text-fg-muted",
                   )}
                 >
-                  <span className="w-full truncate font-medium">{e?.name ?? "Empty"}</span>
+                  <span className="w-full truncate font-normal">{e?.name ?? "Empty"}</span>
                   <span className="font-mono text-fg-subtle">
                     {assigned?.release ? "REL" : e?.beat_synced ? formatDivision(assigned?.division) : ""}
                   </span>
@@ -98,7 +98,7 @@ export function PadFxEditor() {
         aria-label={`Pad ${selected + 1} settings`}
         className="flex flex-wrap items-center gap-3 rounded-md border border-border bg-bg-subtle p-2"
       >
-        <h4 className="text-sm font-semibold text-fg">{`Pad ${selected + 1}`}</h4>
+        <h4 className="text-sm font-medium text-fg">{`Pad ${selected + 1}`}</h4>
         <div className="w-48">
           <EffectSelect
             label={`Pad ${selected + 1} effect`}

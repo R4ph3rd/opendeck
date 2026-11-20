@@ -45,7 +45,7 @@ function DeckClock({ deck }: { deck: number }) {
   });
 
   return (
-    <div className="flex shrink-0 items-baseline gap-2 font-mono text-sm font-medium leading-none tabular-nums">
+    <div className="flex shrink-0 items-baseline gap-2 font-mono text-sm font-normal leading-none tabular-nums">
       <span
         ref={elapsedRef}
         aria-label={`Deck ${deck + 1} elapsed`}
@@ -90,7 +90,7 @@ export function DeckHeader({ deck, ready }: DeckHeaderProps) {
   return (
     <div className="flex h-[var(--deck-header-h)] shrink-0 items-center gap-2 border-b border-border px-2">
       <span
-        className={cn("w-4 shrink-0 text-center text-lg font-bold", DECK_TEXT[deck] ?? "")}
+        className={cn("w-4 shrink-0 text-center text-lg font-semibold", DECK_TEXT[deck] ?? "")}
         aria-hidden
       >
         {deck + 1}
@@ -106,7 +106,7 @@ export function DeckHeader({ deck, ready }: DeckHeaderProps) {
         {track ? (
           <>
             <p
-              className="truncate text-base font-semibold leading-tight text-fg"
+              className="truncate text-base font-medium leading-tight text-fg"
               data-testid={`title-${deck}`}
             >
               {track.title ?? track.file_name}

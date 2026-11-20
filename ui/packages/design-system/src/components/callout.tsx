@@ -47,7 +47,7 @@ export function Callout({ variant = "info", title, children, className, ...props
     >
       <Icon aria-hidden className={cn("mt-0.5 size-4 shrink-0", TITLE[v])} />
       <div className="min-w-0 space-y-1">
-        {title ? <p className={cn("font-semibold", TITLE[v])}>{title}</p> : null}
+        {title ? <p className={cn("font-medium", TITLE[v])}>{title}</p> : null}
         <div className="text-fg-muted">{children}</div>
       </div>
     </div>

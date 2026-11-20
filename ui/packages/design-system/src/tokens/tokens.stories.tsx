@@ -73,7 +73,7 @@ function Swatch({ name }: { name: string }) {
 function Section({ title, note, children }: { title: string; note?: string; children: ReactNode }) {
   return (
     <section className="mb-8">
-      <h2 className="mb-1 text-xl font-semibold text-fg">{title}</h2>
+      <h2 className="mb-1 text-xl font-medium text-fg">{title}</h2>
       {note ? <p className="mb-3 max-w-2xl text-sm text-fg-muted">{note}</p> : null}
       {children}
     </section>
@@ -106,7 +106,7 @@ const zs = names.filter((n) => /^z-/.test(n));
 function Tokens() {
   return (
     <div className="p-6">
-      <h1 className="mb-1 text-2xl font-semibold text-fg">Design tokens</h1>
+      <h1 className="mb-1 text-2xl font-medium text-fg">Design tokens</h1>
       <p className="mb-6 max-w-2xl text-sm text-fg-muted">
         Tokens live in <code>src/tokens/tokens.css</code>. Dark is the default; use the toolbar to
         preview light. Use token classes (<code>bg-surface</code>, <code>text-fg-muted</code>) or{" "}

@@ -146,7 +146,7 @@ export function PerformancePads({
             >
               {index + 1}
             </span>
-            <span className="w-full truncate text-center text-sm font-medium leading-tight">
+            <span className="w-full truncate text-center text-sm font-normal leading-tight">
               {pad.label}
             </span>
             {pad.sublabel ? (
