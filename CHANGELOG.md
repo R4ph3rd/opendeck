@@ -4,6 +4,10 @@ All notable changes are recorded here. Format follows [Keep a Changelog](https:/
 
 ## [Unreleased]
 
+### Fixed
+
+- Windows: an output device held exclusively by another application (WASAPI error 0x8889000A) is reported in plain words instead of a raw OS error. The engine retries once, then plays on the system default output with a warning toast, and Settings, Audio can pick another device without a restart. Loading a track retries a stopped engine.
+
 ## [0.8.3] - 2026-11-19
 
 Deck layout rework, track drag and drop fixes, VST3 effects. Pre-release; Windows and macOS builds are signed only when the signing secrets exist.

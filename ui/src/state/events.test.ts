@@ -4,6 +4,11 @@ import { track } from "../test/fixtures";
 
 vi.mock("../ipc/bindings", async () => (await import("../test/bindingsMock")).createBindingsMock());
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
+vi.mock("./notify", () => ({
+  notifyError: vi.fn(),
+  notifySuccess: vi.fn(),
+  notifyWarning: vi.fn(),
+}));
 
 const bindings = (await import("../ipc/bindings")) as unknown as ReturnType<
   typeof createBindingsMock
@@ -11,6 +16,7 @@ const bindings = (await import("../ipc/bindings")) as unknown as ReturnType<
 const { useAppStore } = await import("./app");
 const { useLibraryStore } = await import("./library");
 const { startEventBridge } = await import("./events");
+const { notifyWarning } = await import("./notify");
 
 const { commands } = bindings;
 const ok = <T>(data: T) => Promise.resolve({ status: "ok" as const, data });
@@ -85,5 +91,39 @@ describe("library events", () => {
       ok({ bpm: 90, key: null, key_musical: null, beat_grid: null, grid_locked: false })) as never);
     bindings.emit("analysis-ready", 9);
     await vi.waitFor(() => expect(useAppStore.getState().decks[1]?.incoming?.bpm).toBe(90));
+  });
+});
+
+describe("audio status events", () => {
+  const status = (notice: string | null) => ({
+    running: true,
+    backend: "device",
+    host: "wasapi",
+    device: "Speakers",
+    sample_rate: 48_000,
+    channels: 2,
+    buffer_frames: null,
+    latency_ms: null,
+    master: { left: 0, right: 1 },
+    headphones: null,
+    stereo_fallback: false,
+    error: null,
+    notice,
+  });
+
+  it("toasts the fallback notice once, not on every status update", () => {
+    const notice = 'Could not open "FLX4": busy. Playing on the system default output "Speakers" instead.';
+    vi.mocked(notifyWarning).mockClear();
+    bindings.emit("audio-device-changed", status(notice));
+    bindings.emit("audio-device-changed", status(notice));
+    expect(notifyWarning).toHaveBeenCalledTimes(1);
+    expect(notifyWarning).toHaveBeenCalledWith(notice);
+    expect(useAppStore.getState().audio?.notice).toBe(notice);
+  });
+
+  it("stays quiet without a notice", () => {
+    vi.mocked(notifyWarning).mockClear();
+    bindings.emit("audio-device-changed", status(null));
+    expect(notifyWarning).not.toHaveBeenCalled();
   });
 });
