@@ -37,6 +37,11 @@ Top of the crate graph. Owns application state (decks, mixer snapshot, pad modes
 - Test tone: `AudioController::play_test_tone(TestToneOutput)` asks the engine (`EngineHandle::play_test_tone`), so it works while the engine holds the device; errors when audio is off or the output is not routed. No separate cpal stream.
 - BPM range: `BpmRange` (shared `BpmRangeDto`) feeds a tempo analyzer wrapper built by `LibraryService::analyzers_with_range`; `attach_bpm_range` loads the stored value (`analysis.bpm_range`), `set_bpm_range` validates (30 to 300) and stores. Applies to the next track analysed.
 
+## Track preview
+- `AudioController::preview_play(track, path, duration_secs, fraction) -> token` and `preview_stop`; `LibraryService::preview_track(id, fraction)` resolves the path (missing file: flagged, error). The loader thread decodes (`LoaderJob::Preview`), the control thread hands the buffer to the engine (`EngineHandle::load_preview`, retried each tick when the ring is full) and frees nothing itself. One preview at a time; the decoded buffer stays on the engine for a quick replay (up to one track of memory, outside the deck budget). Same track again: `PreviewPlay {fraction}` on the held buffer, same token. Another track: the old preview is stopped at once, the new one decodes. `preview_stop` during a decode cancels it.
+- Routing: `SetPreviewToMaster {on: status.headphones.is_none()}` is sent at every engine start and every preview start, so a stereo-fallback device or a settings change without a headphone pair previews on the master at -12 dB. An engine restart ends the preview (the buffer is at the old rate); the same track decodes again on the next call.
+- Tracks longer than `max_track_secs` are refused like deck loads. A decode failure is `CoreEvent::PreviewFailed`. Tests: `tests/preview.rs`.
+
 ## Open questions
 - Undo for destructive edits (cue delete, grid edit): scope and storage.
 - Whether app-core state snapshots are pushed to the UI as full DTOs or patches (start with full DTOs).

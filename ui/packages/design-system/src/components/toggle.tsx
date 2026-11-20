@@ -5,7 +5,7 @@ import { cn, focusRing } from "../lib/cn";
 
 export const toggleVariants = cva(
   [
-    "inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium text-fg-muted",
+    "inline-flex items-center justify-center gap-2 rounded-md text-sm font-normal text-fg-muted",
     "transition-colors duration-[var(--duration-fast)] ease-standard",
     "hover:bg-surface-hover hover:text-fg",
     "data-[state=on]:bg-accent-muted data-[state=on]:text-accent",

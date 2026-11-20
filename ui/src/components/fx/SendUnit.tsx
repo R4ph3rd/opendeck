@@ -28,7 +28,7 @@ export function SendUnit({ bus }: SendUnitProps) {
       className="flex min-w-60 flex-1 flex-col gap-2 rounded-md border border-border bg-bg-subtle p-2"
     >
       <header className="flex items-center gap-2">
-        <h3 className="text-sm font-semibold text-fg">{scope}</h3>
+        <h3 className="text-sm font-medium text-fg">{scope}</h3>
         <span
           role="status"
           aria-label={`${scope} return`}

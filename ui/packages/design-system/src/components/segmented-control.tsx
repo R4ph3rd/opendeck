@@ -5,7 +5,7 @@ import { cn, focusRing } from "../lib/cn";
 
 const itemVariants = cva(
   [
-    "inline-flex items-center justify-center gap-1 rounded-sm text-sm font-medium text-fg-muted",
+    "inline-flex items-center justify-center gap-1 rounded-sm text-sm font-normal text-fg-muted",
     "transition-colors duration-[var(--duration-fast)] ease-standard",
     "hover:text-fg data-[state=checked]:bg-surface-raised data-[state=checked]:text-fg data-[state=checked]:shadow-sm",
     "disabled:pointer-events-none disabled:opacity-50",

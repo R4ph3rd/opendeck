@@ -82,7 +82,7 @@ export function BeatFxUnit({ index }: BeatFxUnitProps) {
       className="flex min-w-72 flex-1 flex-col gap-2 rounded-md border border-border bg-bg-subtle p-2"
     >
       <header className="flex flex-wrap items-center gap-2">
-        <h3 className="text-sm font-medium text-fg">{`FX ${n}`}</h3>
+        <h3 className="text-sm font-normal text-fg">{`FX ${n}`}</h3>
         <ToggleGroup
           type="single"
           aria-label={`${scope} channel`}

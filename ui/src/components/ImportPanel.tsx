@@ -63,7 +63,7 @@ function JobRow({ job }: { job: JobEntry }) {
   return (
     <li className="flex flex-col gap-1 border-b border-border px-3 py-2 last:border-b-0">
       <div className="flex items-center gap-2">
-        <span className="truncate text-sm font-medium text-fg">{label}</span>
+        <span className="truncate text-sm font-normal text-fg">{label}</span>
         <span className="truncate text-xs text-fg-muted">
           {done || job.state === "paused" ? STATE_LABEL[job.state] : stage}
         </span>
@@ -130,10 +130,10 @@ export function ImportPanel() {
   return (
     <section
       aria-label="Imports"
-      className="flex max-h-48 shrink-0 flex-col border-t border-border bg-bg-subtle"
+      className="flex max-h-48 shrink-0 flex-col border-t border-border bg-library"
     >
       <header className="flex h-7 shrink-0 items-center justify-between px-3">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-fg-muted">Imports</h3>
+        <h3 className="text-xs font-medium uppercase tracking-wide text-fg-muted">Imports</h3>
         {finished ? (
           <Button size="sm" variant="ghost" onClick={dismissFinished}>
             Clear finished

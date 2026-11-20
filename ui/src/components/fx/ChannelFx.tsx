@@ -12,7 +12,8 @@ interface ChannelFxProps {
 export function CfxKnob({
   deck,
   compact = false,
-}: ChannelFxProps & { compact?: boolean }) {
+  className,
+}: ChannelFxProps & { compact?: boolean; className?: string | undefined }) {
   const cfx = useFxStore((s) => s.state?.cfx[deck]);
   if (!cfx) {
     return null;
@@ -27,6 +28,7 @@ export function CfxKnob({
       max={1}
       bipolar
       compact={compact}
+      {...(className ? { className } : {})}
       format={formatCfx}
       onChange={(amount) => applyFx({ kind: "set_cfx", deck, amount })}
     />
@@ -63,7 +65,8 @@ export function CfxType({ deck }: ChannelFxProps) {
 export function SendKnobs({
   deck,
   bus: only,
-}: ChannelFxProps & { bus?: number }) {
+  className,
+}: ChannelFxProps & { bus?: number; className?: string | undefined }) {
   const levels = useFxStore((s) => s.state?.send_levels[deck]);
   if (!levels) {
     return null;
@@ -80,6 +83,7 @@ export function SendKnobs({
             value={level ?? 0}
             defaultValue={0}
             compact
+            {...(className ? { className } : {})}
             format={formatSend}
             onChange={(value) =>
               applyFx({ kind: "set_send_level", deck, bus, level: value })

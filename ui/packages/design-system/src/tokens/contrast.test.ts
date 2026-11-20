@@ -16,7 +16,7 @@ function ratio(theme: Theme, fg: string, bg: string): number {
 
 describe.each(themes)("contrast (%s)", (theme) => {
   describe("text", () => {
-    for (const bg of ["bg", "bg-subtle", "surface", "surface-raised", "surface-hover"]) {
+    for (const bg of ["library-bg", "bg", "bg-subtle", "surface", "surface-raised", "surface-hover"]) {
       for (const fg of ["fg", "fg-muted"]) {
         it(`${fg} on ${bg} >= 4.5`, () => {
           expect(ratio(theme, fg, bg)).toBeGreaterThanOrEqual(4.5);
@@ -44,7 +44,7 @@ describe.each(themes)("contrast (%s)", (theme) => {
   });
 
   describe("essential UI", () => {
-    for (const bg of ["bg", "bg-subtle", "surface", "surface-raised", "surface-hover"]) {
+    for (const bg of ["library-bg", "bg", "bg-subtle", "surface", "surface-raised", "surface-hover"]) {
       it(`focus-ring visible on ${bg} >= 3`, () => {
         expect(ratio(theme, "focus-ring", bg)).toBeGreaterThanOrEqual(3);
       });
@@ -127,12 +127,12 @@ describe.each(themes)("contrast (%s)", (theme) => {
         expect(t[n], n).toMatch(/^#[0-9a-f]{6}$/i);
       }
     });
-    it("surface steps are monotonic: bg < bg-subtle < surface < surface-raised", () => {
+    it("surface steps are monotonic: library-bg < bg < bg-subtle < surface < surface-raised", () => {
       const lum = (n: string): number => {
         const c = parseColor(resolvedTokens(css, theme)[n] ?? "");
         return c.r + c.g + c.b;
       };
-      const order = ["bg", "bg-subtle", "surface", "surface-raised"].map(lum);
+      const order = ["library-bg", "bg", "bg-subtle", "surface", "surface-raised"].map(lum);
       const sorted = [...order].sort((x, y) => x - y);
       expect(order).toEqual(sorted);
     });

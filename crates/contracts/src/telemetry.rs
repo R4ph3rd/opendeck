@@ -15,6 +15,7 @@
 use crate::MAX_DECKS;
 use crate::cue::{FrameRegion, HotCueIndex};
 use crate::ids::{DeckId, FX_SEND_BUSES, SAMPLER_SLOTS};
+use crate::preview::PreviewTelemetry;
 use crate::sampler::SamplerSlotTelemetry;
 use crate::tempo::SyncMode;
 use crate::units::{Bpm, Frames, SampleRate};
@@ -142,6 +143,8 @@ pub struct EngineTelemetry {
     pub sampler: [SamplerSlotTelemetry; SAMPLER_SLOTS],
     /// Sampler bus level (after slot gains and the sampler level).
     pub sampler_meter: StereoMeter,
+    /// Track preview voice.
+    pub preview: PreviewTelemetry,
     /// Current sync leader. See `EngineCommand::SetLeader` for the election.
     pub leader: Option<DeckId>,
     /// Callback time divided by block duration, smoothed, `0..` (1.0 = overrun).

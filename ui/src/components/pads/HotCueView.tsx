@@ -25,7 +25,7 @@ export function HotCueView({ deck }: { deck: number }) {
       Array.from({ length: HOT_CUE_COUNT }, (_, index) => {
         const cue = hotCues[index] ?? null;
         return {
-          label: cue ? cue.name || `Cue ${index + 1}` : "Empty",
+          label: cue ? cue.name || `Cue ${index + 1}` : "",
           sublabel: cue ? formatTime(cue.start ?? 0) : undefined,
           ariaLabel: `Hot cue ${index + 1}${cue ? "" : " (empty)"}`,
           color: cueToken(index),

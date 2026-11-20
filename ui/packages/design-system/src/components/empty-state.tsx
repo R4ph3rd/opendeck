@@ -27,7 +27,7 @@ export function EmptyState({
       {...props}
     >
       {icon ? <div className="text-fg-muted [&_svg]:size-6">{icon}</div> : null}
-      <h3 className="text-lg font-semibold text-fg">{title}</h3>
+      <h3 className="text-lg font-medium text-fg">{title}</h3>
       {description ? <p className="max-w-sm text-sm text-fg-muted">{description}</p> : null}
       {action}
     </div>

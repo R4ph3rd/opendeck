@@ -5,6 +5,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@opendeck/design-system";
+import { cn } from "@opendeck/design-system";
 import { motion, useReducedMotion } from "motion/react";
 import type { PadMode } from "../../ipc/bindings";
 import { MODE_FADE_SECONDS, MODE_LABEL } from "../../lib/pads";
@@ -100,7 +101,12 @@ export function DeckPads({ deck }: { deck: number }) {
       >
         <PadModeView deck={deck} mode={mode} />
       </motion.div>
-      <div className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1">
+      <div
+        className={cn(
+          "flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1",
+          deck % 2 === 1 && "flex-row-reverse",
+        )}
+      >
         <PadModeSelect deck={deck} />
         {mode === "sampler" ? <SamplerControls deck={deck} /> : null}
       </div>

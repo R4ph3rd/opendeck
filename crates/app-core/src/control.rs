@@ -21,20 +21,22 @@ use opendeck_contracts::{
     Bpm, DeckId, EngineCommand, EngineEvent, EngineTelemetry, Gain, HOT_CUES_PER_DECK, MAX_DECKS,
     MVP_DECKS, SampleRate, Seconds,
 };
-use opendeck_engine::device::{AudioOutput, device_present, input_device_present, open_output};
+use opendeck_engine::device::{
+    AudioOutput, OpenedOutput, device_present, input_device_present, open_output_recovering,
+};
 use opendeck_engine::{
-    EngineConfig, EngineHandle, OfflineRenderer, Reopener, ToneOutput, TrackBuffer,
+    EngineConfig, EngineHandle, OfflineRenderer, Reopener, ToneOutput, TrackBuffer, release_then,
 };
 use opendeck_library::{Library, SavedSetEntry, now_ms};
 
 use crate::fx::{FxController, FxEnv};
 use crate::fx_types::{FxEffectDto, FxOp, FxPresetsDto, FxSlotRef, FxStateDto, FxUnitRef};
-use crate::loader::{DecodeResult, LoadRequest, LoaderJob};
+use crate::loader::{DecodeResult, LoadRequest, LoaderJob, PreviewRequest, PreviewResult};
 use crate::plugins::PluginService;
 use crate::settings_store::{SettingsStore, StoredSettings};
 use crate::types::{
-    AudioStatus, CoreError, CoreEvent, HotCues, InputState, OfflineAudio, TestToneOutput,
-    TrackInfo, TrackLoadFailed, TrackLoaded,
+    AudioStatus, CoreError, CoreEvent, HotCues, InputState, OfflineAudio, PreviewFailed,
+    TestToneOutput, TrackInfo, TrackLoadFailed, TrackLoaded,
 };
 
 /// Control tick: telemetry is forwarded at this period (~60 Hz).
@@ -173,6 +175,18 @@ pub(crate) enum Msg {
     },
     /// Empties a sampler slot.
     SamplerClear(SamplerSlotId),
+    /// Auditions a library track on the preview voice; replies with the token
+    /// the engine will report for it.
+    PreviewPlay {
+        track: TrackId,
+        path: PathBuf,
+        fraction: f32,
+        reply: Sender<Result<u32, CoreError>>,
+    },
+    /// Stops the preview voice.
+    PreviewStop,
+    /// A preview decode finished.
+    PreviewDecoded(PreviewResult),
     /// Plays the engine's test tone on one output.
     TestTone {
         output: TestToneOutput,
@@ -271,6 +285,25 @@ impl Default for DeckControls {
 }
 
 type HotCueSlots = [Option<Cue>; HOT_CUES_PER_DECK];
+
+/// The preview voice as the control thread tracks it. One track at a time;
+/// its decoded buffer stays on the engine for a quick replay.
+#[derive(Default)]
+struct PreviewState {
+    /// Track decoded, or being decoded, for the voice.
+    track: Option<TrackId>,
+    /// Identifies that track's buffer in telemetry (never 0 once used).
+    token: u32,
+    /// The buffer is on the engine.
+    ready: bool,
+    /// Where to start once a decode in flight is delivered, as a fraction.
+    start: f32,
+    /// Matches the decode in flight; older results are stale.
+    generation: u64,
+    cancel: Option<CancelFlag>,
+    /// Decoded buffer waiting for room on the hand-off ring.
+    unsent: Option<TrackBuffer>,
+}
 
 /// Sampler settings replayed after an engine restart (engine defaults).
 #[derive(Debug, Clone, Copy)]
@@ -387,6 +420,7 @@ struct Control {
     sampler_unsent: [bool; SAMPLER_SLOTS],
     sampler_controls: SamplerControls,
     input_controls: InputControls,
+    preview: PreviewState,
     /// Backoff for reopening a lost output device.
     reopen: Reopener,
     /// Backoff for reattaching a lost input stream while the output runs.
@@ -437,6 +471,7 @@ pub(crate) fn run(opts: LaunchOptions, inbox: Receiver<Msg>, loader: Sender<Load
         sampler_unsent: [false; SAMPLER_SLOTS],
         sampler_controls: SamplerControls::default(),
         input_controls: InputControls::default(),
+        preview: PreviewState::default(),
         reopen: Reopener::new(),
         input_reopen: Reopener::new(),
         cue_points: [None; MAX_DECKS],
@@ -519,6 +554,7 @@ fn status_of(output: &AudioOutput, backend: Backend) -> AudioStatus {
         input_prefill_frames: info.input.as_ref().map(|i| i.prefill_frames),
         input_error: info.input_error.clone(),
         xruns: output.xruns(),
+        notice: info.fallback.as_ref().map(|f| f.notice(&info.device)),
         ..AudioStatus::default()
     }
 }
@@ -648,6 +684,16 @@ impl Control {
                 self.sampler_unsent[slot.index()] = true;
                 self.flush_sampler();
             }
+            Msg::PreviewPlay {
+                track,
+                path,
+                fraction,
+                reply,
+            } => {
+                let _ = reply.send(self.preview_play(track, path, fraction));
+            }
+            Msg::PreviewStop => self.preview_stop(),
+            Msg::PreviewDecoded(result) => self.preview_decoded(result),
             Msg::TestTone { output, reply } => {
                 let _ = reply.send(self.test_tone(output));
             }
@@ -1196,6 +1242,11 @@ impl Control {
         info: TrackInfo,
         grid: Option<BeatGrid>,
     ) -> Result<(), CoreError> {
+        if self.engine.is_none() && self.reopen.is_waiting() {
+            // Loading is not the first start (the engine opens at launch), but
+            // it is a good moment to try again: the device may be free now.
+            self.attempt_reopen(Instant::now());
+        }
         let Some(engine) = self.engine.as_mut() else {
             return Err(CoreError::NoEngine(
                 self.status
@@ -1430,11 +1481,158 @@ impl Control {
         self.flush_sampler();
     }
 
+    // ----- preview -----
+
+    /// Sends `command` to the engine without mirroring it (preview state is
+    /// not replayed after a restart: the preview just ends).
+    fn send_engine(&mut self, command: EngineCommand) {
+        if let Some(engine) = self.engine.as_mut()
+            && engine.handle().send(command).is_err()
+        {
+            tracing::warn!(?command, "engine command ring full, command dropped");
+        }
+    }
+
+    /// Tells the engine where the preview is heard: the headphones when the
+    /// device routing has a pair, the master at a reduced level otherwise.
+    fn send_preview_route(&mut self) {
+        let to_master = self.status.headphones.is_none();
+        self.send_engine(EngineCommand::SetPreviewToMaster { on: to_master });
+    }
+
+    /// Forgets the preview (engine restart): cancels a decode in flight and
+    /// sets the route on the new engine.
+    fn reset_preview(&mut self) {
+        if let Some(flag) = self.preview.cancel.take() {
+            flag.cancel();
+        }
+        self.preview = PreviewState {
+            generation: self.preview.generation + 1,
+            token: self.preview.token,
+            ..PreviewState::default()
+        };
+        self.send_preview_route();
+    }
+
+    fn preview_play(
+        &mut self,
+        track: TrackId,
+        path: PathBuf,
+        fraction: f32,
+    ) -> Result<u32, CoreError> {
+        let Some(engine) = self.engine.as_mut() else {
+            return Err(CoreError::NoEngine(
+                self.status
+                    .error
+                    .clone()
+                    .unwrap_or_else(|| "stopped".to_owned()),
+            ));
+        };
+        let rate = engine.handle().sample_rate();
+        let fraction = if fraction.is_nan() {
+            0.0
+        } else {
+            fraction.clamp(0.0, 1.0)
+        };
+        self.send_preview_route();
+        if self.preview.track == Some(track) {
+            if self.preview.ready {
+                self.send_engine(EngineCommand::PreviewPlay { fraction });
+            } else {
+                self.preview.start = fraction;
+            }
+            return Ok(self.preview.token);
+        }
+        // Another track: silence the old one now, decode the new one.
+        if let Some(flag) = self.preview.cancel.take() {
+            flag.cancel();
+        }
+        self.send_engine(EngineCommand::PreviewStop);
+        let cancel = CancelFlag::new();
+        let token = self.preview.token.wrapping_add(1).max(1);
+        self.preview = PreviewState {
+            track: Some(track),
+            token,
+            ready: false,
+            start: fraction,
+            generation: self.preview.generation + 1,
+            cancel: Some(cancel.clone()),
+            unsent: None,
+        };
+        self.loader
+            .send(LoaderJob::Preview(Box::new(PreviewRequest {
+                generation: self.preview.generation,
+                path,
+                rate,
+                cancel,
+            })))
+            .map_err(|_| CoreError::NotRunning)?;
+        Ok(token)
+    }
+
+    fn preview_stop(&mut self) {
+        // A decode in flight is abandoned: the user wants silence.
+        if !self.preview.ready
+            && let Some(flag) = self.preview.cancel.take()
+        {
+            flag.cancel();
+            self.preview.generation += 1;
+            self.preview.track = None;
+            self.preview.unsent = None;
+        }
+        self.send_engine(EngineCommand::PreviewStop);
+    }
+
+    fn preview_decoded(&mut self, result: PreviewResult) {
+        if result.generation != self.preview.generation {
+            return;
+        }
+        self.preview.cancel = None;
+        let failure = match result.outcome {
+            Ok(samples) => match TrackBuffer::from_vec(samples) {
+                Ok(buffer) => {
+                    self.preview.unsent = Some(buffer);
+                    self.flush_preview();
+                    return;
+                }
+                Err(err) => err.to_string(),
+            },
+            Err(CoreError::Cancelled) => return,
+            Err(err) => err.to_string(),
+        };
+        if let Some(track) = self.preview.track.take() {
+            tracing::warn!(track = track.0, %failure, "track preview failed");
+            self.publish(CoreEvent::PreviewFailed(PreviewFailed {
+                track,
+                message: failure,
+            }));
+        }
+    }
+
+    /// Hands a decoded preview buffer to the engine; keeps it when the
+    /// hand-off ring has no room.
+    fn flush_preview(&mut self) {
+        let Some(buffer) = self.preview.unsent.take() else {
+            return;
+        };
+        let Some(engine) = self.engine.as_mut() else {
+            return;
+        };
+        match engine
+            .handle()
+            .load_preview(buffer, self.preview.token, self.preview.start)
+        {
+            Ok(()) => self.preview.ready = true,
+            Err(buffer) => self.preview.unsent = Some(buffer),
+        }
+    }
+
     // ----- tick -----
 
     fn tick(&mut self) {
         self.render_offline();
         self.flush_pending();
+        self.flush_preview();
         self.flush_grids();
         self.flush_sampler();
         let mut lost = false;
@@ -1539,6 +1737,12 @@ impl Control {
         if self.engine.is_some() || !self.reopen.due(now) {
             return;
         }
+        self.attempt_reopen(now);
+    }
+
+    /// One reopen attempt, due or not (a load request does not wait for the
+    /// backoff): waits for the device by name, then restarts the engine.
+    fn attempt_reopen(&mut self, now: Instant) {
         let settings = self.settings.audio.clone();
         let present = !matches!(self.opts.backend, Backend::Device) || device_present(&settings);
         let result = if present {
@@ -1679,8 +1883,20 @@ impl Control {
         };
         let (engine, status) = match self.opts.backend {
             Backend::Device => {
-                let (output, handle) =
-                    open_output(settings, config).map_err(|e| CoreError::Audio(e.to_string()))?;
+                // The old stream must be gone before the device is opened
+                // again (WASAPI keeps the endpoint client alive until then).
+                let opened = release_then(&mut self.engine, || {
+                    open_output_recovering(settings, config)
+                });
+                let OpenedOutput { output, handle } =
+                    opened.map_err(|e| CoreError::Audio(e.to_string()))?;
+                if let Some(fallback) = &output.info().fallback {
+                    tracing::warn!(
+                        wanted = ?fallback.wanted,
+                        reason = %fallback.reason,
+                        "output device could not be opened, using the system default"
+                    );
+                }
                 let status = status_of(&output, self.opts.backend);
                 (Engine::Device { output, handle }, status)
             }
@@ -1735,6 +1951,7 @@ impl Control {
         self.replay_inputs(settings);
         self.replay_state();
         self.replay_sampler();
+        self.reset_preview();
         self.with_fx(|fx, env| fx.resync(env));
         Ok(())
     }
@@ -2008,6 +2225,9 @@ impl Control {
     }
 
     fn cancel_all(&mut self) {
+        if let Some(flag) = self.preview.cancel.take() {
+            flag.cancel();
+        }
         for flag in self.cancel.iter_mut().filter_map(Option::take) {
             flag.cancel();
         }

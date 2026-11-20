@@ -56,7 +56,7 @@ function DeckColumn({ spec }: { spec: DeckSpec }) {
       className={`flex min-w-0 flex-1 flex-col gap-3 rounded-md border border-border border-t-2 bg-surface p-3 ${DECK_BORDER[spec.index]}`}
     >
       <header className="flex items-baseline justify-between gap-2">
-        <span className={`font-mono text-sm font-semibold ${DECK_TEXT[spec.index]}`}>{spec.name}</span>
+        <span className={`font-mono text-sm font-medium ${DECK_TEXT[spec.index]}`}>{spec.name}</span>
         <span className="min-w-0 flex-1 truncate text-sm text-fg">{spec.title}</span>
         <span className="font-mono text-sm text-fg-muted">{(MOCK_BPM * spec.deck.rate).toFixed(2)} BPM</span>
       </header>

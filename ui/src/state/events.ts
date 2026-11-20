@@ -1,5 +1,5 @@
 import type { UnlistenFn } from "@tauri-apps/api/event";
-import { commands, events, type EngineEvent } from "../ipc/bindings";
+import { commands, events, type AudioStatus, type EngineEvent } from "../ipc/bindings";
 import { errorMessage, hydrateDeck, report } from "./actions";
 import { VISIBLE_DECKS, useAppStore } from "./app";
 import { useLibraryStore } from "./library";
@@ -8,8 +8,10 @@ import { hydrateFx, useFxStore } from "./fx";
 import { hydrateMixer, useMixerStore } from "./mixer";
 import { hydratePads, usePadStore } from "./pads";
 import { hydrateMidi, onLearned, useMidiStore } from "./midi";
-import { notifyError } from "./notify";
+import { notifyError, notifyWarning } from "./notify";
+import { clearPreview } from "./preview";
 import { telemetryStore } from "./telemetry";
+import { miniPeaks } from "../lib/miniPeaks";
 
 /** Message for engine events the user should see; `null` for the quiet ones. */
 export function engineEventMessage(event: EngineEvent): string | null {
@@ -22,6 +24,20 @@ export function engineEventMessage(event: EngineEvent): string | null {
       return "The audio device changed.";
     default:
       return null;
+  }
+}
+
+/**
+ * Stores a new audio status and toasts its notice once. The backend sets a
+ * notice when the chosen output could not be opened and the system default
+ * plays instead; later status updates repeat it, so only a changed notice
+ * shows again.
+ */
+export function applyAudioStatus(status: AudioStatus): void {
+  const previous = useAppStore.getState().audio?.notice ?? null;
+  useAppStore.getState().setAudio(status);
+  if (status.notice && status.notice !== previous) {
+    notifyWarning(status.notice);
   }
 }
 
@@ -58,17 +74,24 @@ export async function startEventBridge(): Promise<() => void> {
         useAppStore.getState().patchDeck(e.payload.deck, { incoming: null, loading: false });
         notifyError(`Could not load ${fileName(e.payload.path)}: ${e.payload.message}`);
       }),
+      await events.previewFailed.listen((e) => {
+        clearPreview(e.payload.track);
+        notifyError(`Could not preview the track: ${e.payload.message}`);
+      }),
       await events.hotCuesChanged.listen((e) => {
         useAppStore.getState().patchDeck(e.payload.deck, { hotCues: e.payload.slots });
       }),
-      await events.audioDeviceChanged.listen((e) => useAppStore.getState().setAudio(e.payload)),
+      await events.audioDeviceChanged.listen((e) => applyAudioStatus(e.payload)),
       await events.importProgress.listen((e) => onImportProgress(e.payload)),
       await events.libraryChanged.listen(() => {
         useLibraryStore.getState().bumpRevision();
         // Imports can create playlists; keep the tree and its counts current.
         void refreshPlaylists();
       }),
-      await events.analysisReady.listen((e) => void refreshDeckAnalysis(e.payload)),
+      await events.analysisReady.listen((e) => {
+        miniPeaks.forget(e.payload);
+        void refreshDeckAnalysis(e.payload);
+      }),
       await events.fxStateChanged.listen((e) => useFxStore.getState().setState(e.payload)),
       await events.midiConnectionChanged.listen((e) => useMidiStore.getState().setStatus(e.payload)),
       await events.midiMonitor.listen((e) => useMidiStore.getState().pushMonitor(e.payload)),
@@ -87,7 +110,7 @@ export async function startEventBridge(): Promise<() => void> {
     // Subscribe first, then read: a change between the two is not lost.
     const status = await commands.getAudioStatus();
     if (status.status === "ok") {
-      useAppStore.getState().setAudio(status.data);
+      applyAudioStatus(status.data);
     }
     await Promise.all([
       hydrateMixer(),

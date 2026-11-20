@@ -34,6 +34,7 @@ pub mod mixer;
 pub mod pad;
 pub mod peaks;
 pub mod plugin;
+pub mod preview;
 pub mod sampler;
 pub mod settings;
 pub mod telemetry;

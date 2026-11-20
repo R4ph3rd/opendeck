@@ -45,7 +45,7 @@ export function TableHead({ className, ...props }: ComponentProps<"th">) {
   return (
     <th
       className={cn(
-        "h-[var(--row-h)] select-none border-b border-border-strong px-2 text-left text-xs font-medium text-fg-muted",
+        "h-[var(--row-h)] select-none border-b border-border-strong px-2 text-left text-xs font-normal text-fg-muted",
         "aria-sort:text-fg",
         focusRing,
         className,

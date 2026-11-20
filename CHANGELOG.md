@@ -4,6 +4,30 @@ All notable changes are recorded here. Format follows [Keep a Changelog](https:/
 
 ## [Unreleased]
 
+## [0.8.4] - 2026-11-20
+
+Track preview from the collection, deck layout and typography polish, audio output recovery. Pre-release; Windows and macOS builds are signed only when the signing secrets exist.
+
+### Added
+
+- Track preview from the collection: a Preview column with a mini waveform per analysed track. A click auditions the track from that point on the headphones, or on the master at -12 dB when the device has no headphone pair.
+
+### Changed
+
+- Deck layout: controls run tempo, pads, loop and beat jump, SLIP/Q/MT/VINYL, jog, then CUE and PLAY at the mixer side; deck 2 is the exact mirror, with its pad mode dropdown on the right.
+- Lighter typography: font sizes and weights one step down.
+- Darker collection area (`--library-bg`).
+- Muted waveform colours.
+- Thinner CUE and PLAY rings.
+- Empty hot cue pads show only their number.
+
+### Fixed
+
+- Windows: an output device held exclusively by another application (WASAPI error 0x8889000A) is reported in plain words instead of a raw OS error. The engine retries once, then plays on the system default output with a warning toast, and Settings, Audio can pick another device without a restart. Loading a track retries a stopped engine.
+- The page no longer scrolls: the app root is locked to the viewport.
+- Mixer knobs line up on a shared column.
+- Tracks dropped onto a zoomed waveform row load onto that deck.
+
 ## [0.8.3] - 2026-11-19
 
 Deck layout rework, track drag and drop fixes, VST3 effects. Pre-release; Windows and macOS builds are signed only when the signing secrets exist.

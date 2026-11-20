@@ -40,6 +40,7 @@ On a 4-channel device (FLX4 or similar) with headphones on 3/4.
 ## M3 Library
 
 - [ ] Import a large folder from an external drive; unplug and replug.
+- [ ] Collection preview: click an analysed track's mini waveform; it plays in the headphones (3/4) only, not the master, at any cue/master blend. On a stereo-only device it plays on the master about 12 dB down. Clicking again stops it, another track switches, no clicks.
 
 ## M4 Waveforms and deck UI
 
@@ -143,6 +144,18 @@ Source for the FLX4 audio facts: manual p.161-162 (44.1 and 48 kHz, MASTER RCA o
 - [ ] Buffer sizes 64, 128, 256, 512, 1024 and sample rates 44.1 and 48 kHz: changing them keeps loaded decks, playheads and play state. Note the smallest buffer without xruns (status `xruns` stays at 0 over 10 minutes with 2 decks, FX and sampler).
 - [ ] Reported output latency (measured) is close to buffer size plus device latency on WASAPI, ASIO, CoreAudio and ALSA. Record the numbers.
 - [ ] Hosts: the list shows WASAPI (and ASIO in builds with `--features asio`) on Windows, CoreAudio on macOS, ALSA (and JACK in builds with `--features jack`) on Linux, with input, multichannel and buffer flags matching the machine.
+
+### Output device in use (WASAPI `AUDCLNT_E_DEVICE_IN_USE`, 0x8889000A)
+
+Background: v0.8.3 showed "could not open the output stream ... OS Error -2004287478" on Windows when loading a track. cpal 0.18.2 opens WASAPI streams in shared mode only (`AUDCLNT_SHAREMODE_SHARED`), so this error means another process holds the endpoint exclusively. The cause is not confirmed on hardware (`TODO(verify)`). Run these with the DDJ-FLX4 connected; for the exclusive holder use rekordbox, Serato or Traktor, or any app with its output set to WASAPI exclusive.
+
+- [ ] Hold the FLX4 exclusively in another app, then start OpenDeck with the FLX4 selected as output. The engine starts anyway on the system default output, a warning toast names the FLX4 and the default device, and the message says the device is used exclusively by another application. Loading a track works and plays.
+- [ ] Same setup, but the system default output is the FLX4 itself. There is nothing to fall back to: the status reads "Audio is off" with the exclusive-use text (no raw `OS Error`), and loading a track shows that text. Close the other app: within about 5 s, or on the next load, the engine opens, tracks reload and play.
+- [ ] While running on the fallback, open Settings, Audio, pick the FLX4 (other app closed) and apply. Audio moves to the FLX4 without restarting OpenDeck; loaded decks keep their playheads.
+- [ ] In Windows Sound settings, Properties, Advanced, turn off "Allow applications to take exclusive control of this device" for the FLX4 output. Repeat the first check with the other app: note whether the other app can still hold the device, and whether OpenDeck opens it (the toast text suggests this setting).
+- [ ] Apply the same audio settings twice in a row (Settings, Audio, Apply). No "device in use" error: the old stream is released before the new one opens. Note any retry delay you can feel (the engine waits 200 ms once before retrying).
+- [ ] Launch OpenDeck twice. Both instances open the device (shared mode); note whether the second one complains.
+- [ ] Log (Settings, Advanced): the failed open is recorded with the code 0x8889000A and the fallback device.
 
 ## M9a Plugins (wave 1: CLAP effects)
 

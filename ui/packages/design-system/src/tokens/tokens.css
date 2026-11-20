@@ -16,14 +16,14 @@
   --font-sans: "Inter Variable", "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono:
     "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, "Cascadia Code", monospace;
-  --text-xs: 0.6875rem;
-  --text-sm: 0.75rem;
-  --text-base: 0.8125rem;
-  --text-lg: 0.9375rem;
-  --text-xl: 1.125rem;
-  --text-2xl: 1.5rem;
-  --text-label: 0.65625rem; /* button and tab labels (HOT CUE, SLIP, menu items) */
-  --weight-label: 500;
+  --text-xs: 0.625rem;
+  --text-sm: 0.6875rem;
+  --text-base: 0.75rem;
+  --text-lg: 0.875rem;
+  --text-xl: 1.0625rem;
+  --text-2xl: 1.375rem;
+  --text-label: 0.59375rem; /* button and tab labels (HOT CUE, SLIP, menu items) */
+  --weight-label: 400;
   --tracking-label: 0.04em;
 
   /* spacing (4px scale) */
@@ -92,7 +92,7 @@
   --slider-thumb-across: 0.75rem; /* cap size across the track */
 
   /* waveform dimming for the played part of a track */
-  --wave-played-opacity: 0.45;
+  --wave-played-opacity: 0.4;
   --wave-unplayed-opacity: 1;
 }
 
@@ -102,6 +102,7 @@
   /* SURFACES: neutral greys. App bg darkest, panels a step lighter, raised controls lighter again */
   --bg: #0b0c0d;
   --bg-subtle: #101214;
+  --library-bg: #060708; /* collection area (sidebar, track table): darker than every deck and mixer surface */
   --surface: #15171a;
   --surface-raised: #1d2023;
   --surface-hover: #292d31;
@@ -177,6 +178,7 @@
 [data-theme="light"] {
   --bg: #e4e6e8;
   --bg-subtle: #ecedef;
+  --library-bg: #d9dbde; /* collection area: a step darker than the deck panels */
   --surface: #f6f7f8;
   --surface-raised: #ffffff;
   --surface-hover: #d9dcdf;
@@ -258,9 +260,9 @@
    * part is dimmed with --wave-played-opacity.
    */
   --wave-bg: #08090a;
-  --wave-low: #b52b33;
-  --wave-mid: #ea5a3c;
-  --wave-high: #ffcfb0;
+  --wave-low: #8f323a;
+  --wave-mid: #b04642;
+  --wave-high: #d98c86;
   --playhead: #ffffff;
   --loop-edge: var(--accent-hover);
 

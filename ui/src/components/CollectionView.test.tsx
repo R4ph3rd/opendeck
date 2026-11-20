@@ -174,6 +174,36 @@ describe("CollectionView table", () => {
     ]);
   });
 
+  it("asks for peaks only for the rows that are on screen, and only once they settle", async () => {
+    render(<CollectionView />);
+    await waitFor(() => expect(bodyRows().length).toBeGreaterThan(5));
+    const rendered = bodyRows().length;
+    expect(commands.getTrackPeaks).not.toHaveBeenCalled();
+    await waitFor(() => expect(commands.getTrackPeaks).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 300));
+    const asked = commands.getTrackPeaks.mock.calls as unknown as [number, number][];
+    // At most the rendered window, never the 50,000 rows, all at the overview level.
+    expect(asked.length).toBeLessThanOrEqual(rendered);
+    expect(asked.length).toBeLessThan(VIEWPORT / ROW + 40);
+    expect(asked.every(([, level]) => level === 3)).toBe(true);
+  });
+
+  it("does not ask for peaks of tracks that are not analysed", async () => {
+    commands.queryTracks.mockImplementation(((query: Query) =>
+      ok({
+        total: 3,
+        rows: Array.from({ length: Math.min(3, query.limit) }, (_, i) =>
+          makeRow(i, { analysis_status: i === 0 ? "done" : "pending" }),
+        ),
+      })) as never);
+    render(<CollectionView />);
+    await waitFor(() => expect(bodyRows().length).toBe(3));
+    await waitFor(() => expect(commands.getTrackPeaks).toHaveBeenCalledTimes(1));
+    await new Promise((r) => setTimeout(r, 300));
+    expect(commands.getTrackPeaks).toHaveBeenCalledTimes(1);
+    expect(commands.getTrackPeaks).toHaveBeenCalledWith(1, 3);
+  });
+
   it("hides columns the user turned off and keeps the title", async () => {
     render(<CollectionView />);
     await waitFor(() => expect(bodyRows().length).toBeGreaterThan(5));

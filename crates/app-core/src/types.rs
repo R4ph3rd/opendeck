@@ -90,6 +90,16 @@ pub struct TrackLoadFailed {
     pub message: String,
 }
 
+/// A track preview could not start (unreadable file, unsupported format).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct PreviewFailed {
+    /// Library track the preview was for.
+    pub track: TrackId,
+    /// Human-readable reason.
+    pub message: String,
+}
+
 /// An output device and what it supports, for the settings screen.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
@@ -181,6 +191,10 @@ pub struct AudioStatus {
     pub reconnect_attempts: u32,
     /// Why the engine is not running, if it is not.
     pub error: Option<String>,
+    /// Something to tell the user while the engine runs: the chosen output
+    /// could not be opened and the system default plays instead.
+    #[serde(default)]
+    pub notice: Option<String>,
 }
 
 /// The eight hot cue slots of a deck.
@@ -253,6 +267,8 @@ pub enum CoreEvent {
     TrackLoaded(TrackLoaded),
     /// A load failed.
     TrackLoadFailed(TrackLoadFailed),
+    /// A track preview failed to decode.
+    PreviewFailed(PreviewFailed),
     /// A deck's hot cue slots changed.
     HotCues(HotCues),
     /// The stored cues of a library track changed (set, deleted).

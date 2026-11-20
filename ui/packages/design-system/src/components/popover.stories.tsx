@@ -30,7 +30,7 @@ export const Default: Story = {
         <Button variant="outline">Rename cue</Button>
       </PopoverTrigger>
       <PopoverContent className="flex flex-col gap-2">
-        <label className="text-xs font-medium text-fg-muted" htmlFor="cue-name">
+        <label className="text-xs font-normal text-fg-muted" htmlFor="cue-name">
           Cue name
         </label>
         <Input id="cue-name" defaultValue="Drop" />
@@ -46,7 +46,7 @@ export const Hover: Story = {
         <Button variant="ghost">Strobe - deadmau5</Button>
       </HoverCardTrigger>
       <HoverCardContent className="flex flex-col gap-1">
-        <p className="font-semibold">Strobe</p>
+        <p className="font-medium">Strobe</p>
         <p className="text-fg-muted">128.0 BPM, 8A, 10:33</p>
       </HoverCardContent>
     </HoverCard>
