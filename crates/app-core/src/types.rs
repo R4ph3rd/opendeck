@@ -181,6 +181,10 @@ pub struct AudioStatus {
     pub reconnect_attempts: u32,
     /// Why the engine is not running, if it is not.
     pub error: Option<String>,
+    /// Something to tell the user while the engine runs: the chosen output
+    /// could not be opened and the system default plays instead.
+    #[serde(default)]
+    pub notice: Option<String>,
 }
 
 /// The eight hot cue slots of a deck.

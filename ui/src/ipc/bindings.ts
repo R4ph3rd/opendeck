@@ -627,6 +627,11 @@ export type AudioStatus = {
 	reconnect_attempts?: number,
 	/**  Why the engine is not running, if it is not. */
 	error: string | null,
+	/**
+	 *  Something to tell the user while the engine runs: the chosen output
+	 *  could not be opened and the system default plays instead.
+	 */
+	notice?: string | null,
 };
 
 /**  A Beat FX unit. */
