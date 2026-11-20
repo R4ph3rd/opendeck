@@ -21,9 +21,11 @@ use opendeck_contracts::{
     Bpm, DeckId, EngineCommand, EngineEvent, EngineTelemetry, Gain, HOT_CUES_PER_DECK, MAX_DECKS,
     MVP_DECKS, SampleRate, Seconds,
 };
-use opendeck_engine::device::{AudioOutput, device_present, input_device_present, open_output};
+use opendeck_engine::device::{
+    AudioOutput, OpenedOutput, device_present, input_device_present, open_output_recovering,
+};
 use opendeck_engine::{
-    EngineConfig, EngineHandle, OfflineRenderer, Reopener, ToneOutput, TrackBuffer,
+    EngineConfig, EngineHandle, OfflineRenderer, Reopener, ToneOutput, TrackBuffer, release_then,
 };
 use opendeck_library::{Library, SavedSetEntry, now_ms};
 
@@ -519,6 +521,7 @@ fn status_of(output: &AudioOutput, backend: Backend) -> AudioStatus {
         input_prefill_frames: info.input.as_ref().map(|i| i.prefill_frames),
         input_error: info.input_error.clone(),
         xruns: output.xruns(),
+        notice: info.fallback.as_ref().map(|f| f.notice(&info.device)),
         ..AudioStatus::default()
     }
 }
@@ -1196,6 +1199,11 @@ impl Control {
         info: TrackInfo,
         grid: Option<BeatGrid>,
     ) -> Result<(), CoreError> {
+        if self.engine.is_none() && self.reopen.is_waiting() {
+            // Loading is not the first start (the engine opens at launch), but
+            // it is a good moment to try again: the device may be free now.
+            self.attempt_reopen(Instant::now());
+        }
         let Some(engine) = self.engine.as_mut() else {
             return Err(CoreError::NoEngine(
                 self.status
@@ -1539,6 +1547,12 @@ impl Control {
         if self.engine.is_some() || !self.reopen.due(now) {
             return;
         }
+        self.attempt_reopen(now);
+    }
+
+    /// One reopen attempt, due or not (a load request does not wait for the
+    /// backoff): waits for the device by name, then restarts the engine.
+    fn attempt_reopen(&mut self, now: Instant) {
         let settings = self.settings.audio.clone();
         let present = !matches!(self.opts.backend, Backend::Device) || device_present(&settings);
         let result = if present {
@@ -1679,8 +1693,20 @@ impl Control {
         };
         let (engine, status) = match self.opts.backend {
             Backend::Device => {
-                let (output, handle) =
-                    open_output(settings, config).map_err(|e| CoreError::Audio(e.to_string()))?;
+                // The old stream must be gone before the device is opened
+                // again (WASAPI keeps the endpoint client alive until then).
+                let opened = release_then(&mut self.engine, || {
+                    open_output_recovering(settings, config)
+                });
+                let OpenedOutput { output, handle } =
+                    opened.map_err(|e| CoreError::Audio(e.to_string()))?;
+                if let Some(fallback) = &output.info().fallback {
+                    tracing::warn!(
+                        wanted = ?fallback.wanted,
+                        reason = %fallback.reason,
+                        "output device could not be opened, using the system default"
+                    );
+                }
                 let status = status_of(&output, self.opts.backend);
                 (Engine::Device { output, handle }, status)
             }
