@@ -61,7 +61,7 @@ function MasterBpm() {
       <output
         ref={ref}
         aria-label="Master BPM"
-        className="font-mono text-base font-medium tabular-nums text-fg"
+        className="font-mono text-base font-normal tabular-nums text-fg"
         data-testid="master-bpm"
       >
         --

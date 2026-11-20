@@ -45,7 +45,7 @@ export class ErrorBoundary extends Component<Props, State> {
         className="flex h-full items-center justify-center bg-bg p-6 text-fg"
       >
         <div className="flex max-w-lg flex-col gap-4">
-          <h1 id="crash-title" className="text-lg font-semibold">
+          <h1 id="crash-title" className="text-lg font-medium">
             OpenDeck hit a problem
           </h1>
           <Callout variant="danger" title="The interface stopped">
