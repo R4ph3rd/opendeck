@@ -869,3 +869,76 @@ fn a_broken_source_file_fails_the_job_with_a_message() {
     let events = wait_terminal(&r.rx, j, WAIT);
     assert_eq!(last(&events).state, JobState::Failed);
 }
+
+#[test]
+fn stored_analysis_is_reused_after_a_restart_and_survives_a_reimport() {
+    let dir = tmp("reopen");
+    let music = dir.join("music");
+    make_wavs(&music, 3);
+    let db = dir.join(DATABASE_FILE_NAME);
+
+    // First process: import and analyse, then quit.
+    let before: Vec<_> = {
+        let r = rig_with(Library::open(&db).unwrap(), Duration::ZERO, 2);
+        let j = r
+            .mgr
+            .import_folder(&music, ImportOptions::default())
+            .unwrap();
+        wait_terminal(&r.rx, j, WAIT);
+        assert_eq!(r.analyzer.calls(), 3);
+        all_tracks(&r.lib)
+            .into_iter()
+            .map(|t| {
+                let analysis = r.lib.get_analysis(t.id).unwrap().expect("analysed");
+                let peaks = (0..2)
+                    .map(|l| r.lib.get_peaks(t.id, l).unwrap().expect("peaks"))
+                    .collect::<Vec<_>>();
+                (t.id, t.analysis_status, analysis, peaks)
+            })
+            .collect()
+    };
+    assert_eq!(before.len(), 3);
+
+    // Second process: the same file, a fresh analyzer that must never run.
+    let lib = Library::open(&db).unwrap();
+    for (id, status, analysis, peaks) in &before {
+        assert_eq!(*status, AnalysisStatus::Done);
+        assert_eq!(&lib.get_analysis(*id).unwrap().unwrap(), analysis);
+        assert!(analysis.bpm.is_some() && analysis.key.is_some() && analysis.beat_grid.is_some());
+        for (level, blob) in peaks.iter().enumerate() {
+            assert_eq!(&lib.get_peaks(*id, level as u32).unwrap().unwrap(), blob);
+        }
+    }
+    // Nothing is queued for re-analysis by the analyzer that made it.
+    assert!(lib.tracks_needing_analysis("fake", 1).unwrap().is_empty());
+    let r = rig_with(lib, Duration::ZERO, 2);
+    assert!(r.mgr.resume_pending().unwrap().is_empty());
+
+    // Importing the same folder again, a copy under another name and a moved
+    // file all find the existing tracks and keep their analysis.
+    std::fs::copy(music.join("track-00.wav"), music.join("copy-of-0.wav")).unwrap();
+    std::fs::create_dir_all(dir.join("moved")).unwrap();
+    std::fs::rename(music.join("track-02.wav"), dir.join("moved/renamed.wav")).unwrap();
+    for folder in [music.clone(), dir.join("moved")] {
+        let j = r
+            .mgr
+            .import_folder(&folder, ImportOptions::default())
+            .unwrap();
+        let end = wait_terminal(&r.rx, j, WAIT);
+        assert_eq!(last(&end).items_done, 0, "no new track in {folder:?}");
+    }
+    assert_eq!(r.analyzer.calls(), 0, "the analyzer never ran again");
+    let after = all_tracks(&r.lib);
+    assert_eq!(after.len(), 3, "no duplicate rows");
+    for (id, _, analysis, peaks) in &before {
+        let row = after.iter().find(|t| t.id == *id).expect("same id");
+        assert_eq!(row.analysis_status, AnalysisStatus::Done);
+        assert_eq!(&r.lib.get_analysis(*id).unwrap().unwrap(), analysis);
+        assert_eq!(&r.lib.get_peaks(*id, 0).unwrap().unwrap(), &peaks[0]);
+    }
+    let moved = after
+        .iter()
+        .find(|t| t.path.ends_with("renamed.wav"))
+        .expect("the moved file kept its row");
+    assert_eq!(moved.analysis_status, AnalysisStatus::Done);
+}

@@ -5,6 +5,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Instant;
 
+use opendeck_contracts::preview::PreviewTelemetry;
 use opendeck_contracts::telemetry::{EngineEvent, EngineTelemetry};
 use opendeck_contracts::{DeckId, EngineCommand, FxSlotId, FxUnit, MAX_DECKS, SamplerSlotId};
 use rtrb::{Consumer, Producer};
@@ -14,6 +15,7 @@ use crate::deck::{Deck, DeckStatus, EventSink};
 use crate::fx::{FxHandoff, FxHost, FxSlotStatus, FxUnitStatus, FxView, SlotRt};
 use crate::inputs::{InputRt, InputShared};
 use crate::mixer::Mixer;
+use crate::preview::Preview;
 use crate::sampler::{Sampler, SamplerSlotStatus};
 use crate::sync::SyncState;
 use crate::tone::ToneRt;
@@ -38,6 +40,7 @@ pub struct EngineCore {
     decks: Vec<Deck>,
     mixer: Mixer,
     sampler: Sampler,
+    preview: Preview,
     inputs: InputRt,
     tone: ToneRt,
     sync: SyncState,
@@ -93,6 +96,7 @@ impl EngineCore {
             decks,
             mixer: Mixer::new(config.sample_rate.as_f64(), max_block),
             sampler: Sampler::new(config.sample_rate, max_block, config.interpolation),
+            preview: Preview::new(config.sample_rate, max_block),
             inputs: InputRt::new(
                 rings.input,
                 rings.input_shared,
@@ -141,6 +145,14 @@ impl EngineCore {
     /// read for offline tools and tests.
     pub fn sampler_status(&self, slot: SamplerSlotId) -> SamplerSlotStatus {
         self.sampler.status(slot)
+    }
+
+    /// State of the preview voice as of the last rendered block. Same-thread
+    /// read for offline tools and tests.
+    pub fn preview_status(&self) -> PreviewTelemetry {
+        let mut snapshot = EngineTelemetry::default();
+        self.preview.fill_telemetry(&mut snapshot);
+        snapshot.preview
     }
 
     /// State of one FX slot as of the last rendered block. Same-thread read
@@ -266,7 +278,23 @@ impl EngineCore {
         }
         self.fx.process_master(out);
         self.inputs.mix_into(out);
-        self.mixer.finish(out, headphones, booth);
+        if let Some(old) = self.preview.take_finished() {
+            self.return_buffer(old);
+        }
+        self.preview.render(frames);
+        let mut cue_preview = None;
+        if self.preview.is_active() {
+            let bus = self.preview.bus(frames);
+            if self.preview.to_master() {
+                // No headphone pair: the preview joins the master, before the master level.
+                for (m, p) in out.iter_mut().zip(bus) {
+                    *m += *p;
+                }
+            } else {
+                cue_preview = Some(bus);
+            }
+        }
+        self.mixer.finish(out, headphones, booth, cue_preview);
         self.tone.process(out, headphones, booth);
 
         self.engine_time = self.engine_time.saturating_add(frames as u64);
@@ -302,6 +330,7 @@ impl EngineCore {
         }
         self.fx.fill_telemetry(&mut snapshot);
         self.sampler.fill_telemetry(&mut snapshot);
+        self.preview.fill_telemetry(&mut snapshot);
         // A full ring means the reader is behind; the next snapshot is complete anyway.
         if self.telemetry.push(snapshot).is_ok() {
             self.sequence = self.sequence.wrapping_add(1);
@@ -415,6 +444,15 @@ impl EngineCore {
                         self.return_buffer(old);
                     }
                 }
+                Ok(Handoff::Preview {
+                    track,
+                    token,
+                    fraction,
+                }) => {
+                    if let Some(old) = self.preview.load(track, token, fraction) {
+                        self.return_buffer(old);
+                    }
+                }
                 Err(_) => return,
             }
         }
@@ -432,6 +470,7 @@ impl EngineCore {
             || self.inputs.apply(command)
             || self.fx.apply(command)
             || self.sampler.apply(command)
+            || self.preview.apply(command)
         {
             return;
         }

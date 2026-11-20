@@ -484,7 +484,15 @@ impl Mixer {
     /// Applies the master level to `master` (in place), renders the booth
     /// bus (the master after its level, times the booth level) into `booth`
     /// and the headphone bus into `headphones`. All are interleaved stereo.
-    pub(crate) fn finish(&mut self, master: &mut [f32], headphones: &mut [f32], booth: &mut [f32]) {
+    /// `preview` (same length) joins the headphone bus after the blend and the
+    /// split cue, before the headphone level.
+    pub(crate) fn finish(
+        &mut self,
+        master: &mut [f32],
+        headphones: &mut [f32],
+        booth: &mut [f32],
+        preview: Option<&[f32]>,
+    ) {
         let n = master.len() / 2;
         let (start, step) = self.master.advance(n);
         for (i, frame) in master.chunks_exact_mut(2).enumerate() {
@@ -531,8 +539,14 @@ impl Mixer {
             let (s, level) = (spl0 + spl_step * t, lvl0 + lvl_step * t);
             let split_l = 0.5 * (c[0] + c[1]);
             let split_r = 0.5 * (m[0] + m[1]);
-            let l = (c[0] * gc + m[0] * gm) * (1.0 - s) + split_l * s;
-            let r = (c[1] * gc + m[1] * gm) * (1.0 - s) + split_r * s;
+            let (pl, pr) = preview.map_or((0.0, 0.0), |p| {
+                (
+                    p.get(i * 2).copied().unwrap_or(0.0),
+                    p.get(i * 2 + 1).copied().unwrap_or(0.0),
+                )
+            });
+            let l = (c[0] * gc + m[0] * gm) * (1.0 - s) + split_l * s + pl;
+            let r = (c[1] * gc + m[1] * gm) * (1.0 - s) + split_r * s + pr;
             out[0] = guard(l * level);
             out[1] = guard(r * level);
         }

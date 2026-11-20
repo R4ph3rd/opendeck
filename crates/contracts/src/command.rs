@@ -465,6 +465,26 @@ pub enum EngineCommand {
         /// `true` to monitor the sampler in the headphones.
         on: bool,
     },
+
+    // ----- Track preview -----
+    /// Starts the preview voice at `fraction` of the loaded preview buffer
+    /// (`0` = start, `1` = end; clamped, NaN counts as 0) and plays. A buffer
+    /// reaches the voice through the engine's hand-off ring
+    /// (`EngineHandle::load_preview`); without one this does nothing. A voice
+    /// that is already sounding jumps with a short fade.
+    PreviewPlay {
+        /// Position as a fraction of the buffer length.
+        fraction: f32,
+    },
+    /// Stops the preview voice (short fade). The buffer stays loaded.
+    PreviewStop,
+    /// Where the preview is heard. `false` (default): on the headphone cue
+    /// bus. `true`: on the master at a reduced level, for a device with no
+    /// headphone pair. The control side sets it from the device routing.
+    SetPreviewToMaster {
+        /// `true` to send the preview to the master instead of the headphones.
+        on: bool,
+    },
 }
 
 #[cfg(test)]

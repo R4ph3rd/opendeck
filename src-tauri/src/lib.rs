@@ -16,11 +16,11 @@ use opendeck_app_core::{
     ImportOptionsDto, InputState, JobInfo, LaunchOptions, LibraryChange, LibraryEvent,
     LibraryService, MidiBindingDto, MidiEvent, MidiLearnResultDto, MidiMappingRowDto,
     MidiMonitorEntryDto, MidiPortDto, MidiService, MidiStatusDto, PadEvent, PadModeChanged,
-    PadStateDto, PlaylistEntryDto, PlaylistNodeDto, PluginService, PluginsStateDto, SamplerLayout,
-    SamplerSlotPatch, SamplerStateDto, SavedSetDetailDto, SavedSetDto, SettingsStore,
-    TestToneOutput, TrackAnalysisDto, TrackDetailDto, TrackInfo, TrackLoadFailed, TrackLoaded,
-    TrackMetaDto, TrackPageDto, TrackQueryDto, build_diagnostics, check_and_recover, get_pref,
-    recent_errors, reset_prefs, set_pref, unix_stamp,
+    PadStateDto, PlaylistEntryDto, PlaylistNodeDto, PluginService, PluginsStateDto, PreviewFailed,
+    SamplerLayout, SamplerSlotPatch, SamplerStateDto, SavedSetDetailDto, SavedSetDto,
+    SettingsStore, TestToneOutput, TrackAnalysisDto, TrackDetailDto, TrackInfo, TrackLoadFailed,
+    TrackLoaded, TrackMetaDto, TrackPageDto, TrackQueryDto, build_diagnostics, check_and_recover,
+    get_pref, recent_errors, reset_prefs, set_pref, unix_stamp,
 };
 use opendeck_contracts::analysis::AnalysisFeatures;
 use opendeck_contracts::beatgrid::BeatGrid;
@@ -275,6 +275,30 @@ async fn load_track(
 ) -> Result<TrackInfo, CommandError> {
     let library = state.library()?;
     blocking(move || library.load_track(deck, track)).await
+}
+
+/// Auditions a library track on the preview voice (headphones, or the master
+/// at a reduced level when the device has no headphone pair), starting at
+/// `fraction` (`0..=1`) of the track. Returns the preview token: the engine
+/// telemetry's `preview.token` equals it while this track is the loaded one.
+/// A decode failure arrives as `preview-failed`.
+#[tauri::command]
+#[specta::specta]
+async fn preview_track(
+    state: tauri::State<'_, AppState>,
+    track: TrackId,
+    fraction: f32,
+) -> Result<u32, CommandError> {
+    let library = state.library()?;
+    blocking(move || library.preview_track(track, fraction)).await
+}
+
+/// Stops the track preview.
+#[tauri::command]
+#[specta::specta]
+async fn preview_stop(state: tauri::State<'_, AppState>) -> Result<(), CommandError> {
+    let library = state.library()?;
+    blocking(move || library.preview_stop()).await
 }
 
 /// Loads a file that may not be in the library (drag from the file explorer):
@@ -1831,6 +1855,11 @@ pub struct TrackLoadedEvent(pub TrackLoaded);
 #[tauri_specta(event_name = "track-load-failed")]
 pub struct TrackLoadFailedEvent(pub TrackLoadFailed);
 
+/// A track preview could not be decoded.
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+#[tauri_specta(event_name = "preview-failed")]
+pub struct PreviewFailedEvent(pub PreviewFailed);
+
 /// A deck's hot cue slots changed (set, deleted, track loaded or ejected).
 #[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
 #[tauri_specta(event_name = "hot-cues-changed")]
@@ -1997,6 +2026,8 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             supported_audio_extensions,
             load_track,
             load_track_path,
+            preview_track,
+            preview_stop,
             eject_track,
             set_playing,
             toggle_playing,
@@ -2144,6 +2175,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             EngineEventEvent,
             TrackLoadedEvent,
             TrackLoadFailedEvent,
+            PreviewFailedEvent,
             HotCuesChangedEvent,
             AudioDeviceChangedEvent,
             ImportProgressEvent,
@@ -2182,6 +2214,7 @@ fn forward_events(app: tauri::AppHandle, events: crossbeam_channel::Receiver<Cor
             CoreEvent::Engine(e) => EngineEventEvent(e).emit(&app),
             CoreEvent::TrackLoaded(t) => TrackLoadedEvent(t).emit(&app),
             CoreEvent::TrackLoadFailed(f) => TrackLoadFailedEvent(f).emit(&app),
+            CoreEvent::PreviewFailed(f) => PreviewFailedEvent(f).emit(&app),
             CoreEvent::HotCues(h) => HotCuesChangedEvent(h).emit(&app),
             CoreEvent::CuesChanged(t) => CuesChangedEvent(t).emit(&app),
             CoreEvent::AudioStatus(s) => AudioDeviceChangedEvent(s).emit(&app),
@@ -2435,6 +2468,7 @@ mod tests {
             .typ::<jobs::JobProgress>()
             .typ::<analysis::AnalysisFeatures>()
             .typ::<analysis::Loudness>()
+            .typ::<opendeck_contracts::preview::PreviewTelemetry>()
             .typ::<settings::AudioSettings>();
         let dir = std::env::temp_dir().join(format!("opendeck-dtos-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("temp dir");
@@ -2937,6 +2971,16 @@ mod tests {
         let info = tauri::async_runtime::block_on(load_track(app.state(), deck_a(), row.id))
             .expect("load by id");
         assert_eq!(info.id, Some(row.id));
+
+        // Preview: queued at once, stoppable, and an unknown track is refused.
+        let token = tauri::async_runtime::block_on(preview_track(app.state(), row.id, 0.5))
+            .expect("preview");
+        assert_ne!(token, 0);
+        tauri::async_runtime::block_on(preview_stop(app.state())).expect("stop preview");
+        assert!(matches!(
+            tauri::async_runtime::block_on(preview_track(app.state(), TrackId(987_654), 0.0)),
+            Err(CommandError::Invalid(_))
+        ));
 
         // No artwork in a generated WAV: an empty payload, not an error.
         assert!(tauri::async_runtime::block_on(get_artwork(app.state(), row.id)).is_ok());
