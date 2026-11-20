@@ -41,6 +41,16 @@ export const commands = {
 	 *  imports it, then loads the new track by id.
 	 */
 	loadTrackPath: (deck: DeckId, path: string) => typedError<TrackInfo, CommandError>(__TAURI_INVOKE("load_track_path", { deck, path })),
+	/**
+	 *  Auditions a library track on the preview voice (headphones, or the master
+	 *  at a reduced level when the device has no headphone pair), starting at
+	 *  `fraction` (`0..=1`) of the track. Returns the preview token: the engine
+	 *  telemetry's `preview.token` equals it while this track is the loaded one.
+	 *  A decode failure arrives as `preview-failed`.
+	 */
+	previewTrack: (track: TrackId, fraction: number | null) => typedError<number, CommandError>(__TAURI_INVOKE("preview_track", { track, fraction })),
+	/**  Stops the track preview. */
+	previewStop: () => typedError<null, CommandError>(__TAURI_INVOKE("preview_stop")),
 	/**  Unloads a deck. */
 	ejectTrack: (deck: DeckId) => typedError<null, CommandError>(__TAURI_INVOKE("eject_track", { deck })),
 	/**  Starts or stops playback. */
@@ -383,6 +393,7 @@ export const events = {
 	padModeChanged: makeEvent<PadModeChangedEvent, PadModeChangedEvent>("pad-mode-changed"),
 	padStateChanged: makeEvent<PadStateChangedEvent, PadStateChangedEvent>("pad-state-changed"),
 	pluginsChanged: makeEvent<PluginsChangedEvent, PluginsChangedEvent>("plugins-changed"),
+	previewFailed: makeEvent<PreviewFailedEvent, PreviewFailedEvent>("preview-failed"),
 	samplerStateChanged: makeEvent<SamplerStateChangedEvent, SamplerStateChangedEvent>("sampler-state-changed"),
 	trackLoadFailed: makeEvent<TrackLoadFailedEvent, TrackLoadFailedEvent>("track-load-failed"),
 	trackLoaded: makeEvent<TrackLoadedEvent, TrackLoadedEvent>("track-loaded"),
@@ -1333,6 +1344,8 @@ export type EngineTelemetry = {
 	sampler: [SamplerSlotTelemetry, SamplerSlotTelemetry, SamplerSlotTelemetry, SamplerSlotTelemetry, SamplerSlotTelemetry, SamplerSlotTelemetry, SamplerSlotTelemetry, SamplerSlotTelemetry, SamplerSlotTelemetry, SamplerSlotTelemetry, SamplerSlotTelemetry, SamplerSlotTelemetry, SamplerSlotTelemetry, SamplerSlotTelemetry, SamplerSlotTelemetry, SamplerSlotTelemetry],
 	/**  Sampler bus level (after slot gains and the sampler level). */
 	sampler_meter: StereoMeter,
+	/**  Track preview voice. */
+	preview: PreviewTelemetry,
 	/**  Current sync leader. See `EngineCommand::SetLeader` for the election. */
 	leader: DeckId | null,
 	/**  Callback time divided by block duration, smoothed, `0..` (1.0 = overrun). */
@@ -2396,6 +2409,38 @@ export type PluginsStateDto = {
 	default_folders: string[],
 	/**  The `opendeck-plugin-scan` binary was found next to the app. */
 	scanner_available: boolean,
+};
+
+/**  A track preview could not start (unreadable file, unsupported format). */
+export type PreviewFailed = {
+	/**  Library track the preview was for. */
+	track: TrackId,
+	/**  Human-readable reason. */
+	message: string,
+};
+
+/**  A track preview could not be decoded. */
+export type PreviewFailedEvent = PreviewFailed;
+
+/**  State of the preview voice at the end of a block. RT-safe. */
+export type PreviewTelemetry = {
+	/**  A buffer is loaded in the preview voice. */
+	loaded: boolean,
+	/**
+	 *  The voice is sounding. It turns `false` at the end of the track or
+	 *  after `PreviewStop`.
+	 */
+	playing: boolean,
+	/**
+	 *  Identifies the loaded buffer: the value the control side gave when it
+	 *  handed the buffer over. Lets the UI tell its own track from a previous
+	 *  one while a new buffer is still decoding. `0` when nothing was loaded.
+	 */
+	token: number,
+	/**  Playhead in engine frames; 0 when nothing is loaded. */
+	position: Frames,
+	/**  Length of the loaded buffer in engine frames; 0 when nothing is loaded. */
+	duration: Frames,
 };
 
 /**  A sample rate in Hz. Invariant: `> 0` wherever it is used as a divisor. */

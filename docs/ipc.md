@@ -30,6 +30,8 @@ The `M` column follows the milestone table in `docs/STATUS.md`: M1 engine with o
 | `get_deck_state` **done** | `deck: DeckId` | `DeckState`; control state only (tempo, sync, quantize, slip, vinyl, leader, loop, pad mode). `track`, `cue_point`, `beat_grid`, `track_key` stay `None`: a deck's track, BPM and key come from `TrackInfo` (`track-loaded`) | 2 |
 | `load_track` **done** | `deck: DeckId, track: TrackId` | `TrackInfo` *shell* (library tags, `id`, analysed `bpm`, `key`, `key_musical`); the stored beat grid, hot cues and memory cues go with the load, the track counts as played and joins the session's saved set; decode runs on the loader thread, then `track-loaded` or `track-load-failed` | 3 |
 | `load_track_path` **done** | `deck: DeckId, path: String` | `TrackInfo`; for files not yet imported (drag from the file explorer): imports the file, then loads it by id. A file the importer refuses loads straight from the path, without analysis. The grid reaches the deck with `analysis-ready` when analysis finishes after the load | 3 |
+| `preview_track` **done** | `track: TrackId, fraction: f32` | `u32` preview token. Auditions a library track on the engine preview voice (headphones, or the master at -12 dB without a headphone pair), starting at `fraction` (`0..1`, clamped) of the track. The first call decodes on the loader thread; a later call for the same track jumps inside the held buffer. `EngineTelemetry::preview.token` equals the token while that track's buffer is loaded; a decode failure arrives as `preview-failed` | |
+| `preview_stop` **done** | none | `()`; fades the preview out, the buffer stays | |
 | `eject_track` **done** | `deck: DeckId` | `()` | 1 |
 | `set_playing` **done** | `deck, playing: bool` | `()` | 1 |
 | `toggle_playing` **done** | `deck` | `()`; flips on the control thread's newest telemetry (space bar, PLAY) | 1 |
@@ -212,6 +214,7 @@ The FX model sits on the engine FX units (ADR 0006): two FLX4-style Beat FX unit
 | `engine-event` **done** | `EngineEvent` (audio thread events plus `device_lost`, `device_changed`, `stream_error`) | on change | 1 |
 | `track-loaded` **done** | `TrackLoaded` *shell* (deck, `TrackInfo` with library id, BPM and key, frames) | once per load | 1 |
 | `track-load-failed` **done** | `TrackLoadFailed` *shell* (deck, path, message) | once per failed load | 1 |
+| `preview-failed` **done** | `PreviewFailed` (track, message) | once per preview that could not be decoded | |
 | `deck-state-changed` **done** | `DeckState` | when the controller changed it (read at 4 Hz and after button presses); UI-driven changes are read with `get_deck_state` | 6 |
 | `mixer-state-changed` **done** | `MixerState` | on change, MIDI-driven moves only (at most 4 Hz) | 6 |
 | `audio-device-changed` **done** | `AudioStatus` (running, device, rate, buffer, error) | on change | 1 |
